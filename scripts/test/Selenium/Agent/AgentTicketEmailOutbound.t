@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -150,7 +150,6 @@ $Selenium->RunTest(
             'RichText',
             'FileUpload',
             'ComposeStateID',
-            'ArticleTypeID',
             'submitRichText',
             $TestDynamicField
         );
@@ -193,24 +192,33 @@ $Selenium->RunTest(
 
         $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("li.ui-menu-item:visible").length' );
 
-        $Selenium->find_element("//*[text()='$TestCustomer']")->VerifiedClick();
-        $Selenium->find_element( "#Subject",    'css' )->send_keys("TestSubject");
-        $Selenium->find_element( "#ToCustomer", 'css' )->VerifiedSubmit();
+        $Selenium->execute_script("\$('li.ui-menu-item:contains($TestCustomer)').click()");
+        $Selenium->find_element( "#Subject",        'css' )->send_keys("TestSubject");
+        $Selenium->find_element( "#submitRichText", 'css' )->VerifiedClick();
 
         # navigate to AgentTicketHistory of created test ticket
         $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentTicketHistory;TicketID=$TicketID");
 
         # confirm email outbound action
         $Self->True(
-            index( $Selenium->get_page_source(), "Email sent to customer." ) > -1,
-            "Ticket email outbound completed",
-        ) || die "Ticket email outbound not completed";
+            index( $Selenium->get_page_source(), 'Sent email to customer.' ) > -1,
+            'Ticket email outbound completed'
+        );
 
         # delete created test tickets
         my $Success = $TicketObject->TicketDelete(
             TicketID => $TicketID,
             UserID   => $TestUserID,
         );
+
+        # Ticket deletion could fail if apache still writes to ticket history. Try again in this case.
+        if ( !$Success ) {
+            sleep 3;
+            $Success = $TicketObject->TicketDelete(
+                TicketID => $TicketID,
+                UserID   => 1,
+            );
+        }
         $Self->True(
             $Success,
             "TicketID $TicketID is deleted",

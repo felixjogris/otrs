@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -172,10 +172,7 @@ sub CustomerPreferencesForm {
         next GROUP if !$PreferencesGroup;
         next GROUP if ref $PreferencesGroup ne 'HASH';
 
-        #$PreferencesGroup->{Column} ||= '';
         $PreferencesGroup->{Prio} ||= 9999;
-
-        #next GROUP if $PreferencesGroup->{Column} ne $Column;
 
         if ( $Data{ $PreferencesGroup->{Prio} } ) {
 

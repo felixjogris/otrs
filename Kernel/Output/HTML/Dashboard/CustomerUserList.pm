@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -154,14 +154,21 @@ sub Run {
         }
     }
 
-    # show add new customer button if there are writable customer backends and if
-    # the agent has permission
-    my $AddAccess = $LayoutObject->Permission(
-        Action => 'AdminCustomerUser',
-        Type   => 'rw',                  # ro|rw possible
-    );
+    # Show add new customer button if:
+    #   - The agent has permission to use the module
+    #   - There are writable customer backends
+    my $AddAccess;
 
-    # get writable data sources
+    TYPE:
+    for my $Permission (qw(ro rw)) {
+        $AddAccess = $LayoutObject->Permission(
+            Action => 'AdminCustomerUser',
+            Type   => $Permission,
+        );
+        last TYPE if $AddAccess;
+    }
+
+    # Get writable data sources.
     my %CustomerSource = $CustomerUserObject->CustomerSourceList(
         ReadOnly => 0,
     );
@@ -173,6 +180,8 @@ sub Run {
                 CustomerID => $Self->{CustomerID},
             },
         );
+
+        $Self->{EditCustomerPermission} = 1;
     }
 
     # get the permission for the phone ticket creation
@@ -209,32 +218,11 @@ sub Run {
             Name => 'ContentLargeCustomerUserListRow',
             Data => {
                 %Param,
-                CustomerKey       => $CustomerKey,
-                CustomerListEntry => $CustomerIDs->{$CustomerKey},
+                EditCustomerPermission => $Self->{EditCustomerPermission},
+                CustomerKey            => $CustomerKey,
+                CustomerListEntry      => $CustomerIDs->{$CustomerKey},
             },
         );
-
-        # can edit?
-        if ( $AddAccess && scalar keys %CustomerSource ) {
-            $LayoutObject->Block(
-                Name => 'ContentLargeCustomerUserListRowCustomerKeyLink',
-                Data => {
-                    %Param,
-                    CustomerKey       => $CustomerKey,
-                    CustomerListEntry => $CustomerIDs->{$CustomerKey},
-                },
-            );
-        }
-        else {
-            $LayoutObject->Block(
-                Name => 'ContentLargeCustomerUserListRowCustomerKeyText',
-                Data => {
-                    %Param,
-                    CustomerKey       => $CustomerKey,
-                    CustomerListEntry => $CustomerIDs->{$CustomerKey},
-                },
-            );
-        }
 
         if ( $ConfigObject->Get('ChatEngine::Active') ) {
 
@@ -365,7 +353,7 @@ sub Run {
         );
 
         my $TicketCountClosed = $TicketObject->TicketSearch(
-            StateType            => 'closed',
+            StateType            => 'Closed',
             CustomerUserLoginRaw => $CustomerKey,
             Result               => 'COUNT',
             Permission           => $Self->{Config}->{Permission},
@@ -444,7 +432,7 @@ sub Run {
                 NameHTML    => $NameHTML,
                 RefreshTime => $Refresh,
                 CustomerID  => $Param{CustomerID},
-                }
+            },
         );
     }
 
@@ -452,7 +440,8 @@ sub Run {
         TemplateFile => 'AgentDashboardCustomerUserList',
         Data         => {
             %{ $Self->{Config} },
-            Name => $Self->{Name},
+            EditCustomerPermission => $Self->{EditCustomerPermission},
+            Name                   => $Self->{Name},
         },
         AJAX => $Param{AJAX},
     );

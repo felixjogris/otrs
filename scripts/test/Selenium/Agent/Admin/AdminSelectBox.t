@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,16 +12,14 @@ use utf8;
 
 use vars (qw($Self));
 
-# get selenium object
 my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 
 $Selenium->RunTest(
     sub {
 
-        # get helper object
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
-        # create test user and login
+        # Create test user and login.
         my $TestUserLogin = $Helper->TestUserCreate(
             Groups => ['admin'],
         ) || die "Did not get test user";
@@ -32,15 +30,18 @@ $Selenium->RunTest(
             Password => $TestUserLogin,
         );
 
-        # get script alias
         my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
 
-        # navigate to AdminSelectBox screen
+        # Navigate to AdminSelectBox screen.
         $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AdminSelectBox");
 
-        # empty SQL statement, check client side validation
+        # Empty SQL statement, check client side validation.
         $Selenium->find_element( "#SQL", 'css' )->clear();
-        $Selenium->find_element( "#SQL", 'css' )->VerifiedSubmit();
+        $Selenium->find_element( "#Run", 'css' )->click();
+        $Selenium->WaitFor(
+            JavaScript => "return typeof(\$) === 'function' && \$('#SQL.Error').length"
+        );
+
         $Self->Is(
             $Selenium->execute_script(
                 "return \$('#SQL').hasClass('Error')"
@@ -49,10 +50,11 @@ $Selenium->RunTest(
             'Client side validation correctly detected missing input value for #SQL',
         );
 
-        # wrong SQL statement, check server side validation
+        # Wrong SQL statement, check server side validation.
         $Selenium->find_element( "#SQL", 'css' )->clear();
         $Selenium->find_element( "#SQL", 'css' )->send_keys("SELECT * FROM");
-        $Selenium->find_element( "#SQL", 'css' )->VerifiedSubmit();
+        $Selenium->find_element( "#Run", 'css' )->VerifiedClick();
+
         $Self->Is(
             $Selenium->execute_script(
                 "return \$('#SQL').hasClass('ServerError')"
@@ -61,12 +63,20 @@ $Selenium->RunTest(
             'Server side validation correctly detected missing input value for #SQL',
         );
 
-        # correct SQL statement
+        $Selenium->WaitFor(
+            JavaScript => "return typeof(\$) === 'function' && \$('.Dialog.Modal #DialogButton1').length"
+        );
+        $Selenium->find_element( "#DialogButton1", 'css' )->click();
+        $Selenium->WaitFor(
+            JavaScript => "return !\$('.Dialog.Modal').length"
+        );
+
+        # Correct SQL statement.
         $Selenium->find_element( "#SQL", 'css' )->clear();
         $Selenium->find_element( "#SQL", 'css' )->send_keys("SELECT * FROM valid");
-        $Selenium->find_element( "#SQL", 'css' )->VerifiedSubmit();
+        $Selenium->find_element( "#Run", 'css' )->VerifiedClick();
 
-        # verify results
+        # Verify results.
         my @Elements = $Selenium->find_elements( 'table thead tr', 'css' );
         $Self->Is(
             scalar @Elements,

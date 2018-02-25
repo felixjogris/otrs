@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -109,12 +109,20 @@ $Selenium->RunTest(
         # input test user in search CustomerID
         $Selenium->find_element( "#ToolBarCICSearchCustomerID", 'css' )->send_keys($TestCustomerID);
         $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("li.ui-menu-item:visible").length' );
-        $Selenium->find_element("//*[text()='$TestCustomerID']")->VerifiedClick();
+        $Selenium->execute_script("\$('li.ui-menu-item:contains($TestCustomerID)').click()");
 
-        # verify search
+        $Selenium->WaitFor(
+            JavaScript => "return typeof(\$) === 'function' &&  \$('tbody a:contains($TestCustomerLogin)').length;"
+        );
+
         $Self->True(
-            index( $Selenium->get_page_source(), $TestCustomerLogin ) > -1,
+            $Selenium->execute_script("return \$('tbody a:contains($TestCustomerLogin)').length;"),
             "Search by CustomerID success - found $TestCustomerLogin",
+        );
+
+        $Self->True(
+            $Selenium->find_element( '#CustomerInformationCenterHeading', 'css' ),
+            "Check heading for CustomerInformationCenter",
         );
 
         # get DB object

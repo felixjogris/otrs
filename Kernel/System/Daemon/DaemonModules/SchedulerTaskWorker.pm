@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -15,17 +15,17 @@ use utf8;
 use File::Path qw();
 use Time::HiRes qw(sleep);
 
-use base qw(Kernel::System::Daemon::BaseDaemon);
+use parent qw(Kernel::System::Daemon::BaseDaemon);
 
 our @ObjectDependencies = (
     'Kernel::Config',
     'Kernel::System::DB',
     'Kernel::System::Daemon::SchedulerDB',
+    'Kernel::System::DateTime',
     'Kernel::System::Cache',
     'Kernel::System::Log',
     'Kernel::System::Main',
     'Kernel::System::Storable',
-    'Kernel::System::Time',
 );
 
 =head1 NAME
@@ -54,11 +54,11 @@ sub new {
     # Get objects in constructor to save performance.
     $Self->{ConfigObject}      = $Kernel::OM->Get('Kernel::Config');
     $Self->{CacheObject}       = $Kernel::OM->Get('Kernel::System::Cache');
-    $Self->{TimeObject}        = $Kernel::OM->Get('Kernel::System::Time');
     $Self->{MainObject}        = $Kernel::OM->Get('Kernel::System::Main');
     $Self->{DBObject}          = $Kernel::OM->Get('Kernel::System::DB');
     $Self->{StorableObject}    = $Kernel::OM->Get('Kernel::System::Storable');
     $Self->{SchedulerDBObject} = $Kernel::OM->Get('Kernel::System::Daemon::SchedulerDB');
+    $Self->{DateTimeObject}    = $Kernel::OM->Create('Kernel::System::DateTime');
 
     # Disable in memory cache to be clusterable.
     $Self->{CacheObject}->Configure(
@@ -79,7 +79,8 @@ sub new {
     }
 
     # Get pid directory.
-    $Self->{PIDDir}  = $Self->{ConfigObject}->Get('Home') . '/var/run/Daemon/Scheduler/';
+    my $BaseDir = $Self->{ConfigObject}->Get('Daemon::PID::Path') || $Self->{ConfigObject}->Get('Home') . '/var/run/';
+    $Self->{PIDDir}  = $BaseDir . 'Daemon/Scheduler/';
     $Self->{PIDFile} = $Self->{PIDDir} . "Worker-NodeID-$Self->{NodeID}.pid";
 
     # Check pid hash and pid file.
@@ -148,23 +149,8 @@ sub Run {
         # At the child, execute task.
         if ( !$PID ) {
 
-            # Define the ZZZ files.
-            my @ZZZFiles = (
-                'ZZZAAuto.pm',
-                'ZZZAuto.pm',
-            );
-
-            # Reload the ZZZ files.
-            for my $ZZZFile (@ZZZFiles) {
-
-                PREFIX:
-                for my $Prefix (@INC) {
-                    my $File = $Prefix . '/Kernel/Config/Files/' . $ZZZFile;
-                    next PREFIX if !-f $File;
-                    do $File;
-                    last PREFIX;
-                }
-            }
+            # Remove the ZZZAAuto.pm from %INC to force reloading it.
+            delete $INC{'Kernel/Config/Files/ZZZAAuto.pm'};
 
             # Destroy objects.
             $Kernel::OM->ObjectsDiscard(
@@ -271,7 +257,7 @@ sub Run {
         $Self->{CurrentWorkers}->{$PID} = {
             PID       => $PID,
             TaskID    => $TaskID,
-            StartTime => $Self->{TimeObject}->SystemTime(),
+            StartTime => $Self->{DateTimeObject}->ToEpoch(),
         };
 
         $Self->{CurrentWorkersCount}++;
@@ -289,10 +275,6 @@ sub PostRun {
     return if !$Self->_WorkerPIDsCheck();
 
     $Self->{DiscardCount}--;
-
-    if ( $Self->{Debug} ) {
-        print "  $Self->{DaemonName} Discard Count: $Self->{DiscardCount}\n";
-    }
 
     # Update task locks and remove expired each 60 seconds.
     if ( !int $Self->{DiscardCount} % ( 60 / $Self->{SleepPost} ) ) {
@@ -314,6 +296,10 @@ sub PostRun {
     # Remove obsolete tasks before destroy.
     if ( $Self->{DiscardCount} == 0 ) {
         $Self->{SchedulerDBObject}->TaskCleanup();
+
+        if ( $Self->{Debug} ) {
+            print "  $Self->{DaemonName} will be stopped and set for restart!\n";
+        }
     }
 
     return if $Self->{DiscardCount} <= 0;

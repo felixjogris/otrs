@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -89,8 +89,9 @@ sub CreateSessionID {
     # create new session id
     my $NewSessionID = $Kernel::OM->Get('Kernel::System::AuthSession')->CreateSessionID(
         %UserData,
-        UserLastRequest => $Kernel::OM->Get('Kernel::System::Time')->SystemTime(),
+        UserLastRequest => $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch(),
         UserType        => $UserType,
+        SessionSource   => 'GenericInterface',
     );
 
     return $NewSessionID if ($NewSessionID);

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -16,7 +16,11 @@ my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 
 $Selenium->RunTest(
     sub {
-
+        $Kernel::OM->ObjectParamAdd(
+            'Kernel::System::UnitTest::Helper' => {
+                DisableAsyncCalls => 1,
+            },
+        );
         my $Helper      = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
         my $GroupObject = $Kernel::OM->Get('Kernel::System::Group');
 
@@ -77,25 +81,53 @@ $Selenium->RunTest(
         $Selenium->find_element( '.SidebarColumn ul.ActionList a#Add',   'css' )->VerifiedClick();
         $Selenium->find_element( 'form#CalendarFrom input#CalendarName', 'css' )->send_keys($CalendarName1);
         $Selenium->execute_script(
-            "return \$('#GroupID').val($GroupID).trigger('redraw.InputField').trigger('change');"
+            "\$('#GroupID').val($GroupID).trigger('redraw.InputField').trigger('change');"
         );
         $Selenium->find_element( 'form#CalendarFrom button#Submit', 'css' )->VerifiedClick();
+
+        # Verify download and copy-to-clipboard links.
+        for my $Class (qw(DownloadLink CopyToClipboard)) {
+            my $Element = $Selenium->find_element( ".$Class", 'css' );
+
+            my $URL;
+            if ( $Class eq 'DownloadLink' ) {
+                $URL = $Element->get_attribute('href');
+            }
+            elsif ( $Class eq 'CopyToClipboard' ) {
+                $URL = $Element->get_attribute('data-clipboard-text');
+            }
+
+            $Self->True(
+                $URL,
+                "$Class URL present"
+            );
+
+            # URL should not contain OTRS specific URL delimiter of semicolon (;).
+            #   For better compatibility, use standard ampersand (&) instead.
+            #   Please see bug#12667 for more information.
+            $Self->False(
+                ( $URL =~ /[;]/ ) ? 1 : 0,
+                "$Class URL does not contain forbidden characters"
+            );
+        }
 
         # Let's try to add calendar with same name.
         $Selenium->find_element( '.SidebarColumn ul.ActionList a#Add',   'css' )->VerifiedClick();
         $Selenium->find_element( 'form#CalendarFrom input#CalendarName', 'css' )->send_keys($CalendarName1);
         $Selenium->execute_script(
-            "return \$('#GroupID').val($GroupID).trigger('redraw.InputField').trigger('change');"
+            "\$('#GroupID').val($GroupID).trigger('redraw.InputField').trigger('change');"
         );
         $Selenium->find_element( 'form#CalendarFrom button#Submit', 'css' )->VerifiedClick();
 
         $Selenium->WaitFor(
             JavaScript => "return typeof(\$) === 'function' && \$('div.Dialog button#DialogButton1').length"
         );
-        $Selenium->find_element( 'div.Dialog button#DialogButton1', 'css' )->VerifiedClick();
+        $Selenium->find_element( 'div.Dialog button#DialogButton1', 'css' )->click();
+        $Selenium->WaitFor(
+            JavaScript => "return typeof(\$) === 'function' && !\$('div.Dialog').length"
+        );
 
         # Update calendar name
-        $Selenium->find_element( 'form#CalendarFrom input#CalendarName', 'css' )->VerifiedClick();
         $Selenium->find_element( 'form#CalendarFrom input#CalendarName', 'css' )->clear();
         $Selenium->find_element( 'form#CalendarFrom input#CalendarName', 'css' )->send_keys($CalendarName2);
 
@@ -103,24 +135,35 @@ $Selenium->RunTest(
         $Selenium->execute_script("\$('#ValidID').val('2').trigger('redraw.InputField').trigger('change');");
 
         # Add ticket appointment rule.
-        $Selenium->find_element( '.WidgetSimple.Collapsed .WidgetAction.Toggle a', 'css' )->VerifiedClick();
-        $Selenium->find_element( '#AddRuleButton',                                 'css' )->VerifiedClick();
         $Selenium->execute_script(
-            "return \$('#QueueID_1').val('$QueueID').trigger('redraw.InputField').trigger('change');"
+            "\$('.WidgetSimple.Collapsed:contains(Ticket Appointments) .WidgetAction.Toggle a').trigger('click')"
+        );
+        $Selenium->WaitFor(
+            JavaScript => "return \$('.WidgetSimple.Expanded:contains(Ticket Appointments)').length"
+        );
+
+        $Selenium->find_element( '#AddRuleButton', 'css' )->click();
+        $Selenium->WaitFor( JavaScript => "return \$('#QueueID_1').length" );
+        $Selenium->execute_script(
+            "\$('#QueueID_1').val('$QueueID').trigger('redraw.InputField').trigger('change');"
         );
 
         # Add title as search parameter.
         $Selenium->execute_script(
-            "return \$('#SearchParams').val('Title').trigger('redraw.InputField').trigger('change');"
+            "\$('#SearchParams').val('Title').trigger('redraw.InputField').trigger('change');"
         );
-        $Selenium->find_element( '.AddButton',                      'css' )->VerifiedClick();
+        $Selenium->find_element( '.AddButton', 'css' )->click();
+        $Selenium->WaitFor(
+            JavaScript => "return \$('#SearchParam_1_Title').length"
+        );
         $Selenium->find_element( '#SearchParam_1_Title',            'css' )->send_keys('Test*');
         $Selenium->find_element( 'form#CalendarFrom button#Submit', 'css' )->VerifiedClick();
 
         # Filter added calendars.
         $Selenium->find_element( 'input#FilterCalendars', 'css' )->send_keys($RandomID);
-
-        sleep 1;
+        $Selenium->WaitFor(
+            JavaScript => "return typeof(\$) === 'function' && \$('.ContentColumn table tbody tr:visible').length === 2"
+        );
 
         # Verify two calendars are shown.
         $Self->Is(
@@ -134,7 +177,9 @@ $Selenium->RunTest(
         # Filter just added calendar.
         $Selenium->find_element( 'input#FilterCalendars', 'css' )->clear();
         $Selenium->find_element( 'input#FilterCalendars', 'css' )->send_keys($CalendarName2);
-        sleep 1;
+        $Selenium->WaitFor(
+            JavaScript => "return typeof(\$) === 'function' && \$('.ContentColumn table tbody tr:visible').length === 1"
+        );
 
         # Verify only one calendar is shown.
         $Self->Is(
@@ -161,7 +206,7 @@ $Selenium->RunTest(
 
         # Set it to invalid-temporarily.
         $Selenium->execute_script(
-            "return \$('#ValidID').val(3).trigger('redraw.InputField').trigger('change');"
+            "\$('#ValidID').val(3).trigger('redraw.InputField').trigger('change');"
         );
 
         # Verify rule has been stored properly.
@@ -181,15 +226,19 @@ $Selenium->RunTest(
         );
 
         # Remove the rule.
-        $Selenium->find_element( '.RemoveButton',                   'css' )->VerifiedClick();
+        $Selenium->find_element( '.RemoveButton', 'css' )->click();
+        $Selenium->WaitFor( JavaScript => "return typeof(\$) === 'function' && !\$('#QueueID_1').length" );
         $Selenium->find_element( 'form#CalendarFrom button#Submit', 'css' )->VerifiedClick();
 
         # Verify the calendar is invalid temporarily.
         $Selenium->find_element( 'input#FilterCalendars', 'css' )->clear();
         $Selenium->find_element( 'input#FilterCalendars', 'css' )->send_keys($CalendarName2);
-        sleep 1;
+        $Selenium->WaitFor(
+            JavaScript => "return typeof(\$) === 'function' && \$('.ContentColumn table tbody tr:visible').length === 1"
+        );
+
         $Self->Is(
-            $Selenium->execute_script("return \$('tbody tr:visible:eq(0) td:eq(3)').text()"),,
+            $Selenium->execute_script("return \$('tbody tr:visible:eq(0) td:eq(3)').text()"),
             $LanguageObject->Translate('invalid-temporarily'),
             'Calendar is marked invalid temporarily',
         );
@@ -249,26 +298,6 @@ $Selenium->RunTest(
             $Success,
             "Deleted test group - $GroupID"
         );
-
-        # Remove scheduled asynchronous tasks from DB, as they may interfere with tests run later.
-        my @TaskIDs;
-        my @AllTasks = $SchedulerDBObject->TaskList(
-            Type => 'AsynchronousExecutor',
-        );
-        for my $Task (@AllTasks) {
-            if ( $Task->{Name} eq 'Kernel::System::Calendar-TicketAppointmentProcessCalendar()' ) {
-                push @TaskIDs, $Task->{TaskID};
-            }
-        }
-        for my $TaskID (@TaskIDs) {
-            my $Success = $SchedulerDBObject->TaskDelete(
-                TaskID => $TaskID,
-            );
-            $Self->True(
-                $Success,
-                "TaskDelete - Removed scheduled asynchronous task $TaskID",
-            );
-        }
 
         # Make sure cache is correct.
         for my $Cache (qw(Calendar Queue)) {

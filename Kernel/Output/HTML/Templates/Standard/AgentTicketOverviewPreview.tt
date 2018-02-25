@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -105,9 +105,17 @@
                         </tr>
 [% RenderBlockEnd("Service") %]
                         <tr>
+[% RenderBlockStart("OwnerResponsible") %]
+[% IF Config('Ticket::Responsible') %]
                             <td>
-                                <label>[% Translate("Owner") | html %]</label><div title="[% Data.UserFirstname | html %] [% Data.UserLastname | html %] ([% Data.Owner | html %])">[% Data.UserFullname | truncate(30) | html %]</div>
+                                <label>[% Translate("Owner") | html %] / [% Translate("Responsible") | html %]</label><div title="[% Data.OwnerFullname | html %] ([% Data.Owner | html %]) / [% Data.ResponsibleFullname | html %] ([% Data.Responsible | html %])">[% Data.OwnerFullname | truncate(30) | html %] / [% Data.ResponsibleFullname | truncate(30) | html %]</div>
                             </td>
+[% ELSE %]
+                            <td>
+                                <label>[% Translate("Owner") | html %]</label><div title="[% Data.OwnerFullname | html %] ([% Data.Owner | html %])">[% Data.OwnerFullname | truncate(30) | html %]</div>
+                            </td>
+[% END %]
+[% RenderBlockEnd("OwnerResponsible") %]
                             <td>
                                 <label>[% Translate("Lock") | html %]</label><div title="[% Translate(Data.Lock) | html %]">[% Translate(Data.Lock) | html %]</div>
                             </td>
@@ -213,35 +221,22 @@
 [% RenderBlockStart("ArticlePreview") %]
                     <li class="[% Data.Class | html %]">
                         <h3>
-                            <a href="#" title="[% Data.From | html %] &ndash; [% Data.Subject | html %] &ndash; [% Data.Created | Localize("TimeShort") %]">
+                            <a href="#" title="[% IF Data.ChannelInvalid %][% Translate("Missing channel") | html %][% ELSE %][% Data.ArticleFields.Sender.Value | html %] &ndash; [% Data.ArticleFields.Subject.Value | html %][% END %] &ndash; [% Data.Created | Localize("TimeShort") %]">
                                 <span class="Headline">
-                                    [% Data.FromRealname | truncate(50) | html %] &ndash;
-                                    <span class="Subject">[% Data.Subject | truncate(70) | html %]</span>
+                                [% IF Data.ChannelInvalid %]
+                                    <i class="fa fa-exclamation-triangle Warning" aria-hidden="true"></i>
+                                    [% Translate("Missing channel") | html %]
+                                [% ELSE %]
+                                    [% Data.ArticleFields.Sender.Value | truncate(50) | html %] &ndash;
+                                    <span class="Subject">[% Data.ArticleFields.Subject.Value | truncate(70) | html %]</span>
+                                [% END %]
                                 </span>
-                                <span class="DateTime">[% Data.Created | Localize("TimeShort") %]</span>
+                                <span class="DateTime">[% Data.ChangeTime | Localize("TimeShort") %]</span>
                                 <span class="Clear"></span>
                             </a>
                         </h3>
                         <div class="HiddenBlock">
-[% RenderBlockStart("ArticlePreviewActionRow") %]
-                            <div class="ActionRow">
-                                <ul class="Actions">
-[% RenderBlockStart("ArticlePreviewActionRowItem") %]
-                                    <li class="[% Data.Class | html %]">
-                                        <form title="[% Translate(Data.Name) | html %]" action="[% Env("CGIHandle") %]" method="post" id="[% Data.FormID | html %]">
-                                            <input type="hidden" name="Action" value="[% Data.Action | html %]"/>
-                                            <input type="hidden" name="TicketID" value="[% Data.TicketID | html %]"/>
-                                            <input type="hidden" name="ArticleID" value="[% Data.ArticleID | html %]"/>
-                                            <input type="hidden" name="ReplyAll" value="[% Data.ReplyAll | html %]"/>
-                                            <label for="ResponseID[% Data.ArticleID | html %]" class="InvisibleText">[% Translate(Data.Name) | html %]:</label>
-                                            [% Data.StandardResponsesStrg %]
-                                        </form>
-                                    </li>
-[% RenderBlockEnd("ArticlePreviewActionRowItem") %]
-                                </ul>
-                                <div class="ClearLeft"></div>
-                            </div>
-[% RenderBlockEnd("ArticlePreviewActionRow") %]
+[% PROCESS ArticleActionMenu.tt %]
                             <div class="Content ArticleBody">
 [% Data.BodyNote %]
 [% Data.Body %]
@@ -276,7 +271,7 @@
 
 [% RenderBlockStart("DocumentMenuItemMoveForm") %]
 <li class="[% Data.Class | html %]">
-    <form title="[% Translate("Move ticket to a different queue") | html %]" action="[% Env("CGIHandle") %]" method="get">
+    <form title="[% Translate("Move ticket to a different queue") | html %]" action="[% Env("CGIHandle") | html %]" method="get">
         <input type="hidden" name="Action" value="AgentTicketMove"/>
         <input type="hidden" name="QueueID" value="[% Data.QueueID | html %]"/>
         <input type="hidden" name="TicketID" value="[% Data.TicketID | html %]"/>

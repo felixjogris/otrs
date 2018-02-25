@@ -1,12 +1,12 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
 # did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 # --
 
-<div class="LightRow Bottom">
+<div class="ItemActions">
     <ul class="Actions">
 
 [% FOREACH Item IN Data.MenuItems.reverse %]
@@ -19,8 +19,8 @@
                     <input type="hidden" name="TicketID" value="[% Data.TicketID | html %]"/>
                     <input type="hidden" name="ArticleID" value="[% Data.ArticleID | html %]"/>
                     <input type="hidden" name="ForwardAll" value="[% Item.ForwardAll | html %]"/>
-                    <label for="[% Item.ForwardElementID | html %]">[% Translate(Item.Name) | html %]:</label>
-                            [% Item.StandardForwardsStrg %]
+                    <label for="[% Item.ForwardElementID | html %]">[% Translate(Item.Name) | html %]</label>
+                    [% Item.StandardForwardsStrg %]
                 </form>
             </li>
         [% ELSIF Item.DropdownType == 'Reply' %]
@@ -30,15 +30,15 @@
                     <input type="hidden" name="TicketID" value="[% Data.TicketID | html %]"/>
                     <input type="hidden" name="ArticleID" value="[% Data.ArticleID | html %]"/>
                     <input type="hidden" name="ReplyAll" value="[% Item.ReplyAll | html %]"/>
-                    <label for="[% Item.ResponseElementID | html %]">[% Translate(Item.Name) | html %]:</label>
-                            [% Item.StandardResponsesStrg %]
+                    <label for="[% Item.ResponseElementID | html %]">[% Translate(Item.Name) | html %]</label>
+                    [% Item.StandardResponsesStrg %]
                 </form>
             </li>
         [% END %]
 
     [% ELSIF Item.ItemType == 'Link' %]
         <li>
-            <a href="[% Env("Baselink") %][% Item.Link %]" class="[% Item.Class | html %]" [% Item.LinkParam %] title="[% Translate(Item.Description) | html %]">[% Translate(Item.Name) | html %]</a>
+            <a href="[% IF Item.Link.match('^(?!(mailto)|(http(s)?):)') %][% Env("Baselink") %][% END %][% Item.Link %]" class="[% Item.Class | html %]" [% Item.LinkParam %] title="[% Translate(Item.Description) | html %]">[% Translate(Item.Name) | html %]</a>
         </li>
     [% END %]
 

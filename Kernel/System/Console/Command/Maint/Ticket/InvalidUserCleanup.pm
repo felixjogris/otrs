@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,13 +11,13 @@ package Kernel::System::Console::Command::Maint::Ticket::InvalidUserCleanup;
 use strict;
 use warnings;
 
-use base qw(Kernel::System::Console::BaseCommand);
+use parent qw(Kernel::System::Console::BaseCommand);
 
 our @ObjectDependencies = (
     'Kernel::Config',
     'Kernel::System::DB',
+    'Kernel::System::DateTime',
     'Kernel::System::Ticket',
-    'Kernel::System::Time',
     'Kernel::System::User',
     'Kernel::System::Ticket::Article',
 );
@@ -26,7 +26,7 @@ sub Configure {
     my ( $Self, %Param ) = @_;
 
     $Self->Description(
-        'Deletes ticket/article seen flags and ticket watcher entries of users which have been invalid for more than a month, and unlocks tickets by invalid agents immedately.'
+        'Delete ticket/article seen flags and ticket watcher entries of users which have been invalid for more than a month, and unlocks tickets by invalid agents immedately.'
     );
     $Self->AddOption(
         Name        => 'micro-sleep',
@@ -47,8 +47,8 @@ sub Run {
     my $InvalidID = 2;
 
     # Users must be invalid for at least one month
-    my $Offset        = 60 * 60 * 24 * 31;
-    my $InvalidBefore = $Kernel::OM->Get('Kernel::System::Time')->SystemTime() - $Offset;
+    my $InvalidBeforeDTObject = $Kernel::OM->Create('Kernel::System::DateTime');
+    $InvalidBeforeDTObject->Subtract( Seconds => 60 * 60 * 24 * 31 );
 
     # get user object
     my $UserObject = $Kernel::OM->Get('Kernel::System::User');
@@ -69,13 +69,16 @@ sub Run {
         next USERID if ( $User{ValidID} != $InvalidID );
 
         # Only take users which are invalid for more than one month
-        my $InvalidTime = $Kernel::OM->Get('Kernel::System::Time')->TimeStamp2SystemTime(
-            String => $User{ChangeTime},
+        my $InvalidTimeDTObject = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                String => $User{ChangeTime},
+            },
         );
 
         push @CleanupInvalidUsersImmediately, \%User;
 
-        next USERID if ( $InvalidTime >= $InvalidBefore );
+        next USERID if ( $InvalidTimeDTObject >= $InvalidBeforeDTObject );
 
         push @CleanupInvalidUsers, \%User;
     }
@@ -115,7 +118,7 @@ sub _CleanupLocks {
     my @TicketIDs = $TicketObject->TicketSearch(
         Result   => 'ARRAY',
         Limit    => 1_000_000,
-        OwnerIDs => [ map $_->{UserID}, @Users ],
+        OwnerIDs => [ map { $_->{UserID} } @Users ],
         Locks    => ['lock'],
         UserID   => 1,
     );
@@ -147,6 +150,8 @@ sub _CleanupLocks {
             . @TicketIDs
             . "</yellow> and changed state of <yellow>$StateCount</yellow> tickets).\n"
     );
+
+    return;
 }
 
 sub _CleanupFlags {
@@ -266,6 +271,8 @@ sub _CleanupFlags {
         }
     }
     $Self->Print("  <green>Done.</green>\n");
+
+    return;
 }
 
 1;

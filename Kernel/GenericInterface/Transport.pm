@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -81,7 +81,7 @@ sub new {
 =head2 ProviderProcessRequest()
 
 process an incoming web service request. This function has to read the request data
-from from the web server process.
+from the web server process.
 
     my $Result = $TransportObject->ProviderProcessRequest();
 

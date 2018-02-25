@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -10,7 +10,7 @@
 
 [% RenderBlockStart("Overview") %]
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
-    <h1>[% Translate("Ticket Notification Management") | html %]</h1>
+    <h1 class="InvisibleText">[% Translate("Ticket Notification Management") | html %]</h1>
 
     [% BreadcrumbPath = [
             {
@@ -159,7 +159,7 @@
 
 [% RenderBlockStart("OverviewUpdate") %]
 
-        <form action="[% Env("CGIHandle") %]" method="post" class="Validate" name="compose" id="NotificationEvent">
+        <form action="[% Env("CGIHandle") %]" method="post" class="Validate PreventMultipleSubmits" name="compose" id="NotificationEvent">
             <div class="WidgetSimple">
                 <div class="Header">
                 [% IF Data.Action == 'Add' %]
@@ -314,7 +314,7 @@
                         </div>
                         <div class="Clear"></div>
 
-                        <label for="CustomerUserID">[% Translate("Customer") | html %]: </label>
+                        <label for="CustomerUserID">[% Translate("Customer User ID") | html %]: </label>
                         <div class="Field">
                             <input type="text" name="CustomerUserID" id="CustomerUserID" class="W75pc" value="[% Data.CustomerUserID | html %]"/>
                         </div>
@@ -350,54 +350,43 @@
                 <div class="Content">
                     <fieldset class="TableLike">
 
-                        <label for="ArticleTypeID">[% Translate("Article type") | html %]: </label>
-                        <div class="Field">
-                            [% Data.ArticleTypesStrg %]
-                            <p class="FieldExplanation">[% Translate("Only for ArticleCreate and ArticleSend event") | html %]</p>
-                            <div id="ArticleTypeIDServerError" class="TooltipErrorMessage">
-                                <p>[% Translate("If ArticleCreate or ArticleSend is used as a trigger event, you need to specify an article filter as well. Please select at least one of the article filter fields.") | html %]</p>
-                            </div>
-                        </div>
-                        <div class="Clear"></div>
-
                         <label for="ArticleSenderTypeID">[% Translate("Article sender type") | html %]: </label>
                         <div class="Field">
                             [% Data.ArticleSenderTypesStrg %]
-                            <p class="FieldExplanation">[% Translate("Only for ArticleCreate and ArticleSend event") | html %]</p>
                             <div id="ArticleSenderTypeIDServerError" class="TooltipErrorMessage">
                                 <p>[% Translate("If ArticleCreate or ArticleSend is used as a trigger event, you need to specify an article filter as well. Please select at least one of the article filter fields.") | html %]</p>
                             </div>
                         </div>
                         <div class="Clear"></div>
 
-                        <label for="ArticleSubjectMatch">[% Translate("Subject match") | html %]: </label>
+                        <label for="ArticleIsVisibleForCustomer">[% Translate("Customer visibility") | html %]: </label>
                         <div class="Field">
-                            <input type="text" name="ArticleSubjectMatch" id="ArticleSubjectMatch" class="W75pc [% Data.ArticleSubjectMatchServerError %]" value="[% Data.ArticleSubjectMatch | html %]"/>
-                            <p class="FieldExplanation">[% Translate("Only for ArticleCreate and ArticleSend event") | html %]</p>
-                            <div id="ArticleSubjectMatchServerError" class="TooltipErrorMessage">
-                                <p>[% Translate("If ArticleCreate or ArticleSend is used as a trigger event, you need to specify an article filter as well. Please select at least one of the article filter fields.") | html %]</p>
-                            </div>
+                            [% Data.ArticleCustomerVisibilityStrg %]
                         </div>
                         <div class="Clear"></div>
 
-                        <label for="ArticleBodyMatch">
-                            [% Translate("Body match") | html %]:
-                        </label>
+                        <label for="ArticleCommunicationChannelID">[% Translate("Communication channel") | html %]: </label>
                         <div class="Field">
-                            <input type="text" name="ArticleBodyMatch" id="ArticleBodyMatch" class="W75pc [% Data.ArticleBodyMatchServerError %]" value="[% Data.ArticleBodyMatch | html %]"/>
-                            <p class="FieldExplanation">[% Translate("Only for ArticleCreate and ArticleSend event") | html %]</p>
-                            <div id="ArticleBodyMatchServerError" class="TooltipErrorMessage">
-                                <p>[% Translate("If ArticleCreate or ArticleSend is used as a trigger event, you need to specify an article filter as well. Please select at least one of the article filter fields.") | html %]</p>
-                            </div>
+                            [% Data.ArticleCommunicationChannelStrg %]
                         </div>
                         <div class="Clear"></div>
 
                         <label for="ArticleAttachmentInclude">[% Translate("Include attachments to notification") | html %]: </label>
                         <div class="Field">
                             [% Data.ArticleAttachmentIncludeStrg %]
-                            <p class="FieldExplanation">[% Translate("Only for ArticleCreate and ArticleSend event") | html %]</p>
                         </div>
                         <div class="Clear"></div>
+
+[% RenderBlockStart("BackendArticleField") %]
+                        <label for="[% Data.Key %]">[% Translate(Data.Label) | html %]:</label>
+                        <div class="Field">
+                            <input type="text" name="[% Data.Key %]" id="[% Data.Key %]" class="W75pc [% Data.Key %]ServerError" value="[% Data.Value | html %]"/>
+                            <div id="[% Data.Key %]ServerError" class="TooltipErrorMessage">
+                                <p>[% Translate("If ArticleCreate or ArticleSend is used as a trigger event, you need to specify an article filter as well. Please select at least one of the article filter fields.") | html %]</p>
+                            </div>
+                        </div>
+                        <div class="Clear"></div>
+[% RenderBlockEnd("BackendArticleField") %]
 
                     </fieldset>
                 </div>
@@ -472,13 +461,13 @@
                     </fieldset>
 [% RenderBlockStart("TransportRow") %]
                     <fieldset class="TableLike FixedLabel SpacingTop">
-                        <legend><span>[% Data.TransportName | html %]</span></legend>
+                        <legend><span>[% Translate(Data.TransportName) | html %]</span></legend>
 [% RenderBlockStart("TransportRowEnabled") %]
                         <label for="Transport[% Data.Transport | html %]">
                             [% Translate("Enable this notification method") | html %]:
                         </label>
                         <div class="Field">
-                            <input type="checkbox" name="Transports" id="Transport[% Data.Transport | html %]" value="[% Data.Transport | html %]" class="Validate_OneChecked [% Data.TransportsServerError %]" title="[% Translate("Transport") %]: [% Translate(Data.Transport) %]" [% Data.TransportChecked %] />
+                            <input type="checkbox" name="Transports" id="Transport[% Data.Transport | html %]" value="[% Data.Transport | html %]" class="Validate_OneChecked [% Data.TransportsServerError | html %]" title="[% Translate("Transport") | html %]: [% Translate(Data.Transport) | html %]" [% Data.TransportChecked %] />
                             <div id="Transport[% Data.Transport | html %]Error" class="TooltipErrorMessage">
                                 <p>[% Translate("At least one method is needed per notification.") | html %]</p>
                             </div>
@@ -508,9 +497,14 @@
 [% RenderBlockEnd("TransportRowDisabled") %]
 [% RenderBlockStart("TransportRowRecommendation") %]
                         <div class="Field Info">
-                            <a href="[% Env("Baselink") %]Action=AdminOTRSBusiness" class="Button"><i class="fa fa-angle-double-up"></i> [% Translate("Upgrade to %s", OTRSBusinessLabel) %]</a>
+                            <a href="[% Env("Baselink") %]Action=AdminOTRSBusiness" class="Button"><i class="fa fa-angle-double-up"></i> [% Translate("Upgrade to %s") | html | ReplacePlaceholders(OTRSBusinessLabel) %]</a>
                         </div>
 [% RenderBlockEnd("TransportRowRecommendation") %]
+[% RenderBlockStart("TransportRowNotActive") %]
+                        <div class="Field Info">
+                            <a href="[% Env("Baselink") %]Action=AdminCloudServices" class="Button"><i class="fa fa-angle-double-up"></i> [% Translate("Please activate this transport in order to use it.") | html %]</a>
+                        </div>
+[% RenderBlockEnd("TransportRowNotActive") %]
                         <div class="Clear"></div>
                     </fieldset>
 [% RenderBlockEnd("TransportRow") %]
@@ -545,7 +539,7 @@
                                     </div>
                                     <h2 class="Title">
                                         [% IF Data.Language %]
-                                          [% Translate(Data.Language) %]
+                                          [% Translate(Data.Language) | html %]
                                         [% ELSE %]
                                            <span class="Warning">'[% Data.LanguageID | html %]' &mdash; [% Translate("This language is not present or enabled on the system. This notification text could be deleted if it is not needed anymore.") | html %]</span>
                                         [% END %]
@@ -583,13 +577,13 @@
                             [% Translate("Text") | html %]:
                                         </label>
                                         <div class="RichTextField">
-                                            <textarea name="[% Data.LanguageID | html %]_Body" id="[% Data.LanguageID | html %]_Body" class="RichText Validate_RequiredRichText [% Data.BodyServerError | html %]" title="[% Translate("Message body") | html %]" rows="15" cols="[% Config("Ticket::Frontend::TextAreaNote") %]">[% Data.Body | html %]</textarea>
+                                            <textarea name="[% Data.LanguageID | html %]_Body" id="[% Data.LanguageID | html %]_Body" class="RichText Validate_RequiredRichText Validate_MaxLength [% Data.BodyServerError | html %]" title="[% Translate("Message body") | html %]" rows="15" cols="[% Config("Ticket::Frontend::TextAreaNote") | html %]" data-maxlength="4000">[% Data.Body | html %]</textarea>
 
                                             <div id="[% Data.LanguageID | html %]_BodyError" class="TooltipErrorMessage">
-                                                <p>[% Translate("This field is required.") | html %]</p>
+                                                <p>[% Translate("This field is required and must have less than 4000 characters.") | html %]</p>
                                             </div>
                                             <div id="[% Data.LanguageID | html %]_BodyServerError" class="TooltipErrorMessage">
-                                                <p>[% Translate("This field is required.") | html %]</p>
+                                                <p>[% Translate("This field is required and must have less than 4000 characters.") | html %]</p>
                                             </div>
                                         </div>
                                         <div class="Clear"></div>
@@ -631,7 +625,7 @@
                                             [% Translate("Text") | html %]:
                                         </label>
                                         <div class="RichTextField">
-                                            <textarea id="Template_Body" class="" name="Template_Body" title="[% Translate("Message body") | html %]" rows="15" cols="[% Config("Ticket::Frontend::TextAreaNote") %]"></textarea>
+                                            <textarea id="Template_Body" class="" name="Template_Body" title="[% Translate("Message body") | html %]" rows="15" cols="[% Config("Ticket::Frontend::TextAreaNote") | html %]"></textarea>
                                             <div id="Template_BodyError" class="TooltipErrorMessage">
                                                 <p>[% Translate("This field is required.") | html %]</p>
                                             </div>

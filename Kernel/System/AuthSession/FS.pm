@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,15 +11,14 @@ package Kernel::System::AuthSession::FS;
 use strict;
 use warnings;
 
-use Storable qw();
-
 use Kernel::Language qw(Translatable);
 
 our @ObjectDependencies = (
     'Kernel::Config',
+    'Kernel::System::DateTime',
     'Kernel::System::Log',
     'Kernel::System::Main',
-    'Kernel::System::Time',
+    'Kernel::System::Storable',
 );
 
 sub new {
@@ -33,12 +32,16 @@ sub new {
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
     # get more common params
-    $Self->{SessionSpool}      = $ConfigObject->Get('SessionDir');
-    $Self->{SystemID}          = $ConfigObject->Get('SystemID');
-    $Self->{SessionActiveTime} = $ConfigObject->Get('SessionActiveTime') || 60 * 10;
+    $Self->{SessionSpool} = $ConfigObject->Get('SessionDir');
+    $Self->{SystemID}     = $ConfigObject->Get('SystemID');
 
-    if ( $Self->{SessionActiveTime} < 300 ) {
-        $Self->{SessionActiveTime} = 300;
+    if ( !-e $Self->{SessionSpool} ) {
+        if ( !mkdir( $Self->{SessionSpool}, 0770 ) ) {    ## no critic
+            $Kernel::OM->Get('Kernel::System::Log')->Log(
+                Priority => 'error',
+                Message  => "Can't create directory '$Self->{SessionSpool}': $!",
+            );
+        }
     }
 
     return $Self;
@@ -97,7 +100,7 @@ sub CheckSessionID {
     }
 
     # check session idle time
-    my $TimeNow            = $Kernel::OM->Get('Kernel::System::Time')->SystemTime();
+    my $TimeNow            = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
     my $MaxSessionIdleTime = $ConfigObject->Get('SessionMaxIdleTime');
 
     if ( ( $TimeNow - $MaxSessionIdleTime ) >= $Data{UserLastRequest} ) {
@@ -180,7 +183,9 @@ sub GetSessionIDData {
     return if ref $Content ne 'SCALAR';
 
     # read data structure back from file dump, use block eval for safety reasons
-    my $Session = eval { Storable::thaw( ${$Content} ) };
+    my $Session = eval {
+        $Kernel::OM->Get('Kernel::System::Storable')->Deserialize( Data => ${$Content} )
+    };
 
     if ( !$Session || ref $Session ne 'HASH' ) {
         delete $Self->{Cache}->{ $Param{SessionID} };
@@ -197,7 +202,7 @@ sub CreateSessionID {
     my ( $Self, %Param ) = @_;
 
     # get system time
-    my $TimeNow = $Kernel::OM->Get('Kernel::System::Time')->SystemTime();
+    my $TimeNow = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
 
     # get remote address and the http user agent
     my $RemoteAddr      = $ENV{REMOTE_ADDR}     || 'none';
@@ -230,7 +235,7 @@ sub CreateSessionID {
     $Data{UserChallengeToken}  = $ChallengeToken;
 
     # dump the data
-    my $DataContent = Storable::nfreeze( \%Data );
+    my $DataContent = $Kernel::OM->Get('Kernel::System::Storable')->Serialize( Data => \%Data );
 
     # write data file
     my $FileLocation = $MainObject->FileWrite(
@@ -253,8 +258,13 @@ sub CreateSessionID {
     my $UserLogin        = $Self->{Cache}->{$SessionID}->{UserLogin}        || '';
     my $UserSessionStart = $Self->{Cache}->{$SessionID}->{UserSessionStart} || '';
     my $UserLastRequest  = $Self->{Cache}->{$SessionID}->{UserLastRequest}  || '';
+    my $SessionSource    = $Self->{Cache}->{$SessionID}->{SessionSource}    || '';
 
     my $StateContent = $UserType . '####' . $UserLogin . '####' . $UserSessionStart . '####' . $UserLastRequest;
+
+    if ($SessionSource) {
+        $StateContent .= '####' . $SessionSource;
+    }
 
     # write state file
     $MainObject->FileWrite(
@@ -360,7 +370,9 @@ sub GetAllSessionIDs {
 sub GetActiveSessions {
     my ( $Self, %Param ) = @_;
 
-    my $TimeNow = $Kernel::OM->Get('Kernel::System::Time')->SystemTime();
+    my $MaxSessionIdleTime = $Kernel::OM->Get('Kernel::Config')->Get('SessionMaxIdleTime');
+
+    my $TimeNow = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
 
     my $MainObject = $Kernel::OM->Get('Kernel::System::Main');
 
@@ -397,10 +409,14 @@ sub GetActiveSessions {
         my $UserType        = $SessionData[0] || '';
         my $UserLogin       = $SessionData[1] || '';
         my $UserLastRequest = $SessionData[3] || $TimeNow;
+        my $SessionSource   = $SessionData[4] || '';
+
+        # Don't count sessions from source 'GenericInterface'.
+        next SESSIONID if $SessionSource eq 'GenericInterface';
 
         next SESSIONID if $UserType ne $Param{UserType};
 
-        next SESSIONID if ( $UserLastRequest + $Self->{SessionActiveTime} ) < $TimeNow;
+        next SESSIONID if ( $UserLastRequest + $MaxSessionIdleTime ) < $TimeNow;
 
         $ActiveSessionCount++;
 
@@ -427,7 +443,7 @@ sub GetExpiredSessionIDs {
     my $MaxSessionIdleTime = $ConfigObject->Get('SessionMaxIdleTime');
 
     # get current time
-    my $TimeNow = $Kernel::OM->Get('Kernel::System::Time')->SystemTime();
+    my $TimeNow = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
 
     # get main object
     my $MainObject = $Kernel::OM->Get('Kernel::System::Main');
@@ -526,7 +542,9 @@ sub DESTROY {
         }
 
         # dump the data
-        my $DataContent = Storable::nfreeze( \%SessionData );
+        my $DataContent = $Kernel::OM->Get('Kernel::System::Storable')->Serialize(
+            Data => \%SessionData,
+        );
 
         # write data file
         $MainObject->FileWrite(
@@ -544,11 +562,16 @@ sub DESTROY {
         my $UserLogin        = $Self->{Cache}->{$SessionID}->{UserLogin}        || '';
         my $UserSessionStart = $Self->{Cache}->{$SessionID}->{UserSessionStart} || '';
         my $UserLastRequest  = $Self->{Cache}->{$SessionID}->{UserLastRequest}  || '';
+        my $SessionSource    = $Self->{Cache}->{$SessionID}->{SessionSource}    || '';
 
         my $StateContent = $UserType . '####'
             . $UserLogin . '####'
             . $UserSessionStart . '####'
             . $UserLastRequest;
+
+        if ($SessionSource) {
+            $StateContent .= '####' . $SessionSource;
+        }
 
         # write state file
         $MainObject->FileWrite(

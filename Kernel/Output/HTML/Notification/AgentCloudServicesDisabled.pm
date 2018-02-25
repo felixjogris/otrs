@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -7,6 +7,8 @@
 # --
 
 package Kernel::Output::HTML::Notification::AgentCloudServicesDisabled;
+
+use parent 'Kernel::Output::HTML::Base';
 
 use strict;
 use warnings;
@@ -17,16 +19,6 @@ our @ObjectDependencies = (
     'Kernel::Output::HTML::Layout',
     'Kernel::System::Group',
 );
-
-sub new {
-    my ( $Type, %Param ) = @_;
-
-    # allocate new hash for object
-    my $Self = {};
-    bless( $Self, $Type );
-
-    return $Self;
-}
 
 sub Run {
     my ( $Self, %Param ) = @_;
@@ -57,8 +49,8 @@ sub Run {
 
     my $Text = '<a href="'
         . $LayoutObject->{Baselink}
-        . 'Action=AdminSystemConfiguration;Subaction=Edit;SysConfigSubGroup=Core;SysConfigGroup=CloudService'
-        . '" class="Button"><i class="fa fa-cloud"></i> ';
+        . 'Action=AdminSystemConfiguration;Subaction=View;Setting=CloudServices::Disabled'
+        . '">';
     $Text .= $LayoutObject->{LanguageObject}->Translate('Enable cloud services to unleash all OTRS features!');
     $Text .= '</a>';
 

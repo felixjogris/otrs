@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -14,6 +14,7 @@ use warnings;
 use Kernel::System::VariableCheck qw(:all);
 
 our @ObjectDependencies = (
+    'Kernel::Config',
     'Kernel::System::Log',
     'Kernel::System::Scheduler',
 );
@@ -53,6 +54,9 @@ Returns:
 
 sub AsyncCall {
     my ( $Self, %Param ) = @_;
+
+    # Do not schedule asynchronous task if the feature has been disabled.
+    return 1 if $Kernel::OM->Get('Kernel::Config')->Get('DisableAsyncCalls');
 
     my $FunctionName = $Param{FunctionName};
 

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -154,6 +154,9 @@ sub AgentCustomerViewTable {
 
                     next VALUE if !IsHashRefWithData($RenderedValue) || !defined $RenderedValue->{Value};
 
+                    # If there is configured show link in DF, save as map value.
+                    $Field->[6] = $RenderedValue->{Link} ? $RenderedValue->{Link} : $Field->[6];
+
                     push @RenderedValues, $RenderedValue->{Value};
                 }
 
@@ -163,7 +166,11 @@ sub AgentCustomerViewTable {
 
             if (
                 $Field->[6]
-                && ( $Param{Data}->{TicketID} || $Param{Ticket} )
+                && (
+                    $Param{Data}->{TicketID}
+                    || $Param{Ticket}
+                    || $Field->[6] !~ m{Env\("CGIHandle"\)}
+                )
                 )
             {
                 $Record{LinkStart} = "<a href=\"$Field->[6]\"";
@@ -413,24 +420,28 @@ sub AgentQueueListOption {
     if ( $Kernel::OM->Get('Kernel::Config')->Get('Ticket::Frontend::ListType') eq 'list' ) {
 
         # transform data from Hash in Array because of ordering in frontend by Queue name
-        # it was a problem wit name like '(some_queue)'
+        # it was a problem with name like '(some_queue)'
         # see bug#10621 http://bugs.otrs.org/show_bug.cgi?id=10621
         my %QueueDataHash = %{ $Param{Data} || {} };
-
-        # get StandardResponsesStrg
-        my %ReverseQueueDataHash = reverse %QueueDataHash;
-        my @QueueDataArray       = map {
+        my @QueueDataArray = map {
             {
-                Key   => $ReverseQueueDataHash{$_},
-                Value => $_
+                Key   => $_,
+                Value => $QueueDataHash{$_},
             }
-        } sort values %QueueDataHash;
+        } sort { $QueueDataHash{$a} cmp $QueueDataHash{$b} } keys %QueueDataHash;
 
         # find index of first element in array @QueueDataArray for displaying in frontend
         # at the top should be element with ' $QueueDataArray[$_]->{Key} = 0' like "- Move -"
-        # when such element is found, it is moved at the top
-        my ($FirstElementIndex) = grep $QueueDataArray[$_]->{Key} == 0, 0 .. $#QueueDataArray || 0;
-        splice( @QueueDataArray, 0, 0, splice( @QueueDataArray, $FirstElementIndex, 1 ) );
+        # if such an element is found, it is moved to the top
+        my $MoveStr             = $Self->{LanguageObject}->Translate('Move');
+        my $ValueOfQueueNoKey   = '- ' . $MoveStr . ' -';
+        my ($FirstElementIndex) = grep {
+            $QueueDataArray[$_]->{Value} eq '-'
+                || $QueueDataArray[$_]->{Value} eq $ValueOfQueueNoKey
+        } 0 .. scalar(@QueueDataArray) - 1;
+        if ($FirstElementIndex) {
+            splice( @QueueDataArray, 0, 0, splice( @QueueDataArray, $FirstElementIndex, 1 ) );
+        }
         $Param{Data} = \@QueueDataArray;
 
         $Param{MoveQueuesStrg} = $Self->BuildSelection(
@@ -465,8 +476,8 @@ sub AgentQueueListOption {
     # add suffix for correct sorting
     my $KeyNoQueue;
     my $ValueNoQueue;
-    my $MoveStr = $Self->{LanguageObject}->Translate('Move');
-    my $ValueOfQueueNoKey .= "- " . $MoveStr . " -";
+    my $MoveStr           = $Self->{LanguageObject}->Translate('Move');
+    my $ValueOfQueueNoKey = "- " . $MoveStr . " -";
     DATA:
     for ( sort { $Data{$a} cmp $Data{$b} } keys %Data ) {
 
@@ -490,7 +501,10 @@ sub AgentQueueListOption {
     # set default item of select box
     if ($ValueNoQueue) {
         $Param{MoveQueuesStrg} .= '<option value="'
-            . $HTMLUtilsObject->ToHTML( String => $KeyNoQueue )
+            . $HTMLUtilsObject->ToHTML(
+            String             => $KeyNoQueue,
+            ReplaceDoubleSpace => 0,
+            )
             . '">'
             . $ValueNoQueue
             . "</option>\n";
@@ -549,7 +563,8 @@ sub AgentQueueListOption {
                         my $OptionTitleHTMLValue = '';
                         if ($OptionTitle) {
                             my $HTMLValue = $HTMLUtilsObject->ToHTML(
-                                String => $Queue[$Index],
+                                String             => $Queue[$Index],
+                                ReplaceDoubleSpace => 0,
                             );
                             $OptionTitleHTMLValue = ' title="' . $HTMLValue . '"';
                         }
@@ -570,12 +585,14 @@ sub AgentQueueListOption {
             my $OptionTitleHTMLValue = '';
             if ($OptionTitle) {
                 my $HTMLValue = $HTMLUtilsObject->ToHTML(
-                    String => $Queue[-1],
+                    String             => $Queue[-1],
+                    ReplaceDoubleSpace => 0,
                 );
                 $OptionTitleHTMLValue = ' title="' . $HTMLValue . '"';
             }
             my $HTMLValue = $HTMLUtilsObject->ToHTML(
-                String => $_,
+                String             => $_,
+                ReplaceDoubleSpace => 0,
             );
             if (
                 $SelectedID eq $_
@@ -620,316 +637,6 @@ sub AgentQueueListOption {
     }
 
     return $Param{MoveQueuesStrg};
-}
-
-=head2 ArticleQuote()
-
-get body and attach e. g. inline documents and/or attach all attachments to
-upload cache
-
-for forward or split, get body and attach all attachments
-
-    my $HTMLBody = $LayoutObject->ArticleQuote(
-        TicketID           => 123,
-        ArticleID          => 123,
-        FormID             => $Self->{FormID},
-        UploadCacheObject   => $Self->{UploadCacheObject},
-        AttachmentsInclude => 1,
-    );
-
-or just for including inline documents to upload cache
-
-    my $HTMLBody = $LayoutObject->ArticleQuote(
-        TicketID           => 123,
-        ArticleID          => 123,
-        FormID             => $Self->{FormID},
-        UploadCacheObject  => $Self->{UploadCacheObject},
-        AttachmentsInclude => 0,
-    );
-
-Both will also work without rich text (if $ConfigObject->Get('Frontend::RichText')
-is false), return param will be text/plain instead.
-
-=cut
-
-sub ArticleQuote {
-    my ( $Self, %Param ) = @_;
-
-    # check needed stuff
-    for (qw(TicketID ArticleID FormID UploadCacheObject)) {
-        if ( !$Param{$_} ) {
-            $Self->FatalError( Message => "Need $_!" );
-        }
-    }
-
-    # get needed objects
-    my $ConfigObject  = $Kernel::OM->Get('Kernel::Config');
-    my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
-
-    # body preparation for plain text processing
-    if ( $ConfigObject->Get('Frontend::RichText') ) {
-
-        my $Body = '';
-
-        # check for html body
-        my @ArticleBox = $ArticleObject->ArticleContentIndex(
-            TicketID                   => $Param{TicketID},
-            StripPlainBodyAsAttachment => 3,
-            UserID                     => $Self->{UserID},
-            DynamicFields              => 0,
-        );
-
-        my %NotInlineAttachments;
-        ARTICLE:
-        for my $ArticleTmp (@ArticleBox) {
-
-            # search for article to answer (reply article)
-            next ARTICLE if $ArticleTmp->{ArticleID} ne $Param{ArticleID};
-
-            # check if no html body exists
-            last ARTICLE if !$ArticleTmp->{AttachmentIDOfHTMLBody};
-
-            my %AttachmentHTML = $ArticleObject->ArticleAttachment(
-                ArticleID => $ArticleTmp->{ArticleID},
-                FileID    => $ArticleTmp->{AttachmentIDOfHTMLBody},
-                UserID    => $Self->{UserID},
-            );
-            my $Charset = $AttachmentHTML{ContentType} || '';
-            $Charset =~ s/.+?charset=("|'|)(\w+)/$2/gi;
-            $Charset =~ s/"|'//g;
-            $Charset =~ s/(.+?);.*/$1/g;
-
-            # convert html body to correct charset
-            $Body = $Kernel::OM->Get('Kernel::System::Encode')->Convert(
-                Text  => $AttachmentHTML{Content},
-                From  => $Charset,
-                To    => $Self->{UserCharset},
-                Check => 1,
-            );
-
-            # get HTML utils object
-            my $HTMLUtilsObject = $Kernel::OM->Get('Kernel::System::HTMLUtils');
-
-            # add url quoting
-            $Body = $HTMLUtilsObject->LinkQuote(
-                String => $Body,
-            );
-
-            # strip head, body and meta elements
-            $Body = $HTMLUtilsObject->DocumentStrip(
-                String => $Body,
-            );
-
-            # display inline images if exists
-            my $SessionID = '';
-            if ( $Self->{SessionID} && !$Self->{SessionIDCookie} ) {
-                $SessionID = ';' . $Self->{SessionName} . '=' . $Self->{SessionID};
-            }
-            my $AttachmentLink = $Self->{Baselink}
-                . 'Action=PictureUpload'
-                . ';FormID='
-                . $Param{FormID}
-                . $SessionID
-                . ';ContentID=';
-
-            # search inline documents in body and add it to upload cache
-            my %Attachments = %{ $ArticleTmp->{Atms} };
-            my %AttachmentAlreadyUsed;
-            $Body =~ s{
-                (=|"|')cid:(.*?)("|'|>|\/>|\s)
-            }
-            {
-                my $Start= $1;
-                my $ContentID = $2;
-                my $End = $3;
-
-                # improve html quality
-                if ( $Start ne '"' && $Start ne '\'' ) {
-                    $Start .= '"';
-                }
-                if ( $End ne '"' && $End ne '\'' ) {
-                    $End = '"' . $End;
-                }
-
-                # find attachment to include
-                ATMCOUNT:
-                for my $AttachmentID ( sort keys %Attachments ) {
-
-                    if ( lc $Attachments{$AttachmentID}->{ContentID} ne lc "<$ContentID>" ) {
-                        next ATMCOUNT;
-                    }
-
-                    # get whole attachment
-                    my %AttachmentPicture = $ArticleObject->ArticleAttachment(
-                        ArticleID => $Param{ArticleID},
-                        FileID    => $AttachmentID,
-                        UserID    => $Self->{UserID},
-                    );
-
-                    # content id cleanup
-                    $AttachmentPicture{ContentID} =~ s/^<//;
-                    $AttachmentPicture{ContentID} =~ s/>$//;
-
-                    # find cid, add attachment URL and remember, file is already uploaded
-                    $ContentID = $AttachmentLink . $Self->LinkEncode( $AttachmentPicture{ContentID} );
-
-                    # add to upload cache if not uploaded and remember
-                    if (!$AttachmentAlreadyUsed{$AttachmentID}) {
-
-                        # remember
-                        $AttachmentAlreadyUsed{$AttachmentID} = 1;
-
-                        # write attachment to upload cache
-                        $Param{UploadCacheObject}->FormIDAddFile(
-                            FormID      => $Param{FormID},
-                            Disposition => 'inline',
-                            %{ $Attachments{$AttachmentID} },
-                            %AttachmentPicture,
-                        );
-                    }
-                }
-
-                # return link
-                $Start . $ContentID . $End;
-            }egxi;
-
-            # find inline images using Content-Location instead of Content-ID
-            ATTACHMENT:
-            for my $AttachmentID ( sort keys %Attachments ) {
-
-                next ATTACHMENT if !$Attachments{$AttachmentID}->{ContentID};
-
-                # get whole attachment
-                my %AttachmentPicture = $ArticleObject->ArticleAttachment(
-                    ArticleID => $Param{ArticleID},
-                    FileID    => $AttachmentID,
-                    UserID    => $Self->{UserID},
-                );
-
-                # content id cleanup
-                $AttachmentPicture{ContentID} =~ s/^<//;
-                $AttachmentPicture{ContentID} =~ s/>$//;
-
-                $Body =~ s{
-                    ("|')(\Q$AttachmentPicture{ContentID}\E)("|'|>|\/>|\s)
-                }
-                {
-                    my $Start= $1;
-                    my $ContentID = $2;
-                    my $End = $3;
-
-                    # find cid, add attachment URL and remember, file is already uploaded
-                    $ContentID = $AttachmentLink . $Self->LinkEncode( $AttachmentPicture{ContentID} );
-
-                    # add to upload cache if not uploaded and remember
-                    if (!$AttachmentAlreadyUsed{$AttachmentID}) {
-
-                        # remember
-                        $AttachmentAlreadyUsed{$AttachmentID} = 1;
-
-                        # write attachment to upload cache
-                        $Param{UploadCacheObject}->FormIDAddFile(
-                            FormID      => $Param{FormID},
-                            Disposition => 'inline',
-                            %{ $Attachments{$AttachmentID} },
-                            %AttachmentPicture,
-                        );
-                    }
-
-                    # return link
-                    $Start . $ContentID . $End;
-                }egxi;
-            }
-
-            # find not inline images
-            ATTACHMENT:
-            for my $AttachmentID ( sort keys %Attachments ) {
-                next ATTACHMENT if $AttachmentAlreadyUsed{$AttachmentID};
-                $NotInlineAttachments{$AttachmentID} = 1;
-            }
-
-            # do no more article
-            last ARTICLE;
-        }
-
-        # attach also other attachments on article forward
-        if ( $Body && $Param{AttachmentsInclude} ) {
-            for my $AttachmentID ( sort keys %NotInlineAttachments ) {
-                my %Attachment = $ArticleObject->ArticleAttachment(
-                    ArticleID => $Param{ArticleID},
-                    FileID    => $AttachmentID,
-                    UserID    => $Self->{UserID},
-                );
-
-                # add attachment
-                $Param{UploadCacheObject}->FormIDAddFile(
-                    FormID => $Param{FormID},
-                    %Attachment,
-                    Disposition => 'attachment',
-                );
-            }
-        }
-        return $Body if $Body;
-    }
-
-    # as fallback use text body for quote
-    my %Article = $ArticleObject->ArticleGet(
-        ArticleID     => $Param{ArticleID},
-        DynamicFields => 0,
-    );
-
-    # check if original content isn't text/plain or text/html, don't use it
-    if ( !$Article{ContentType} ) {
-        $Article{ContentType} = 'text/plain';
-    }
-
-    if ( $Article{ContentType} !~ /text\/(plain|html)/i ) {
-        $Article{Body}        = '-> no quotable message <-';
-        $Article{ContentType} = 'text/plain';
-    }
-    else {
-        $Article{Body} = $Self->WrapPlainText(
-            MaxCharacters => $ConfigObject->Get('Ticket::Frontend::TextAreaEmail') || 82,
-            PlainText => $Article{Body},
-        );
-    }
-
-    # attach attachments
-    if ( $Param{AttachmentsInclude} ) {
-        my %ArticleIndex = $ArticleObject->ArticleAttachmentIndex(
-            ArticleID                  => $Param{ArticleID},
-            UserID                     => $Self->{UserID},
-            StripPlainBodyAsAttachment => 3,
-            Article                    => \%Article,
-        );
-        for my $Index ( sort keys %ArticleIndex ) {
-            my %Attachment = $ArticleObject->ArticleAttachment(
-                ArticleID => $Param{ArticleID},
-                FileID    => $Index,
-                UserID    => $Self->{UserID},
-            );
-
-            # add attachment
-            $Param{UploadCacheObject}->FormIDAddFile(
-                FormID => $Param{FormID},
-                %Attachment,
-                Disposition => 'attachment',
-            );
-        }
-    }
-
-    # return body as html
-    if ( $ConfigObject->Get('Frontend::RichText') ) {
-
-        $Article{Body} = $Self->Ascii2Html(
-            Text           => $Article{Body},
-            HTMLResultMode => 1,
-            LinkFeature    => 1,
-        );
-    }
-
-    # return body as plain text
-    return $Article{Body};
 }
 
 sub TicketListShow {
@@ -1085,6 +792,7 @@ sub TicketListShow {
         Translation => 0,
         Data        => \%Data,
         Sort        => 'NumericValue',
+        Class       => 'Modernize',
     );
 
     # nav bar at the beginning of a overview

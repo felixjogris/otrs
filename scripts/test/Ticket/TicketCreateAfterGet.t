@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -18,7 +18,6 @@ my $ServiceObject = $Kernel::OM->Get('Kernel::System::Service');
 my $SLAObject     = $Kernel::OM->Get('Kernel::System::SLA');
 my $StateObject   = $Kernel::OM->Get('Kernel::System::State');
 my $TicketObject  = $Kernel::OM->Get('Kernel::System::Ticket');
-my $TimeObject    = $Kernel::OM->Get('Kernel::System::Time');
 my $TypeObject    = $Kernel::OM->Get('Kernel::System::Type');
 my $UserObject    = $Kernel::OM->Get('Kernel::System::User');
 

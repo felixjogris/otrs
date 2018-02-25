@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,7 +11,7 @@ package Kernel::System::Console::Command::Maint::Stats::Generate;
 use strict;
 use warnings;
 
-use base qw(Kernel::System::Console::BaseCommand);
+use parent qw(Kernel::System::Console::BaseCommand);
 
 our @ObjectDependencies = (
     'Kernel::Config',
@@ -19,11 +19,11 @@ our @ObjectDependencies = (
     'Kernel::Output::PDF::Statistics',
     'Kernel::System::CSV',
     'Kernel::System::CheckItem',
+    'Kernel::System::DateTime',
     'Kernel::System::Email',
     'Kernel::System::Main',
     'Kernel::System::PDF',
     'Kernel::System::Stats',
-    'Kernel::System::Time',
     'Kernel::System::User',
 );
 
@@ -72,7 +72,7 @@ sub Configure {
     );
     $Self->AddOption(
         Name        => 'separator',
-        Description => "Defines the separator in case of CSV as target format (defaults to ';').",
+        Description => "Define the separator in case of CSV as target format (defaults to ';').",
         Required    => 0,
         HasValue    => 1,
         ValueRegex  => qr/.*/smx,
@@ -80,7 +80,7 @@ sub Configure {
     $Self->AddOption(
         Name => 'with-header',
         Description =>
-            "Adds a heading line consisting of statistics title and creation date in case of Excel or CSV as output format.",
+            "Add a heading line consisting of statistics title and creation date in case of Excel or CSV as output format.",
         Required   => 0,
         HasValue   => 0,
         ValueRegex => qr/.*/smx,
@@ -191,10 +191,7 @@ sub Run {
 
     $Self->Print("<yellow>Generating statistic number $Self->{StatNumber}...</yellow>\n");
 
-    my ( $s, $m, $h, $D, $M, $Y ) =
-        $Kernel::OM->Get('Kernel::System::Time')->SystemTime2Date(
-        SystemTime => $Kernel::OM->Get('Kernel::System::Time')->SystemTime(),
-        );
+    my $CurSysDTObject = $Kernel::OM->Create('Kernel::System::DateTime');
 
     my %GetParam;
     my $Stat = $Kernel::OM->Get('Kernel::System::Stats')->StatsGet(
@@ -203,9 +200,9 @@ sub Run {
     );
 
     if ( $Stat->{StatType} eq 'static' ) {
-        $GetParam{Year}  = $Y;
-        $GetParam{Month} = $M;
-        $GetParam{Day}   = $D;
+        $GetParam{Year}  = $CurSysDTObject->Get()->{Year};
+        $GetParam{Month} = $CurSysDTObject->Get()->{Month};
+        $GetParam{Day}   = $CurSysDTObject->Get()->{Day};
 
         # get params from -p
         # only for static files
@@ -260,7 +257,7 @@ sub Run {
             StatID   => $Self->{StatID},
             GetParam => \%GetParam,
             UserID   => 1,
-        ),
+            )
     };
 
     # generate output
@@ -268,7 +265,7 @@ sub Run {
     my $Title          = $TitleArrayRef->[0];
     my $HeadArrayRef   = shift(@StatArray);
     my $CountStatArray = @StatArray;
-    my $Time           = sprintf( "%04d-%02d-%02d %02d:%02d:%02d", $Y, $M, $D, $h, $m, $s );
+    my $Time           = $CurSysDTObject->ToString();
     my @WithHeader;
     if ( $Self->GetOption('with-header') ) {
         @WithHeader = ( "Name: $Title", "Created: $Time" );
@@ -402,7 +399,7 @@ sub Run {
             next RECIPIENT;
         }
 
-        $Kernel::OM->Get('Kernel::System::Email')->Send(
+        my $Result = $Kernel::OM->Get('Kernel::System::Email')->Send(
             From       => $Self->GetOption('mail-sender'),
             To         => $Recipient,
             Subject    => "[Stats - $CountStatArray Records] $Title; Created: $Time",
@@ -410,7 +407,13 @@ sub Run {
             Charset    => 'utf-8',
             Attachment => [ {%Attachment}, ],
         );
-        $Self->Print("<yellow>Email sent to '$Recipient'.</yellow>\n");
+        if ( $Result->{Success} ) {
+            $Self->Print("<yellow>Email sent to '$Recipient'.</yellow>\n");
+        }
+        else {
+            $Self->Print("<red>Email sending to '$Recipient' has failed.</red>\n");
+        }
+
     }
 
     $Self->Print("<green>Done.</green>\n");

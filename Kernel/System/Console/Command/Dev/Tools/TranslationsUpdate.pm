@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,22 +11,22 @@ package Kernel::System::Console::Command::Dev::Tools::TranslationsUpdate;
 use strict;
 use warnings;
 
-use base qw(Kernel::System::Console::BaseCommand);
+use parent qw(Kernel::System::Console::BaseCommand);
 
 use File::Basename;
 use File::Copy;
 use Lingua::Translit;
 use Pod::Strip;
-use Storable ();
 
 use Kernel::Language;
 
 our @ObjectDependencies = (
     'Kernel::Config',
+    'Kernel::System::DateTime',
     'Kernel::System::Encode',
     'Kernel::System::Main',
+    'Kernel::System::Storable',
     'Kernel::System::SysConfig',
-    'Kernel::System::Time',
 );
 
 sub Configure {
@@ -50,7 +50,7 @@ sub Configure {
     $Self->AddOption(
         Name => 'generate-po',
         Description =>
-            "Generate PO (translation content) files. This is only needed if a module is not yet available in transifex to force initial creation of the gettext files.",
+            "Generate PO (translation content) files. This is only needed if a module is not yet available in Transifex to force initial creation of the gettext files.",
         Required => 0,
         HasValue => 0,
     );
@@ -114,12 +114,12 @@ sub Run {
 
     $Self->Print("\n<yellow>Translation statistics:</yellow>\n");
     for my $Language (
-        sort { $Stats{$b}->{Translated} <=> $Stats{$a}->{Translated} }
+        sort { ( $Stats{$b}->{Translated} // 0 ) <=> ( $Stats{$a}->{Translated} // 0 ) }
         keys %Stats
         )
     {
-        my $Strings      = $Stats{$Language}->{Total};
-        my $Translations = $Stats{$Language}->{Translated};
+        my $Strings = $Stats{$Language}->{Total};
+        my $Translations = $Stats{$Language}->{Translated} // 0;
         $Self->Print( "\t" . sprintf( "%7s", $Language ) . ": " );
         $Self->Print( sprintf( "%02d", int( ( $Translations / $Strings ) * 100 ) ) );
         $Self->Print( sprintf( "%% (%4d/%4d)\n", $Translations, $Strings ) );
@@ -154,7 +154,7 @@ sub HandleLanguage {
     # We need to map internal codes to the official ones used by Transifex
     my %TransifexLanguagesMap = (
         sr_Cyrl => 'sr',
-        sr_Latn => 'sr@latin',
+        sr_Latn => 'sr',
     );
 
     my $TransifexLanguage = $TransifexLanguagesMap{$Language} // $Language;
@@ -205,15 +205,18 @@ sub HandleLanguage {
 
         # open .tt files and write new translation file
         my %UsedWords;
-        my $Directory = $IsSubTranslation
+        my $TemplatesDirectory = $IsSubTranslation
             ? "$ModuleDirectory/Kernel/Output/HTML/Templates/$DefaultTheme"
             : "$Home/Kernel/Output/HTML/Templates/$DefaultTheme";
 
-        my @TemplateList = $Kernel::OM->Get('Kernel::System::Main')->DirectoryRead(
-            Directory => $Directory,
-            Filter    => '*.tt',
-            Recursive => 1,
-        );
+        my @TemplateList;
+        if ( -d $TemplatesDirectory ) {
+            @TemplateList = $Kernel::OM->Get('Kernel::System::Main')->DirectoryRead(
+                Directory => $TemplatesDirectory,
+                Filter    => '*.tt',
+                Recursive => 1,
+            );
+        }
 
         my $CustomTemplatesDir = "$ModuleDirectory/Custom/Kernel/Output/HTML/Templates/$DefaultTheme";
         if ( $IsSubTranslation && -d $CustomTemplatesDir ) {
@@ -266,13 +269,91 @@ sub HandleLanguage {
             }egx;
         }
 
-        # add translatable strings from Perl code
-        my @PerlModuleList = $Kernel::OM->Get('Kernel::System::Main')->DirectoryRead(
-            Directory => $IsSubTranslation ? "$ModuleDirectory/Kernel" : "$Home/Kernel",
-            Filter    => '*.pm',
-            Recursive => 1,
-        );
+        # Add strings from .html.tmpl files (JavaScript templates).
+        my $JSTemplatesDirectory = $IsSubTranslation
+            ? "$ModuleDirectory/Kernel/Output/JavaScript/Templates/$DefaultTheme"
+            : "$Home/Kernel/Output/JavaScript/Templates/$DefaultTheme";
 
+        my @JSTemplateList;
+        if ( -d $JSTemplatesDirectory ) {
+            @JSTemplateList = $Kernel::OM->Get('Kernel::System::Main')->DirectoryRead(
+                Directory => $JSTemplatesDirectory,
+                Filter    => '*.html.tmpl',
+                Recursive => 1,
+            );
+        }
+
+        my $CustomJSTemplatesDir = "$ModuleDirectory/Custom/Kernel/Output/JavaScript/Templates/$DefaultTheme";
+        if ( $IsSubTranslation && -d $CustomJSTemplatesDir ) {
+            my @CustomJSTemplateList = $Kernel::OM->Get('Kernel::System::Main')->DirectoryRead(
+                Directory => $CustomJSTemplatesDir,
+                Filter    => '*.html.tmpl',
+                Recursive => 1,
+            );
+            push @JSTemplateList, @CustomJSTemplateList;
+        }
+
+        for my $File (@JSTemplateList) {
+
+            my $ContentRef = $Kernel::OM->Get('Kernel::System::Main')->FileRead(
+                Location => $File,
+                Mode     => 'utf8',
+            );
+
+            if ( !ref $ContentRef ) {
+                die "Can't open $File: $!";
+            }
+
+            my $Content = ${$ContentRef};
+
+            $File =~ s{^.*/(.+?)\.html\.tmpl}{$1}smx;
+
+            # Find strings marked for translation.
+            $Content =~ s{
+                \{\{
+                \s*
+                (["'])(.*?)(?<!\\)\1
+                \s*
+                \|
+                \s*
+                Translate
+            }
+            {
+                my $Word = $2 // '';
+
+                # Unescape any \" or \' signs.
+                $Word =~ s{\\"}{"}smxg;
+                $Word =~ s{\\'}{'}smxg;
+
+                if (!$UsedWords{$Word}++) {
+                    push @OriginalTranslationStrings, {
+                        Location => "JS Template: $File",
+                        Source   => $Word,
+                    };
+                }
+
+                # Also save that this string was used in JS (for later use in Loader).
+                $UsedInJS{$Word} = 1;
+
+                '';
+            }egx;
+        }
+
+        # add translatable strings from Perl code
+        my $PerlModuleDirectory = $IsSubTranslation
+            ? "$ModuleDirectory/Kernel"
+            : "$Home/Kernel";
+
+        my @PerlModuleList;
+        if ( -d $PerlModuleDirectory ) {
+            @PerlModuleList = $Kernel::OM->Get('Kernel::System::Main')->DirectoryRead(
+                Directory => $PerlModuleDirectory,
+                Filter    => '*.pm',
+                Recursive => 1,
+            );
+        }
+
+        # include Custom folder for modules
         my $CustomKernelDir = "$ModuleDirectory/Custom/Kernel";
         if ( $IsSubTranslation && -d $CustomKernelDir ) {
             my @CustomPerlModuleList = $Kernel::OM->Get('Kernel::System::Main')->DirectoryRead(
@@ -281,6 +362,17 @@ sub HandleLanguage {
                 Recursive => 1,
             );
             push @PerlModuleList, @CustomPerlModuleList;
+        }
+
+        # include var/packagesetup folder for modules
+        my $PackageSetupDir = "$ModuleDirectory/var/packagesetup";
+        if ( $IsSubTranslation && -d $PackageSetupDir ) {
+            my @PackageSetupModuleList = $Kernel::OM->Get('Kernel::System::Main')->DirectoryRead(
+                Directory => $PackageSetupDir,
+                Filter    => '*.pm',
+                Recursive => 1,
+            );
+            push @PerlModuleList, @PackageSetupModuleList;
         }
 
         FILE:
@@ -299,6 +391,7 @@ sub HandleLanguage {
             }
 
             $File =~ s{^.*/(Kernel/)}{$1}smx;
+            $File =~ s{^.*/(var/packagesetup/)}{$1}smx;
 
             my $Content = ${$ContentRef};
 
@@ -344,7 +437,7 @@ sub HandleLanguage {
             }egx;
         }
 
-        # add translatable strings from XB XML
+        # add translatable strings from DB XML
         my @DBXMLFiles = "$Home/scripts/database/otrs-initial_insert.xml";
         if ($IsSubTranslation) {
             @DBXMLFiles = $Kernel::OM->Get('Kernel::System::Main')->DirectoryRead(
@@ -378,6 +471,10 @@ sub HandleLanguage {
 
                 if ($Word && !$UsedWords{$Word}++) {
 
+                    if ($IsSubTranslation) {
+                        $File =~ s{^.*/(.+\.sopm)}{$1}smx;
+                    }
+
                     push @OriginalTranslationStrings, {
                         Location => "Database XML Definition: $File",
                         Source => $Word,
@@ -389,11 +486,18 @@ sub HandleLanguage {
         }
 
         # add translatable strings from JavaScript code
-        my @JSFileList = $Kernel::OM->Get('Kernel::System::Main')->DirectoryRead(
-            Directory => $IsSubTranslation ? "$ModuleDirectory/var/httpd/htdocs/js" : "$Home/var/httpd/htdocs/js",
-            Filter    => '*.js',
-            Recursive => 1,
-        );
+        my $JSDirectory = $IsSubTranslation
+            ? "$ModuleDirectory/var/httpd/htdocs/js"
+            : "$Home/var/httpd/htdocs/js";
+
+        my @JSFileList;
+        if ( -d $JSDirectory ) {
+            @JSFileList = $Kernel::OM->Get('Kernel::System::Main')->DirectoryRead(
+                Directory => $JSDirectory,
+                Filter    => '*.js',
+                Recursive => 1,
+            );
+        }
 
         FILE:
         for my $File (@JSFileList) {
@@ -678,13 +782,10 @@ sub WritePOTFile {
 
     my $Package = $Param{Module} // 'OTRS';
 
-    my $TimeObject   = $Kernel::OM->Get('Kernel::System::Time');
-    my $CreationDate = $TimeObject->SystemTime2TimeStamp(
-        SystemTime => $TimeObject->SystemTime(),
+    # build creation date, only YEAR-MO-DA HO:MI is needed without seconds
+    my $CreationDate = $Kernel::OM->Create('Kernel::System::DateTime')->Format(
+        Format => '%Y-%m-%d %H:%M+0000'
     );
-
-    # only YEAR-MO-DA HO:MI is needed without seconds
-    $CreationDate = substr( $CreationDate, 0, -3 ) . '+0000';
 
     push @POTEntries, Locale::PO->new(
         -msgid => '',
@@ -728,7 +829,7 @@ sub WritePerlLanguageFile {
         $Indent = ' ' x 4;    # 4 spaces for module files
     }
 
-    my $Data;
+    my $Data = '';
 
     my ( $StringsTotal, $StringsTranslated );
 
@@ -802,7 +903,7 @@ sub WritePerlLanguageFile {
 
         $NewOut = <<"EOF";
 $Separator
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 $Separator
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -860,8 +961,10 @@ EOF
     \$Self->{Completeness}        = $Completeness;
 
     # csv separator
-    \$Self->{Separator} = '$LanguageCoreObject->{Separator}';
+    \$Self->{Separator}         = '$LanguageCoreObject->{Separator}';
 
+    \$Self->{DecimalSeparator}  = '$LanguageCoreObject->{DecimalSeparator}';
+    \$Self->{ThousandSeparator} = '$LanguageCoreObject->{ThousandSeparator}';
 EOF
 
                 if ( $LanguageCoreObject->{TextDirection} ) {

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -112,9 +112,6 @@ sub Run {
         return $LayoutObject->{LanguageObject}->Translate( 'Can\'t connect to %s!', $FeedURL );
     }
 
-    # get time object
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
-
     my $Count = 0;
     ITEM:
     for my $Item ( $Feed->get_item() ) {
@@ -123,10 +120,16 @@ sub Run {
         my $Time = $Item->pubDate();
         my $Ago;
         if ($Time) {
-            my $SystemTime = $TimeObject->TimeStamp2SystemTime(
-                String => $Time,
+            my $SystemDateTimeObject = $Kernel::OM->Create(
+                'Kernel::System::DateTime',
+                ObjectParams => {
+                    String => $Time,
+                },
             );
-            $Ago = $TimeObject->SystemTime() - $SystemTime;
+
+            my $CurSystemDateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+
+            $Ago = $CurSystemDateTimeObject->ToEpoch() - $SystemDateTimeObject->ToEpoch();
             $Ago = $LayoutObject->CustomerAge(
                 Age   => $Ago,
                 Space => ' ',

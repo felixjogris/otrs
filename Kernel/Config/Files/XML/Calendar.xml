@@ -44,126 +44,122 @@
     </Setting>
     <Setting Name="Loader::Module::AgentAppointmentCalendarOverview###002-Calendar" Required="0" Valid="1">
         <Description Translatable="1">Loader module registration for the agent interface.</Description>
-        <Navigation>Frontend::Agent::ModuleRegistration</Navigation>
+        <Navigation>Frontend::Agent::ModuleRegistration::Loader</Navigation>
         <Value>
             <Hash>
                 <Item Key="CSS">
                     <Array>
-                        <Item>thirdparty/fullcalendar-3.2.0/fullcalendar.min.css</Item>
-                        <Item>thirdparty/fullcalendar-scheduler-1.5.1/scheduler.min.css</Item>
+                        <Item>thirdparty/fullcalendar-3.4.0/fullcalendar.min.css</Item>
+                        <Item>thirdparty/fullcalendar-scheduler-1.6.2/scheduler.min.css</Item>
                         <Item>Core.AppointmentCalendar.css</Item>
                     </Array>
                 </Item>
                 <Item Key="JavaScript">
                     <Array>
-                        <Item>thirdparty/momentjs-2.17.1/moment.min.js</Item>
-                        <Item>thirdparty/fullcalendar-3.2.0/fullcalendar.min.js</Item>
-                        <Item>thirdparty/fullcalendar-scheduler-1.5.1/scheduler.min.js</Item>
+                        <Item>thirdparty/momentjs-2.18.1/moment.min.js</Item>
+                        <Item>thirdparty/fullcalendar-3.4.0/fullcalendar.min.js</Item>
+                        <Item>thirdparty/fullcalendar-scheduler-1.6.2/scheduler.min.js</Item>
                         <Item>Core.Agent.AppointmentCalendar.js</Item>
-                        <Item>thirdparty/clipboardjs-1.5.16/clipboard.min.js</Item>
+                        <Item>thirdparty/clipboardjs-1.7.1/clipboard.min.js</Item>
                     </Array>
                 </Item>
             </Hash>
         </Value>
     </Setting>
-    <Setting Name="Frontend::Navigation###AgentAppointmentCalendarOverview###1" Required="0" Valid="1">
-        <Description Translatable="1">Main menu for the agent interface.</Description>
-        <Navigation>Frontend::Agent::ModuleRegistration</Navigation>
+    <Setting Name="Frontend::Navigation###AgentAppointmentCalendarOverview###002-Calendar" Required="0" Valid="1">
+        <Description Translatable="1">Main menu item registration.</Description>
+        <Navigation>Frontend::Agent::ModuleRegistration::MainMenu</Navigation>
         <Value>
-            <Hash>
-                <Item Key="Group">
-                    <Array>
-                    </Array>
+            <Array>
+                <DefaultItem ValueType="FrontendNavigation">
+                    <Hash>
+                    </Hash>
+                </DefaultItem>
+                <Item>
+                    <Hash>
+                        <Item Key="Group">
+                            <Array>
+                            </Array>
+                        </Item>
+                        <Item Key="GroupRo">
+                            <Array>
+                            </Array>
+                        </Item>
+                        <Item Key="Description" Translatable="1">Appointment Calendar overview page.</Item>
+                        <Item Key="Name" Translatable="1">Calendar</Item>
+                        <Item Key="Link">Action=AgentAppointmentCalendarOverview</Item>
+                        <Item Key="LinkOption"></Item>
+                        <Item Key="NavBar">Calendar</Item>
+                        <Item Key="Type">Menu</Item>
+                        <Item Key="Block">ItemArea</Item>
+                        <Item Key="AccessKey"></Item>
+                        <Item Key="Prio">75</Item>
+                    </Hash>
                 </Item>
-                <Item Key="GroupRo">
-                    <Array>
-                    </Array>
+                <Item>
+                    <Hash>
+                        <Item Key="Group">
+                            <Array>
+                            </Array>
+                        </Item>
+                        <Item Key="GroupRo">
+                            <Array>
+                            </Array>
+                        </Item>
+                        <Item Key="Description" Translatable="1">Appointment Calendar overview page.</Item>
+                        <Item Key="Name" Translatable="1">Calendar Overview</Item>
+                        <Item Key="Link">Action=AgentAppointmentCalendarOverview</Item>
+                        <Item Key="LinkOption"></Item>
+                        <Item Key="NavBar">Calendar</Item>
+                        <Item Key="Type"></Item>
+                        <Item Key="Block">ItemArea</Item>
+                        <Item Key="AccessKey"></Item>
+                        <Item Key="Prio">6000</Item>
+                    </Hash>
                 </Item>
-                <Item Key="Description"></Item>
-                <Item Key="Name" Translatable="1">Calendar</Item>
-                <Item Key="Link">Action=AgentAppointmentCalendarOverview</Item>
-                <Item Key="LinkOption"></Item>
-                <Item Key="NavBar">Calendar</Item>
-                <Item Key="Type">Menu</Item>
-                <Item Key="Block">ItemArea</Item>
-                <Item Key="AccessKey"></Item>
-                <Item Key="Prio">75</Item>
-            </Hash>
-        </Value>
-    </Setting>
-    <Setting Name="Frontend::Navigation###AgentAppointmentCalendarOverview###2" Required="0" Valid="1">
-        <Description Translatable="1">Main menu for the agent interface.</Description>
-        <Navigation>Frontend::Agent::ModuleRegistration</Navigation>
-        <Value>
-            <Hash>
-                <Item Key="Group">
-                    <Array>
-                    </Array>
+                <Item>
+                    <Hash>
+                        <Item Key="Group">
+                            <Array>
+                            </Array>
+                        </Item>
+                        <Item Key="GroupRo">
+                            <Array>
+                            </Array>
+                        </Item>
+                        <Item Key="Description" Translatable="1">Resource Overview (OTRS Business Solution™)</Item>
+                        <Item Key="Name" Translatable="1">Resource Overview (OTRS Business Solution™)</Item>
+                        <Item Key="Link">Action=AgentAppointmentCalendarOverview</Item>
+                        <Item Key="LinkOption">class="OTRSBusinessRequired"</Item>
+                        <Item Key="NavBar">Calendar</Item>
+                        <Item Key="Type"></Item>
+                        <Item Key="Block">ItemArea</Item>
+                        <Item Key="AccessKey"></Item>
+                        <Item Key="Prio">7000</Item>
+                    </Hash>
                 </Item>
-                <Item Key="GroupRo">
-                    <Array>
-                    </Array>
+                <Item>
+                    <Hash>
+                        <Item Key="Group">
+                            <Array>
+                            </Array>
+                        </Item>
+                        <Item Key="GroupRo">
+                            <Array>
+                            </Array>
+                        </Item>
+                        <Item Key="Description" Translatable="1">Create new appointment.</Item>
+                        <Item Key="Name" Translatable="1">New Appointment</Item>
+                        <Item Key="Link">Action=AgentAppointmentCalendarOverview;Subaction=AppointmentCreate</Item>
+                        <Item Key="LinkOption"></Item>
+                        <Item Key="NavBar">Calendar</Item>
+                        <Item Key="Type"></Item>
+                        <Item Key="Block">ItemArea</Item>
+                        <Item Key="AccessKey"></Item>
+                        <Item Key="Prio">8000</Item>
+                    </Hash>
                 </Item>
-                <Item Key="Description" Translatable="1">Appointment Calendar overview page.</Item>
-                <Item Key="Name" Translatable="1">Calendar Overview</Item>
-                <Item Key="Link">Action=AgentAppointmentCalendarOverview</Item>
-                <Item Key="LinkOption"></Item>
-                <Item Key="NavBar">Calendar</Item>
-                <Item Key="Type"></Item>
-                <Item Key="Block">ItemArea</Item>
-                <Item Key="AccessKey"></Item>
-                <Item Key="Prio">6000</Item>
-            </Hash>
-        </Value>
-    </Setting>
-    <Setting Name="Frontend::Navigation###AgentAppointmentCalendarOverview###3" Required="0" Valid="1">
-        <Description Translatable="1">Main menu for the agent interface.</Description>
-        <Navigation>Frontend::Agent::ModuleRegistration</Navigation>
-        <Value>
-            <Hash>
-                <Item Key="Group">
-                    <Array>
-                    </Array>
-                </Item>
-                <Item Key="GroupRo">
-                    <Array>
-                    </Array>
-                </Item>
-                <Item Key="Description" Translatable="1">Resource Overview (OTRS Business Solution™)</Item>
-                <Item Key="Name" Translatable="1">Resource Overview</Item>
-                <Item Key="Link">Action=AgentAppointmentCalendarOverview</Item>
-                <Item Key="LinkOption">class="OTRSBusinessRequired"</Item>
-                <Item Key="NavBar">Calendar</Item>
-                <Item Key="Type"></Item>
-                <Item Key="Block">ItemArea</Item>
-                <Item Key="AccessKey"></Item>
-                <Item Key="Prio">7000</Item>
-            </Hash>
-        </Value>
-    </Setting>
-    <Setting Name="Frontend::Navigation###AgentAppointmentCalendarOverview###4" Required="0" Valid="1">
-        <Description Translatable="1">Main menu for the agent interface.</Description>
-        <Navigation>Frontend::Agent::ModuleRegistration</Navigation>
-        <Value>
-            <Hash>
-                <Item Key="Group">
-                    <Array>
-                    </Array>
-                </Item>
-                <Item Key="GroupRo">
-                    <Array>
-                    </Array>
-                </Item>
-                <Item Key="Description" Translatable="1">Create new appointment.</Item>
-                <Item Key="Name" Translatable="1">New Appointment</Item>
-                <Item Key="Link">Action=AgentAppointmentCalendarOverview;Subaction=AppointmentCreate</Item>
-                <Item Key="LinkOption"></Item>
-                <Item Key="NavBar">Calendar</Item>
-                <Item Key="Type"></Item>
-                <Item Key="Block">ItemArea</Item>
-                <Item Key="AccessKey"></Item>
-                <Item Key="Prio">8000</Item>
-            </Hash>
+            </Array>
         </Value>
     </Setting>
     <Setting Name="Frontend::Module###AgentAppointmentEdit" Required="0" Valid="1">
@@ -208,6 +204,18 @@
             </Item>
         </Value>
     </Setting>
+    <Setting Name="Frontend::Navigation###AgentAppointmentList###002-Calendar" Required="0" Valid="0">
+        <Description Translatable="1">Main menu item registration.</Description>
+        <Navigation>Frontend::Agent::ModuleRegistration::MainMenu</Navigation>
+        <Value>
+            <Array>
+                <DefaultItem ValueType="FrontendNavigation">
+                    <Hash>
+                    </Hash>
+                </DefaultItem>
+            </Array>
+        </Value>
+    </Setting>
     <Setting Name="Frontend::Module###AgentAppointmentPluginSearch" Required="0" Valid="1">
         <Description Translatable="1">Frontend module registration for the agent interface.</Description>
         <Navigation>Frontend::Agent::ModuleRegistration</Navigation>
@@ -231,7 +239,7 @@
     </Setting>
     <Setting Name="Frontend::Module###AdminAppointmentCalendarManage" Required="0" Valid="1">
         <Description Translatable="1">Frontend module registration for the agent interface.</Description>
-        <Navigation>Frontend::Agent::ModuleRegistration</Navigation>
+        <Navigation>Frontend::Admin::ModuleRegistration</Navigation>
         <Value>
             <Item ValueType="FrontendRegistration">
                 <Hash>
@@ -253,7 +261,7 @@
     </Setting>
     <Setting Name="Loader::Module::AdminAppointmentCalendarManage###002-Calendar" Required="0" Valid="1">
         <Description Translatable="1">Loader module registration for the agent interface.</Description>
-        <Navigation>Frontend::Agent::ModuleRegistration</Navigation>
+        <Navigation>Frontend::Admin::ModuleRegistration::Loader</Navigation>
         <Value>
             <Hash>
                 <Item Key="CSS">
@@ -264,7 +272,7 @@
                 </Item>
                 <Item Key="JavaScript">
                     <Array>
-                        <Item>thirdparty/clipboardjs-1.5.16/clipboard.min.js</Item>
+                        <Item>thirdparty/clipboardjs-1.7.1/clipboard.min.js</Item>
                         <Item>thirdparty/spectrum-1.8.0/spectrum.js</Item>
                         <Item>Core.Agent.Admin.AppointmentCalendar.Manage.js</Item>
                     </Array>
@@ -272,35 +280,43 @@
             </Hash>
         </Value>
     </Setting>
-    <Setting Name="Frontend::Navigation###AdminAppointmentCalendarManage###1" Required="0" Valid="1">
-        <Description Translatable="1">Main menu for the agent interface.</Description>
-        <Navigation>Frontend::Agent::ModuleRegistration</Navigation>
+    <Setting Name="Frontend::Navigation###AdminAppointmentCalendarManage###002-Calendar" Required="0" Valid="1">
+        <Description Translatable="1">Main menu item registration.</Description>
+        <Navigation>Frontend::Admin::ModuleRegistration::MainMenu</Navigation>
         <Value>
-            <Hash>
-                <Item Key="Group">
-                    <Array>
-                        <Item>admin</Item>
-                    </Array>
+            <Array>
+                <DefaultItem ValueType="FrontendNavigation">
+                    <Hash>
+                    </Hash>
+                </DefaultItem>
+                <Item>
+                    <Hash>
+                        <Item Key="Group">
+                            <Array>
+                                <Item>admin</Item>
+                            </Array>
+                        </Item>
+                        <Item Key="GroupRo">
+                            <Array>
+                            </Array>
+                        </Item>
+                        <Item Key="Description" Translatable="1">Manage different calendars.</Item>
+                        <Item Key="Name" Translatable="1">Manage Calendars</Item>
+                        <Item Key="Link">Action=AdminAppointmentCalendarManage</Item>
+                        <Item Key="LinkOption"></Item>
+                        <Item Key="NavBar">Calendar</Item>
+                        <Item Key="Type"></Item>
+                        <Item Key="Block">ItemArea</Item>
+                        <Item Key="AccessKey"></Item>
+                        <Item Key="Prio">9000</Item>
+                    </Hash>
                 </Item>
-                <Item Key="GroupRo">
-                    <Array>
-                    </Array>
-                </Item>
-                <Item Key="Description" Translatable="1">Manage different calendars.</Item>
-                <Item Key="Name" Translatable="1">Manage Calendars</Item>
-                <Item Key="Link">Action=AdminAppointmentCalendarManage</Item>
-                <Item Key="LinkOption"></Item>
-                <Item Key="NavBar">Calendar</Item>
-                <Item Key="Type"></Item>
-                <Item Key="Block">ItemArea</Item>
-                <Item Key="AccessKey"></Item>
-                <Item Key="Prio">9000</Item>
-            </Hash>
+            </Array>
         </Value>
     </Setting>
     <Setting Name="Frontend::NavigationModule###AdminAppointmentCalendarManage" Required="0" Valid="1">
         <Description Translatable="1">Admin area navigation for the agent interface.</Description>
-        <Navigation>Frontend::Agent::ModuleRegistration</Navigation>
+        <Navigation>Frontend::Admin::ModuleRegistration::AdminOverview</Navigation>
         <Value>
             <Hash>
                 <Item Key="Group">
@@ -314,11 +330,10 @@
                 </Item>
                 <Item Key="Module">Kernel::Output::HTML::NavBar::ModuleAdmin</Item>
                 <Item Key="Name" Translatable="1">Calendars</Item>
-                <Item Key="Block"></Item>
+                <Item Key="Block">Administration</Item>
                 <Item Key="Description" Translatable="1">Create and manage calendars.</Item>
                 <Item Key="IconBig">fa-calendar</Item>
                 <Item Key="IconSmall"></Item>
-                <Item Key="Prio">1500</Item>
             </Hash>
         </Value>
     </Setting>
@@ -472,7 +487,7 @@
         </Value>
     </Setting>
     <Setting Name="AppointmentCalendar::Import::RecurringMonthsLimit" Required="1" Valid="1">
-        <Description Translatable="1">OTRS doesn't support recurring Appointments without end date or number of iterations. During import process, it might happen that ICS file contains such Appointments. Instead, system creates all Appointments in the past, plus Appointments for the next n months (120 months/10 years by default).</Description>
+        <Description Translatable="1">OTRS doesn't support recurring Appointments without end date or number of iterations. During import process, it might happen that ICS file contains such Appointments. Instead, system creates all Appointments in the past, plus Appointments for the next N months (120 months/10 years by default).</Description>
         <Navigation>Core::AppointmentCalendar</Navigation>
         <Value>
             <Item ValueType="String" ValueRegex="^\d+$">120</Item>
@@ -560,19 +575,19 @@
                 <Item Key="ResponsibleIDs" Translatable="1">Responsible</Item>
                 <Item Key="CustomerID" Translatable="1">CustomerID</Item>
                 <Item Key="CustomerUserLogin" Translatable="1">Customer user</Item>
-                <Item Key="From" Translatable="1">From</Item>
-                <Item Key="To" Translatable="1">To</Item>
-                <Item Key="Cc" Translatable="1">Cc</Item>
-                <Item Key="Subject" Translatable="1">Subject</Item>
-                <Item Key="Body" Translatable="1">Body</Item>
-                <Item Key="AttachmentName" Translatable="1">Attachment Name</Item>
+                <Item Key="MIMEBase_From" Translatable="1">From</Item>
+                <Item Key="MIMEBase_To" Translatable="1">To</Item>
+                <Item Key="MIMEBase_Cc" Translatable="1">Cc</Item>
+                <Item Key="MIMEBase_Subject" Translatable="1">Subject</Item>
+                <Item Key="MIMEBase_Body" Translatable="1">Body</Item>
+                <Item Key="MIMEBase_AttachmentName" Translatable="1">Attachment Name</Item>
             </Hash>
         </Value>
     </Setting>
     <!-- notifications -->
     <Setting Name="Frontend::Admin::AdminAppointmentNotificationEvent###EventObjectTypes" Required="0" Valid="1">
         <Description Translatable="1">Defines the event object types that will be handled via AdminAppointmentNotificationEvent.</Description>
-        <Navigation>Frontend::Admin::AdminNotificationEvent</Navigation>
+        <Navigation>Frontend::Admin::View::NotificationEvent</Navigation>
         <Value>
             <Array>
                 <Item>Calendar</Item>
@@ -604,7 +619,7 @@
     </Setting>
     <Setting Name="AppointmentCalendar::EventModulePost###100-Notification" Required="0" Valid="1">
         <Description Translatable="1">Appointment calendar event module that prepares notification entries for appointments.</Description>
-        <Navigation>Core::AppointmentCalendar::Event</Navigation>
+        <Navigation>Core::Event::AppointmentCalendar</Navigation>
         <Value>
             <Hash>
                 <Item Key="Module">Kernel::System::Calendar::Event::Notification</Item>
@@ -637,7 +652,7 @@
     </Setting>
     <Setting Name="Loader::Module::AdminAppointmentNotificationEvent###002-Calendar" Required="0" Valid="1">
         <Description Translatable="1">Loader module registration for the agent interface.</Description>
-        <Navigation>Frontend::Admin::ModuleRegistration</Navigation>
+        <Navigation>Frontend::Admin::ModuleRegistration::Loader</Navigation>
         <Value>
             <Hash>
                 <Item Key="CSS">
@@ -653,9 +668,21 @@
             </Hash>
         </Value>
     </Setting>
+    <Setting Name="Frontend::Navigation###AdminAppointmentNotificationEvent###002-Calendar" Required="0" Valid="0">
+        <Description Translatable="1">Main menu item registration.</Description>
+        <Navigation>Frontend::Admin::ModuleRegistration::MainMenu</Navigation>
+        <Value>
+            <Array>
+                <DefaultItem ValueType="FrontendNavigation">
+                    <Hash>
+                    </Hash>
+                </DefaultItem>
+            </Array>
+        </Value>
+    </Setting>
     <Setting Name="Frontend::NavigationModule###AdminAppointmentNotificationEvent" Required="0" Valid="1">
         <Description Translatable="1">Admin area navigation for the agent interface.</Description>
-        <Navigation>Frontend::Admin::ModuleRegistration</Navigation>
+        <Navigation>Frontend::Admin::ModuleRegistration::AdminOverview</Navigation>
         <Value>
             <Hash>
                 <Item Key="Group">
@@ -669,38 +696,37 @@
                 </Item>
                 <Item Key="Module">Kernel::Output::HTML::NavBar::ModuleAdmin</Item>
                 <Item Key="Name" Translatable="1">Appointment Notifications</Item>
-                <Item Key="Block">System</Item>
+                <Item Key="Block">Communication</Item>
                 <Item Key="Description" Translatable="1">Create and manage appointment notifications.</Item>
-                <Item Key="IconBig"></Item>
+                <Item Key="IconBig">fa-bell-o</Item>
                 <Item Key="IconSmall"></Item>
-                <Item Key="Prio">400</Item>
             </Hash>
         </Value>
     </Setting>
     <Setting Name="Frontend::Admin::AdminAppointmentNotificationEvent###RichText" Required="0" Valid="1">
         <Description Translatable="1">Uses richtext for viewing and editing ticket notification.</Description>
-        <Navigation>Frontend::Admin::AdminNotificationEvent</Navigation>
+        <Navigation>Frontend::Admin::View::NotificationEvent</Navigation>
         <Value>
             <Item ValueType="Checkbox">1</Item>
         </Value>
     </Setting>
     <Setting Name="Frontend::Admin::AdminAppointmentNotificationEvent###RichTextWidth" Required="0" Valid="1">
         <Description Translatable="1">Defines the width for the rich text editor component for this screen. Enter number (pixels) or percent value (relative).</Description>
-        <Navigation>Frontend::Admin::AdminNotificationEvent</Navigation>
+        <Navigation>Frontend::Admin::View::NotificationEvent</Navigation>
         <Value>
             <Item ValueType="String" ValueRegex="^\d+%?$">620</Item>
         </Value>
     </Setting>
     <Setting Name="Frontend::Admin::AdminAppointmentNotificationEvent###RichTextHeight" Required="0" Valid="1">
         <Description Translatable="1">Defines the height for the rich text editor component for this screen. Enter number (pixels) or percent value (relative).</Description>
-        <Navigation>Frontend::Admin::AdminNotificationEvent</Navigation>
+        <Navigation>Frontend::Admin::View::NotificationEvent</Navigation>
         <Value>
             <Item ValueType="String" ValueRegex="^\d+%?$">320</Item>
         </Value>
     </Setting>
     <Setting Name="PreferencesGroups###AppointmentNotificationEvent" Required="0" Valid="1">
-        <Description Translatable="1">Transport selection for appointment notifications.</Description>
-        <Navigation>Frontend::Agent::Preferences</Navigation>
+        <Description Translatable="1">Transport selection for appointment notifications. Please note: setting 'Active' to 0 will only prevent agents from editing settings of this group in their personal preferences, but will still allow administrators to edit the settings of another user's behalf. Use 'PreferenceGroup' to control in which area these settings should be shown in the user interface.</Description>
+        <Navigation>Frontend::Agent::View::Preferences</Navigation>
         <Value>
             <Hash>
                 <Item Key="Module">Kernel::Output::HTML::Preferences::AppointmentNotificationEvent</Item>
@@ -715,7 +741,7 @@
     </Setting>
     <Setting Name="Notification::CharactersPerLine" Required="1" Valid="1">
         <Description Translatable="1">Defines the number of character per line used in case an HTML article preview replacement on TemplateGenerator for EventNotifications.</Description>
-        <Navigation>Frontend::Admin::AdminNotificationEvent</Navigation>
+        <Navigation>Frontend::Admin::View::NotificationEvent</Navigation>
         <Value>
             <Item ValueType="String" ValueRegex="^\d+$">80</Item><!-- default 1 hour -->
         </Value>
@@ -723,7 +749,7 @@
     <!-- notification transports -->
     <Setting Name="AppointmentNotification::Transport###Email" Required="0" Valid="1">
         <Description Translatable="1">Defines all the parameters for this notification transport.</Description>
-        <Navigation>Frontend::Admin::AdminNotificationEvent</Navigation>
+        <Navigation>Frontend::Admin::View::NotificationEvent</Navigation>
         <Value>
             <Hash>
                 <Item Key="Module">Kernel::System::Calendar::Event::Transport::Email</Item>
@@ -737,7 +763,7 @@
     </Setting>
     <Setting Name="AppointmentNotification::Transport###NotificationView" Required="0" Valid="1">
         <Description Translatable="1">Defines all the parameters for this notification transport.</Description>
-        <Navigation>Frontend::Admin::AdminNotificationEvent</Navigation>
+        <Navigation>Frontend::Admin::View::NotificationEvent</Navigation>
         <Value>
             <Hash>
                 <Item Key="Module">Kernel::System::Calendar::Event::Transport::NotificationView</Item>
@@ -751,7 +777,7 @@
     </Setting>
     <Setting Name="AppointmentNotification::Transport###SMS" Required="0" Valid="1">
         <Description Translatable="1">Defines all the parameters for this notification transport.</Description>
-        <Navigation>Frontend::Admin::AdminNotificationEvent</Navigation>
+        <Navigation>Frontend::Admin::View::NotificationEvent</Navigation>
         <Value>
             <Hash>
                 <Item Key="Module">Kernel::System::Calendar::Event::Transport::SMS</Item>
@@ -765,7 +791,7 @@
     </Setting>
     <Setting Name="AppointmentCalendar::EventModulePost###200-TicketAppointments" Required="0" Valid="1">
         <Description Translatable="1">Appointment calendar event module that updates the ticket with data from ticket appointment.</Description>
-        <Navigation>Core::AppointmentCalendar::Event</Navigation>
+        <Navigation>Core::Event::AppointmentCalendar</Navigation>
         <Value>
             <Hash>
                 <Item Key="Module">Kernel::System::Calendar::Event::TicketAppointments</Item>
@@ -775,13 +801,13 @@
     </Setting>
     <!-- dashboard widget -->
     <Setting Name="DashboardBackend###0500-AppointmentCalendar" Required="0" Valid="1">
-        <Description Translatable="1">Defines the parameters for the dashboard backend. "Limit" defines the number of entries displayed by default. "Group" is used to restrict access to the plugin (e. g. Group: admin;group1;group2;). "Default" indicates if the plugin is enabled by default or if the user needs to enable it manually. "CacheTTLLocal" defines the cache expiration period in minutes for the plugin.</Description>
-        <Navigation>Frontend::Agent::Dashboard</Navigation>
+        <Description Translatable="1">Defines the parameters for the dashboard backend. "Limit" defines the number of entries displayed by default. "Group" is used to restrict access to the plugin (e. g. Group: admin;group1;group2;). "Default" indicates if the plugin is enabled by default or if the user needs to enable it manually. "CacheTTLLocal" defines the cache expiration period in minutes for the plugin. "Mandatory" determines if the plugin is always shown and can not be removed by agents.</Description>
+        <Navigation>Frontend::Agent::View::Dashboard</Navigation>
         <Value>
             <Hash>
                 <Item Key="Module">Kernel::Output::HTML::Dashboard::AppointmentCalendar</Item>
                 <Item Key="Title" Translatable="1">Appointments</Item>
-                <Item Key="Description"></Item>
+                <Item Key="Description" Translatable="1">Appointments</Item>
                 <Item Key="ShowEmail">0</Item>
                 <Item Key="IdleMinutes">60</Item>
                 <Item Key="SortBy">UserFullname</Item>
@@ -791,13 +817,14 @@
                 <Item Key="Group"></Item>
                 <Item Key="Default">0</Item>
                 <Item Key="CacheTTLLocal">5</Item>
+                <Item Key="Mandatory">0</Item>
             </Hash>
         </Value>
     </Setting>
     <!-- appointment creation linked to external objects -->
     <Setting Name="Ticket::Frontend::MenuModule###550-Appointment" Required="0" Valid="1">
         <Description Translatable="1">Shows a link in the menu for creating a calendar appointment linked to the ticket directly from the ticket zoom view of the agent interface. Additional access control to show or not show this link can be done by using Key "Group" and Content like "rw:group1;move_into:group2". To cluster menu items use for Key "ClusterName" and for the Content any name you want to see in the UI. Use "ClusterPriority" to configure the order of a certain cluster within the toolbar.</Description>
-        <Navigation>Frontend::Agent::Ticket::MenuModule</Navigation>
+        <Navigation>Frontend::Agent::View::TicketZoom::MenuModule</Navigation>
         <Value>
             <Hash>
                 <Item Key="Module">Kernel::Output::HTML::TicketMenu::Generic</Item>
@@ -835,49 +862,57 @@
     </Setting>
     <Setting Name="Loader::Module::AgentAppointmentAgendaOverview###002-Calendar" Required="0" Valid="1">
         <Description Translatable="1">Loader module registration for the agent interface.</Description>
-        <Navigation>Frontend::Agent::ModuleRegistration</Navigation>
+        <Navigation>Frontend::Agent::ModuleRegistration::Loader</Navigation>
         <Value>
             <Hash>
                 <Item Key="CSS">
                     <Array>
-                        <Item>thirdparty/fullcalendar-3.2.0/fullcalendar.min.css</Item>
+                        <Item>thirdparty/fullcalendar-3.4.0/fullcalendar.min.css</Item>
                         <Item>Core.AppointmentCalendar.css</Item>
                         <Item>Core.AppointmentCalendar.Agenda.css</Item>
                     </Array>
                 </Item>
                 <Item Key="JavaScript">
                     <Array>
-                        <Item>thirdparty/momentjs-2.17.1/moment.min.js</Item>
-                        <Item>thirdparty/fullcalendar-3.2.0/fullcalendar.min.js</Item>
+                        <Item>thirdparty/momentjs-2.18.1/moment.min.js</Item>
+                        <Item>thirdparty/fullcalendar-3.4.0/fullcalendar.min.js</Item>
                         <Item>Core.Agent.AppointmentCalendar.js</Item>
                     </Array>
                 </Item>
             </Hash>
         </Value>
     </Setting>
-    <Setting Name="Frontend::Navigation###AgentAppointmentAgendaOverview###1" Required="0" Valid="1">
-        <Description Translatable="1">Main menu for the agent interface.</Description>
-        <Navigation>Frontend::Agent::ModuleRegistration</Navigation>
+    <Setting Name="Frontend::Navigation###AgentAppointmentAgendaOverview###002-Calendar" Required="0" Valid="1">
+        <Description Translatable="1">Main menu item registration.</Description>
+        <Navigation>Frontend::Agent::ModuleRegistration::MainMenu</Navigation>
         <Value>
-            <Hash>
-                <Item Key="Group">
-                    <Array>
-                    </Array>
+            <Array>
+                <DefaultItem ValueType="FrontendNavigation">
+                    <Hash>
+                    </Hash>
+                </DefaultItem>
+                <Item>
+                    <Hash>
+                        <Item Key="Group">
+                            <Array>
+                            </Array>
+                        </Item>
+                        <Item Key="GroupRo">
+                            <Array>
+                            </Array>
+                        </Item>
+                        <Item Key="Description" Translatable="1">Overview of all appointments.</Item>
+                        <Item Key="Name" Translatable="1">Agenda Overview</Item>
+                        <Item Key="Link">Action=AgentAppointmentAgendaOverview</Item>
+                        <Item Key="LinkOption"></Item>
+                        <Item Key="NavBar">Calendar</Item>
+                        <Item Key="Type"></Item>
+                        <Item Key="Block">ItemArea</Item>
+                        <Item Key="AccessKey"></Item>
+                        <Item Key="Prio">6500</Item>
+                    </Hash>
                 </Item>
-                <Item Key="GroupRo">
-                    <Array>
-                    </Array>
-                </Item>
-                <Item Key="Description" Translatable="1">Overview of all appointments.</Item>
-                <Item Key="Name" Translatable="1">Agenda Overview</Item>
-                <Item Key="Link">Action=AgentAppointmentAgendaOverview</Item>
-                <Item Key="LinkOption"></Item>
-                <Item Key="NavBar">Calendar</Item>
-                <Item Key="Type"></Item>
-                <Item Key="Block">ItemArea</Item>
-                <Item Key="AccessKey"></Item>
-                <Item Key="Prio">6500</Item>
-            </Hash>
+            </Array>
         </Value>
     </Setting>
     <Setting Name="AgentAppointmentEdit::Location::Link###1-GoogleMaps" Required="0" Valid="1">
@@ -895,7 +930,7 @@
     </Setting>
     <Setting Name="Ticket::EventModulePost###950-TicketAppointments" Required="0" Valid="1">
         <Description Translatable="1">Triggers add or update of automatic calendar appointments based on certain ticket times.</Description>
-        <Navigation>Core::Ticket</Navigation>
+        <Navigation>Core::Event::Ticket</Navigation>
         <Value>
             <Hash>
                 <Item Key="Module">Kernel::System::Ticket::Event::TicketAppointments</Item>

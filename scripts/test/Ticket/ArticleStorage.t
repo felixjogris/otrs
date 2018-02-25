@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -14,24 +14,23 @@ use vars (qw($Self));
 
 use Unicode::Normalize;
 
-# get needed objects
-my $ConfigObject  = $Kernel::OM->Get('Kernel::Config');
-my $MainObject    = $Kernel::OM->Get('Kernel::System::Main');
-my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+my $ConfigObject         = $Kernel::OM->Get('Kernel::Config');
+my $MainObject           = $Kernel::OM->Get('Kernel::System::Main');
+my $ArticleObject        = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+my $ArticleBackendObject = $ArticleObject->BackendForChannel( ChannelName => 'Internal' );
 
-# get helper object
 $Kernel::OM->ObjectParamAdd(
     'Kernel::System::UnitTest::Helper' => {
         RestoreDatabase  => 1,
-        UseTmpArticleDir => 1,
         UseTmpArticleDir => 1,
     },
 );
 my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
+# Create test ticket.
 my $TicketID = $Kernel::OM->Get('Kernel::System::Ticket')->TicketCreate(
     Title        => 'Some Ticket_Title',
-    Queue        => 'Raw',
+    QueueID      => 1,
     Lock         => 'unlock',
     Priority     => '3 normal',
     State        => 'closed successful',
@@ -45,19 +44,19 @@ $Self->True(
     'TicketCreate()',
 );
 
-my $ArticleID = $ArticleObject->ArticleCreate(
-    TicketID       => $TicketID,
-    ArticleType    => 'note-internal',
-    SenderType     => 'agent',
-    From           => 'Some Agent <email@example.com>',
-    To             => 'Some Customer <customer-a@example.com>',
-    Subject        => 'some short description',
-    Body           => 'the message text',
-    ContentType    => 'text/plain; charset=ISO-8859-15',
-    HistoryType    => 'OwnerUpdate',
-    HistoryComment => 'Some free text!',
-    UserID         => 1,
-    NoAgentNotify  => 1,                                          # if you don't want to send agent notifications
+my $ArticleID = $ArticleBackendObject->ArticleCreate(
+    TicketID             => $TicketID,
+    SenderType           => 'agent',
+    IsVisibleForCustomer => 0,
+    From                 => 'Some Agent <email@example.com>',
+    To                   => 'Some Customer <customer-a@example.com>',
+    Subject              => 'some short description',
+    Body                 => 'the message text',
+    ContentType          => 'text/plain; charset=ISO-8859-15',
+    HistoryType          => 'OwnerUpdate',
+    HistoryComment       => 'Some free text!',
+    UserID               => 1,
+    NoAgentNotify        => 1,
 );
 
 $Self->True(
@@ -68,29 +67,28 @@ $Self->True(
 # article attachment checks
 for my $Backend (qw(DB FS)) {
 
-    # Make sure that the article object gets recreated for each loop.
-    $Kernel::OM->ObjectsDiscard( Objects => ['Kernel::System::Ticket::Article'] );
+    # Make sure that the article backend object gets recreated for each loop.
+    $Kernel::OM->ObjectsDiscard( Objects => [ ref $ArticleBackendObject ] );
 
     $ConfigObject->Set(
-        Key   => 'Ticket::StorageModule',
-        Value => 'Kernel::System::Ticket::ArticleStorage' . $Backend,
+        Key   => 'Ticket::Article::Backend::MIMEBase::ArticleStorage',
+        Value => 'Kernel::System::Ticket::Article::Backend::MIMEBase::ArticleStorage' . $Backend,
     );
 
-    $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+    $ArticleBackendObject = $ArticleObject->BackendForChannel( ChannelName => 'Internal' );
 
     $Self->Is(
-        $ArticleObject->{ArticleStorageModule},
-        'Kernel::System::Ticket::ArticleStorage' . $Backend,
-        "TicketObject loaded the correct backend",
+        $ArticleBackendObject->{ArticleStorageModule},
+        'Kernel::System::Ticket::Article::Backend::MIMEBase::ArticleStorage' . $Backend,
+        'Article backend loaded the correct storage module'
     );
 
     for my $File (
         qw(Ticket-Article-Test1.xls Ticket-Article-Test1.txt Ticket-Article-Test1.doc
-        Ticket-Article-Test1.png Ticket-Article-Test1.pdf Ticket-Article-Test-utf8-1.txt Ticket-Article-Test-utf8-1.bin)
+        Ticket-Article-Test1.png Ticket-Article-Test1.pdf Ticket-Article-Test-utf8-1.txt Ticket-Article-Test-utf8-1.bin Ticket-Article-Test-empty.txt)
         )
     {
-        my $Location = $ConfigObject->Get('Home')
-            . "/scripts/test/sample/Ticket/$File";
+        my $Location   = $ConfigObject->Get('Home') . "/scripts/test/sample/Ticket/$File";
         my $ContentRef = $MainObject->FileRead(
             Location => $Location,
             Mode     => 'binmode',
@@ -105,7 +103,7 @@ for my $Backend (qw(DB FS)) {
             my $Content                = ${$ContentRef};
             my $FileNew                = $FileName . $File;
             my $MD5Orig                = $MainObject->MD5sum( String => $Content );
-            my $ArticleWriteAttachment = $ArticleObject->ArticleWriteAttachment(
+            my $ArticleWriteAttachment = $ArticleBackendObject->ArticleWriteAttachment(
                 Content     => $Content,
                 Filename    => $FileNew,
                 ContentType => 'image/png',
@@ -117,9 +115,8 @@ for my $Backend (qw(DB FS)) {
                 "$Backend ArticleWriteAttachment() - $FileNew",
             );
 
-            my %AttachmentIndex = $ArticleObject->ArticleAttachmentIndex(
+            my %AttachmentIndex = $ArticleBackendObject->ArticleAttachmentIndex(
                 ArticleID => $ArticleID,
-                UserID    => 1,
             );
 
             my $TargetFilename = $FileName . $File;
@@ -135,14 +132,9 @@ for my $Backend (qw(DB FS)) {
                 "$Backend ArticleAttachmentIndex() Filename - $FileNew"
             );
 
-            my %Data = $ArticleObject->ArticleAttachment(
+            my %Data = $ArticleBackendObject->ArticleAttachment(
                 ArticleID => $ArticleID,
                 FileID    => 1,
-                UserID    => 1,
-            );
-            $Self->True(
-                $Data{Content},
-                "$Backend ArticleAttachment() Content - $FileNew",
             );
             $Self->True(
                 $Data{ContentType},
@@ -162,7 +154,7 @@ for my $Backend (qw(DB FS)) {
                 $MD5New  || '2',
                 "$Backend MD5 - $FileNew",
             );
-            my $Delete = $ArticleObject->ArticleDeleteAttachment(
+            my $Delete = $ArticleBackendObject->ArticleDeleteAttachment(
                 ArticleID => $ArticleID,
                 UserID    => 1,
             );
@@ -171,9 +163,8 @@ for my $Backend (qw(DB FS)) {
                 "$Backend ArticleDeleteAttachment() - $FileNew",
             );
 
-            %AttachmentIndex = $ArticleObject->ArticleAttachmentIndex(
+            %AttachmentIndex = $ArticleBackendObject->ArticleAttachmentIndex(
                 ArticleID => $ArticleID,
-                UserID    => 1,
             );
 
             $Self->IsDeeply(
@@ -188,27 +179,27 @@ for my $Backend (qw(DB FS)) {
 # filename collision checks
 for my $Backend (qw(DB FS)) {
 
-    # Make sure that the TicketObject gets recreated for each loop.
-    $Kernel::OM->ObjectsDiscard( Objects => ['Kernel::System::Ticket::Article'] );
+    # Make sure that the article backend object gets recreated for each loop.
+    $Kernel::OM->ObjectsDiscard( Objects => [ ref $ArticleBackendObject ] );
 
     $ConfigObject->Set(
-        Key   => 'Ticket::StorageModule',
-        Value => 'Kernel::System::Ticket::ArticleStorage' . $Backend,
+        Key   => 'Ticket::Article::Backend::MIMEBase::ArticleStorage',
+        Value => 'Kernel::System::Ticket::Article::Backend::MIMEBase::ArticleStorage' . $Backend,
     );
 
-    my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+    $ArticleBackendObject = $ArticleObject->BackendForChannel( ChannelName => 'Internal' );
 
     $Self->Is(
-        $ArticleObject->{ArticleStorageModule},
-        'Kernel::System::Ticket::ArticleStorage' . $Backend,
-        "TicketObject loaded the correct backend",
+        $ArticleBackendObject->{ArticleStorageModule},
+        'Kernel::System::Ticket::Article::Backend::MIMEBase::ArticleStorage' . $Backend,
+        'Article backend loaded the correct storage module',
     );
 
     # Store file 2 times
     my $FileName               = "[Terminology Guide äöß].pdf";
     my $Content                = '123';
     my $FileNew                = $FileName;
-    my $ArticleWriteAttachment = $ArticleObject->ArticleWriteAttachment(
+    my $ArticleWriteAttachment = $ArticleBackendObject->ArticleWriteAttachment(
         Content     => $Content,
         Filename    => $FileNew,
         ContentType => 'image/png',
@@ -220,7 +211,7 @@ for my $Backend (qw(DB FS)) {
         "$Backend ArticleWriteAttachment() - collision check created $FileNew",
     );
 
-    $ArticleWriteAttachment = $ArticleObject->ArticleWriteAttachment(
+    $ArticleWriteAttachment = $ArticleBackendObject->ArticleWriteAttachment(
         Content     => $Content,
         Filename    => $FileNew,
         ContentType => 'image/png',
@@ -232,9 +223,8 @@ for my $Backend (qw(DB FS)) {
         "$Backend ArticleWriteAttachment() - collision check created $FileNew second time",
     );
 
-    my %AttachmentIndex = $ArticleObject->ArticleAttachmentIndex(
+    my %AttachmentIndex = $ArticleBackendObject->ArticleAttachmentIndex(
         ArticleID => $ArticleID,
-        UserID    => 1,
     );
 
     my $TargetFilename = '[Terminology Guide äöß]';
@@ -266,7 +256,6 @@ for my $Backend (qw(DB FS)) {
             'ContentID'          => '',
             'ContentType'        => 'image/png',
             'Filename'           => "$TargetFilename.pdf",
-            'Filesize'           => '3 Bytes',
             'FilesizeRaw'        => '3',
             'Disposition'        => 'attachment',
         },
@@ -280,14 +269,13 @@ for my $Backend (qw(DB FS)) {
             'ContentID'          => '',
             'ContentType'        => 'image/png',
             'Filename'           => "$TargetFilename-1.pdf",
-            'Filesize'           => '3 Bytes',
             'FilesizeRaw'        => '3',
             'Disposition'        => 'attachment',
         },
         "$Backend ArticleAttachmentIndex - collision check entry 2",
     );
 
-    my $Delete = $ArticleObject->ArticleDeleteAttachment(
+    my $Delete = $ArticleBackendObject->ArticleDeleteAttachment(
         ArticleID => $ArticleID,
         UserID    => 1,
     );
@@ -297,9 +285,8 @@ for my $Backend (qw(DB FS)) {
         "$Backend ArticleDeleteAttachment()",
     );
 
-    %AttachmentIndex = $ArticleObject->ArticleAttachmentIndex(
+    %AttachmentIndex = $ArticleBackendObject->ArticleAttachmentIndex(
         ArticleID => $ArticleID,
-        UserID    => 1,
     );
 
     $Self->IsDeeply(

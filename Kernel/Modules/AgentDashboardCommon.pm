@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -38,6 +38,11 @@ sub Run {
         $BackendConfigKey  = 'AgentCustomerInformationCenter::Backend';
         $MainMenuConfigKey = 'AgentCustomerInformationCenter::MainMenu';
         $UserSettingsKey   = 'UserCustomerInformationCenter';
+    }
+    elsif ( $Self->{Action} eq 'AgentCustomerUserInformationCenter' ) {
+        $BackendConfigKey  = 'AgentCustomerUserInformationCenter::Backend';
+        $MainMenuConfigKey = 'AgentCustomerUserInformationCenter::MainMenu';
+        $UserSettingsKey   = 'UserCustomerUserInformationCenter';
     }
 
     # get needed objects
@@ -130,6 +135,26 @@ sub Run {
             }
         }
     }
+    elsif ( $Self->{Action} eq 'AgentCustomerUserInformationCenter' ) {
+
+        $Self->{CustomerUserID} = $ParamObject->GetParam( Param => 'CustomerUserID' );
+
+        # check CustomerUserID presence for all subactions that need it
+        if ( $Self->{Subaction} ne 'UpdatePosition' ) {
+
+            if ( !$Self->{CustomerUserID} ) {
+
+                $LayoutObject->AddJSOnDocumentComplete(
+                    Code => 'Core.Agent.CustomerUserInformationCenterSearch.OpenSearchDialog();'
+                );
+
+                my $Output = $LayoutObject->Header();
+                $Output .= $LayoutObject->NavigationBar();
+                $Output .= $LayoutObject->Footer();
+                return $Output;
+            }
+        }
+    }
 
     # get needed objects
     my $DynamicFieldObject = $Kernel::OM->Get('Kernel::System::DynamicField');
@@ -144,6 +169,14 @@ sub Run {
 
         my $Name = $ParamObject->GetParam( Param => 'Name' );
         my $Key = $UserSettingsKey . $Name;
+
+        # Mandatory widgets can't be removed.
+        if ( $Config->{$Name} && $Config->{$Name}->{Mandatory} ) {
+
+            return $LayoutObject->Redirect(
+                OP => "Action=$Self->{Action}",
+            );
+        }
 
         # update session
         $SessionObject->UpdateSessionID(
@@ -164,6 +197,9 @@ sub Run {
         my $URL = "Action=$Self->{Action}";
         if ( $Self->{CustomerID} ) {
             $URL .= ";CustomerID=" . $LayoutObject->LinkEncode( $Self->{CustomerID} );
+        }
+        if ( $Self->{CustomerUserID} ) {
+            $URL .= ";CustomerUserID=" . $LayoutObject->LinkEncode( $Self->{CustomerUserID} );
         }
 
         return $LayoutObject->Redirect(
@@ -251,6 +287,12 @@ sub Run {
                 $Active = 1;
                 last BACKEND;
             }
+
+            # Mandatory widgets can not be removed.
+            if ( $Config->{$Name}->{Mandatory} ) {
+                $Active = 1;
+            }
+
             my $Key = $UserSettingsKey . $Name;
 
             # update session
@@ -273,6 +315,9 @@ sub Run {
         my $URL = "Action=$Self->{Action}";
         if ( $Self->{CustomerID} ) {
             $URL .= ";CustomerID=" . $LayoutObject->LinkEncode( $Self->{CustomerID} );
+        }
+        if ( $Self->{CustomerUserID} ) {
+            $URL .= ";CustomerUserID=" . $LayoutObject->LinkEncode( $Self->{CustomerUserID} );
         }
 
         return $LayoutObject->Redirect(
@@ -464,6 +509,18 @@ sub Run {
             $ContentBlockData{CustomerIDTitle} = "$CustomerCompanyData{CustomerCompanyName} ($Self->{CustomerID})";
         }
     }
+    elsif ( $Self->{Action} eq 'AgentCustomerUserInformationCenter' ) {
+
+        my %CustomerUserData = $Kernel::OM->Get('Kernel::System::CustomerUser')->CustomerUserDataGet(
+            User => $Self->{CustomerUserID},
+        );
+
+        $ContentBlockData{CustomerUserID} = $Self->{CustomerUserID};
+
+        # H1 title
+        $ContentBlockData{CustomerUserIDTitle} = "\"$CustomerUserData{UserFullname}\" <$CustomerUserData{UserEmail}>";
+
+    }
 
     # show dashboard
     $LayoutObject->Block(
@@ -503,6 +560,11 @@ sub Run {
         }
         else {
             $Backends{$Name} = $Config->{$Name}->{Default};
+        }
+
+        # Always show widgets with mandatory flag.
+        if ( $Config->{$Name}->{Mandatory} ) {
+            $Backends{$Name} = $Config->{$Name}->{Mandatory};
         }
     }
 
@@ -568,10 +630,11 @@ sub Run {
             Name => $Element{Config}->{Block},
             Data => {
                 %{ $Element{Config} },
-                Name       => $Name,
-                NameForm   => $NameForm,
-                Content    => ${ $Element{Content} },
-                CustomerID => $Self->{CustomerID} || '',
+                Name           => $Name,
+                NameForm       => $NameForm,
+                Content        => ${ $Element{Content} },
+                CustomerID     => $Self->{CustomerID} || '',
+                CustomerUserID => $Self->{CustomerUserID} || '',
             },
         );
 
@@ -600,10 +663,24 @@ sub Run {
             );
         }
 
+        # Do not show the delete link if the widget is mandatory.
+        if ( !$Config->{$Name}->{Mandatory} ) {
+
+            $LayoutObject->Block(
+                Name => $Element{Config}->{Block} . 'Remove',
+                Data => {
+                    %{ $Element{Config} },
+                    Name           => $Name,
+                    CustomerID     => $Self->{CustomerID} || '',
+                    CustomerUserID => $Self->{CustomerUserID} || '',
+                },
+            );
+        }
+
         # if column is not a default column, add it for translation
-        for my $Column ( sort keys %{ $Element{Config}{DefaultColumns} } ) {
+        for my $Column ( sort keys %{ $Element{Config}->{DefaultColumns} } ) {
             if ( !defined $Columns->{$Column} ) {
-                $Columns->{$Column} = $Element{Config}{DefaultColumns}{$Column}
+                $Columns->{$Column} = $Element{Config}->{DefaultColumns}->{$Column}
             }
         }
 
@@ -684,7 +761,8 @@ sub Run {
                 Name => 'MainMenuItem',
                 Data => {
                     %{ $MainMenuConfig->{$MainMenuItem} },
-                    CustomerID => $Self->{CustomerID},
+                    CustomerID     => $Self->{CustomerID},
+                    CustomerUserID => $Self->{CustomerUserID},
                 },
             );
         }
@@ -716,7 +794,13 @@ sub Run {
                 $TranslatedWord = Translatable('Pending till');
             }
             elsif ( $Column eq 'CustomerCompanyName' ) {
-                $TranslatedWord = Translatable('Customer Company Name');
+                $TranslatedWord = Translatable('Customer Name');
+            }
+            elsif ( $Column eq 'CustomerID' ) {
+                $TranslatedWord = Translatable('Customer ID');
+            }
+            elsif ( $Column eq 'CustomerName' ) {
+                $TranslatedWord = Translatable('Customer User Name');
             }
             elsif ( $Column eq 'CustomerUserID' ) {
                 $TranslatedWord = Translatable('Customer User ID');
@@ -810,12 +894,12 @@ sub _Element {
         Config                => $Configs->{$Name},
         Name                  => $Name,
         CustomerID            => $Self->{CustomerID} || '',
+        CustomerUserID        => $Self->{CustomerUserID} || '',
         SortBy                => $SortBy,
         OrderBy               => $OrderBy,
         ColumnFilter          => $ColumnFilter,
         GetColumnFilter       => $GetColumnFilter,
         GetColumnFilterSelect => $GetColumnFilterSelect,
-
     );
 
     # get module config
@@ -833,10 +917,11 @@ sub _Element {
 
     if ( $Param{FilterContentOnly} ) {
         my $FilterContent = $Object->FilterContent(
-            FilterColumn => $Param{FilterColumn},
-            Config       => $Configs->{$Name},
-            Name         => $Name,
-            CustomerID   => $Self->{CustomerID} || '',
+            FilterColumn   => $Param{FilterColumn},
+            Config         => $Configs->{$Name},
+            Name           => $Name,
+            CustomerID     => $Self->{CustomerID} || '',
+            CustomerUserID => $Self->{CustomerUserID} || '',
         );
         return $FilterContent;
     }
@@ -846,17 +931,27 @@ sub _Element {
     # add backend to settings selection
     if ($Backends) {
         my $Checked = '';
-        if ( $Backends->{$Name} ) {
+        if ( $Backends->{$Name} || $Configs->{$Name}->{Mandatory} ) {
             $Checked = 'checked="checked"';
         }
+
+        # Check whether the widget is forcibly displayed.
+        # Mandatory widgets are displayed as read-only.
+        my $Readonly = '';
+        if ( $Configs->{$Name}->{Mandatory} ) {
+            $Readonly = 'disabled="disabled"';
+        }
+
         $LayoutObject->Block(
             Name => 'ContentSettings',
             Data => {
                 %Config,
-                Name    => $Name,
-                Checked => $Checked,
+                Name     => $Name,
+                Checked  => $Checked,
+                Readonly => $Readonly,
             },
         );
+
         return if !$Backends->{$Name};
     }
 
@@ -867,7 +962,8 @@ sub _Element {
 
     if ( !$CacheKey ) {
         $CacheKey = $Name . '-'
-            . ( $Self->{CustomerID} || '' ) . '-'
+            . ( $Self->{CustomerID}     || '' ) . '-'
+            . ( $Self->{CustomerUserID} || '' ) . '-'
             . $LayoutObject->{UserLanguage};
     }
     if ( $Config{CacheTTL} ) {
@@ -882,8 +978,9 @@ sub _Element {
     if ( !defined $Content || $SortBy ) {
         $CacheUsed = 0;
         $Content   = $Object->Run(
-            AJAX       => $Param{AJAX},
-            CustomerID => $Self->{CustomerID} || '',
+            AJAX           => $Param{AJAX},
+            CustomerID     => $Self->{CustomerID} || '',
+            CustomerUserID => $Self->{CustomerUserID} || '',
         );
     }
 

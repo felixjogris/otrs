@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -40,6 +40,9 @@ sub Run {
     my $Search       = $ParamObject->GetParam( Param => 'Search' )       || '';
     my $Notification = $ParamObject->GetParam( Param => 'Notification' ) || '';
 
+    # Get list of valid IDs.
+    my @ValidIDList = $Kernel::OM->Get('Kernel::System::Valid')->ValidIDsGet();
+
     # ------------------------------------------------------------ #
     #  switch to user
     # ------------------------------------------------------------ #
@@ -60,11 +63,12 @@ sub Run {
 
         my $NewSessionID = $Kernel::OM->Get('Kernel::System::AuthSession')->CreateSessionID(
             %UserData,
-            UserLastRequest => $Kernel::OM->Get('Kernel::System::Time')->SystemTime(),
+            UserLastRequest => $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch(),
             UserType        => 'User',
+            SessionSource   => 'AgentInterface',
         );
 
-        # create a new LayoutObject with SessionIDCookie
+        # Create a new LayoutObject with session cookie.
         my $Expires = '+' . $ConfigObject->Get('SessionMaxTime') . 's';
         if ( !$ConfigObject->Get('SessionUseCookieAfterBrowserClose') ) {
             $Expires = '';
@@ -81,7 +85,7 @@ sub Run {
             'Kernel::Output::HTML::Layout' => {
                 %UserData,
                 SetCookies => {
-                    SessionIDCookie => $ParamObject->SetCookie(
+                    SessionID => $ParamObject->SetCookie(
                         Key      => $ConfigObject->Get('SessionName'),
                         Value    => $NewSessionID,
                         Expires  => $Expires,
@@ -92,7 +96,7 @@ sub Run {
                 },
                 SessionID   => $NewSessionID,
                 SessionName => $ConfigObject->Get('SessionName'),
-                }
+            },
         );
 
         $Kernel::OM->ObjectsDiscard( Objects => ['Kernel::Output::HTML::Layout'] );
@@ -165,6 +169,7 @@ sub Run {
         if (
             $GetParam{UserEmail}
             && !$CheckItemObject->CheckEmail( Address => $GetParam{UserEmail} )
+            && grep { $_ eq $GetParam{ValidID} } @ValidIDList
             )
         {
             $Errors{UserEmailInvalid} = 'ServerError';
@@ -337,6 +342,7 @@ sub Run {
         if (
             $GetParam{UserEmail}
             && !$CheckItemObject->CheckEmail( Address => $GetParam{UserEmail} )
+            && grep { $_ eq $GetParam{ValidID} } @ValidIDList
             )
         {
             $Errors{UserEmailInvalid} = 'ServerError';
@@ -534,15 +540,20 @@ sub _Edit {
         Data => \%Param,
     );
 
-    # shows header
     if ( $Param{Action} eq 'Change' ) {
+
+        # shows edit header
         $LayoutObject->Block( Name => 'HeaderEdit' );
+
+        # shows effective permissions matrix
+        $Self->_EffectivePermissions(%Param);
     }
     else {
+
+        # shows add header and hints
         $LayoutObject->Block( Name => 'HeaderAdd' );
-        $LayoutObject->Block(
-            Name => 'ShowPasswordHint',
-        );
+        $LayoutObject->Block( Name => 'MarkerMandatory' );
+        $LayoutObject->Block( Name => 'ShowPasswordHint' );
     }
 
     # add the correct server error message
@@ -692,6 +703,83 @@ sub _Overview {
     }
 
     return 1;
+}
+
+sub _EffectivePermissions {
+    my ( $Self, %Param ) = @_;
+
+    # get layout object
+    my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
+
+    # show tables
+    $LayoutObject->Block(
+        Name => 'EffectivePermissions',
+    );
+
+    my %Groups;
+    my %Permissions;
+
+    # go through permission types
+    my @Types = @{ $Kernel::OM->Get('Kernel::Config')->Get('System::Permission') };
+    for my $Type (@Types) {
+
+        # show header
+        $LayoutObject->Block(
+            Name => 'HeaderGroupPermissionType',
+            Data => {
+                Type => $Type,
+            },
+        );
+
+        # get groups of the user
+        my %UserGroups = $Kernel::OM->Get('Kernel::System::Group')->PermissionUserGet(
+            UserID => $Param{UserID},
+            Type   => $Type,
+        );
+
+        # store data in lookup hashes
+        for my $GroupID ( sort keys %UserGroups ) {
+            $Groups{$GroupID} = $UserGroups{$GroupID};
+            $Permissions{$GroupID}{$Type} = 1;
+        }
+    }
+
+    # show message if no permissions found
+    if ( !%Permissions ) {
+        $LayoutObject->Block(
+            Name => 'NoGroupPermissionsFoundMsg',
+        );
+        return;
+    }
+
+    # go through groups, sort by name
+    for my $GroupID ( sort { uc( $Groups{$a} ) cmp uc( $Groups{$b} ) } keys %Groups ) {
+
+        # show table rows
+        $LayoutObject->Block(
+            Name => 'GroupPermissionTableRow',
+            Data => {
+                ID   => $GroupID,
+                Name => $Groups{$GroupID},
+            },
+        );
+
+        # show permission marks
+        for my $Type (@Types) {
+            my $PermissionMark = $Permissions{$GroupID}{$Type} ? 'On' : 'Off';
+            my $HighlightMark = $Type eq 'rw' ? 'Highlight' : '';
+            $LayoutObject->Block(
+                Name => 'GroupPermissionMark',
+            );
+            $LayoutObject->Block(
+                Name => 'GroupPermissionMark' . $PermissionMark,
+                Data => {
+                    Highlight => $HighlightMark,
+                },
+            );
+        }
+    }
+    return;
 }
 
 1;

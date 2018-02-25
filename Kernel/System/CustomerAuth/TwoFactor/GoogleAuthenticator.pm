@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -14,13 +14,12 @@ use warnings;
 use Digest::SHA qw(sha1);
 use Digest::HMAC qw(hmac_hex);
 
-use base qw(Kernel::System::Auth::TwoFactor::GoogleAuthenticator);
+use parent qw(Kernel::System::Auth::TwoFactor::GoogleAuthenticator);
 
 our @ObjectDependencies = (
     'Kernel::Config',
     'Kernel::System::CustomerUser',
     'Kernel::System::Log',
-    'Kernel::System::Time',
 );
 
 sub new {
@@ -80,8 +79,8 @@ sub Auth {
     # if we get to here (user has preference), we need a passed token
     if ( !$Param{TwoFactorToken} ) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
-            Priority => 'error',
-            Message  => "Need TwoFactorToken!"
+            Priority => 'notice',
+            Message  => "CustomerUser: $Param{User} two factor customer authentication failed (TwoFactorToken missing)."
         );
         return;
     }

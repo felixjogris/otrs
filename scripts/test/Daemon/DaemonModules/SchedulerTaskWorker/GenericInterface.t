@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -183,7 +183,7 @@ my @Test = (
         Result => 0,
     },
     {
-        Name   => 'Wrong Webservice ID',
+        Name   => 'Wrong web service ID',
         Config => {
             TaskID   => 123,
             TaskName => 'UnitTest',
@@ -268,7 +268,6 @@ my @Test = (
 my $TaskHandlerObject
     = $Kernel::OM->Get('Kernel::System::Daemon::DaemonModules::SchedulerTaskWorker::GenericInterface');
 my $SchedulerDBObject = $Kernel::OM->Get('Kernel::System::Daemon::SchedulerDB');
-my $TimeObject        = $Kernel::OM->Get('Kernel::System::Time');
 
 TEST:
 for my $Test (@Test) {
@@ -306,13 +305,12 @@ for my $Test (@Test) {
 
         my $ExecutionTime = $Test->{RescheculeExecutionTime};
         if ( !$ExecutionTime ) {
-
-            $ExecutionTime = $TimeObject->SystemTime2TimeStamp(
-                SystemTime => $TimeObject->SystemTime() + $Test->{RescheculeTimeDiff},
-            );
+            $ExecutionTime = $Kernel::OM->Create('Kernel::System::DateTime');
+            $ExecutionTime->Add( Seconds => $Test->{RescheculeTimeDiff} );
+            $ExecutionTime = $ExecutionTime->ToString();
         }
 
-        my $TimeStamp = $TimeObject->CurrentTimestamp();
+        my $TimeStamp = $Kernel::OM->Create('Kernel::System::DateTime')->ToString();
 
         $Self->IsDeeply(
             \%Task,

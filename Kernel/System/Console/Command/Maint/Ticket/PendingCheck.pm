@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,13 +11,13 @@ package Kernel::System::Console::Command::Maint::Ticket::PendingCheck;
 use strict;
 use warnings;
 
-use base qw(Kernel::System::Console::BaseCommand);
+use parent qw(Kernel::System::Console::BaseCommand);
 
 our @ObjectDependencies = (
     'Kernel::Config',
+    'Kernel::System::DateTime',
     'Kernel::System::State',
     'Kernel::System::Ticket',
-    'Kernel::System::Time',
     'Kernel::System::User',
 );
 
@@ -134,18 +134,19 @@ sub Run {
             %Ticket,
         );
 
-        # get time object
-        my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
-
         # check if it is during business hours, then send reminder
-        my $CountedTime = $TimeObject->WorkingTime(
-            StartTime => $TimeObject->SystemTime() - ( 10 * 60 ),
-            StopTime  => $TimeObject->SystemTime(),
-            Calendar  => $Calendar,
+        my $StopDTObject  = $Kernel::OM->Create('Kernel::System::DateTime');
+        my $StartDTObject = $Kernel::OM->Create('Kernel::System::DateTime');
+        $StartDTObject->Subtract( Seconds => 10 * 60 );
+
+        my $CountedTime = $StartDTObject->Delta(
+            DateTimeObject => $StopDTObject,
+            ForWorkingTime => 1,
+            Calendar       => $Calendar,
         );
 
         # error handling
-        if ( !$CountedTime ) {
+        if ( !$CountedTime || !$CountedTime->{AbsoluteSeconds} ) {
             next TICKETID;
         }
 

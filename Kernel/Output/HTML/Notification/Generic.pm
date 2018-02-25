@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,7 +8,7 @@
 
 package Kernel::Output::HTML::Notification::Generic;
 
-use base 'Kernel::Output::HTML::Base';
+use parent 'Kernel::Output::HTML::Base';
 
 use strict;
 use warnings;
@@ -67,6 +67,11 @@ sub Run {
     # add link if available
     if ( $Param{Config}->{Link} ) {
         $Arguments{Link} = $Param{Config}->{Link};
+
+        # Add link target if supplied.
+        if ( $Param{Config}->{Target} ) {
+            $Arguments{LinkTarget} = $Param{Config}->{Target};
+        }
     }
 
     return '' if !$Arguments{Info};

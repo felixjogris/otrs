@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -57,11 +57,6 @@ sub PopupClose {
     my $Output = $Self->Header( Type => 'Small' );
 
     if ( $Param{URL} ) {
-
-        # add session if no cookies are enabled
-        if ( $Self->{SessionID} && !$Self->{SessionIDCookie} ) {
-            $Param{URL} .= ';' . $Self->{SessionName} . '=' . $Self->{SessionID};
-        }
 
         # send data to JS
         $Self->AddJSData(

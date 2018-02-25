@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -15,11 +15,11 @@ use Kernel::Language qw(Translatable);
 
 our @ObjectDependencies = (
     'Kernel::Config',
+    'Kernel::System::DateTime',
     'Kernel::System::Group',
     'Kernel::System::Log',
     'Kernel::System::Main',
     'Kernel::System::SystemMaintenance',
-    'Kernel::System::Time',
     'Kernel::System::User',
     'Kernel::System::Valid',
 );
@@ -278,6 +278,9 @@ sub Auth {
             Valid => 'invalid-temporarily',
         );
 
+        # Make sure not to accidentially overwrite the password.
+        delete $User{UserPw};
+
         my $Update = $UserObject->UserUpdate(
             %User,
             ValidID      => $ValidID,
@@ -341,7 +344,7 @@ sub Auth {
     # last login preferences update
     $UserObject->SetPreferences(
         Key    => 'UserLastLogin',
-        Value  => $Kernel::OM->Get('Kernel::System::Time')->SystemTime(),
+        Value  => $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch(),
         UserID => $UserID,
     );
 

@@ -1,11 +1,11 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
 # did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 # --
-## nofilter(TidyAll::Plugin::OTRS::Perl::LayoutObject)
+
 package Kernel::System::SysConfig::ValueType::Date;
 
 use strict;
@@ -13,13 +13,14 @@ use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
 
-use base qw(Kernel::System::SysConfig::BaseValueType);
+use parent qw(Kernel::System::SysConfig::BaseValueType);
 
 our @ObjectDependencies = (
     'Kernel::Config',
     'Kernel::Language',
     'Kernel::Output::HTML::Layout',
     'Kernel::System::Log',
+    'Kernel::System::JSON',
     'Kernel::System::User',
 );
 
@@ -188,8 +189,7 @@ Extracts the effective value from a XML parsed setting.
 
     my $SettingHTML = $ValueTypeObject->SettingRender(
         Name           => 'SettingName',
-        DefaultID      =>  123,             # (required)
-        EffectiveValue => '2016-02-02',
+        EffectiveValue => '2016-02-02',     # (optional)
         DefaultValue   => 'Product 5',      # (optional)
         Class          => 'My class'        # (optional)
         RW             => 1,                # (optional) Allow editing. Default 0.
@@ -217,7 +217,7 @@ Returns:
 sub SettingRender {
     my ( $Self, %Param ) = @_;
 
-    for my $Needed (qw(Name EffectiveValue UserID)) {
+    for my $Needed (qw(Name UserID)) {
         if ( !defined $Param{$Needed} ) {
             $Kernel::OM->Get('Kernel::System::Log')->Log(
                 Priority => 'error',
@@ -237,7 +237,7 @@ sub SettingRender {
 
     my $EffectiveValue = $Param{EffectiveValue};
     if (
-        !$EffectiveValue
+        !defined $EffectiveValue
         && $Param{Item}
         && $Param{Item}->[0]->{Content}
         )
@@ -246,6 +246,9 @@ sub SettingRender {
     }
 
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
+
+    # Check if there is Datepicker before we add it.
+    my $HasDatepicker = $LayoutObject->{HasDatepicker};
 
     my $Name = $Param{Name} . $IDSuffix;
 
@@ -338,6 +341,32 @@ EOF
     if ( $Param{IsAjax} && $LayoutObject->{_JSOnDocumentComplete} && $Param{RW} ) {
         for my $JS ( @{ $LayoutObject->{_JSOnDocumentComplete} } ) {
             $HTML .= "<script>$JS</script>";
+        }
+    }
+
+    if ( $Param{IsAjax} ) {
+
+       # Remove JS generated in BuildDateSelection() call (setting is disabled or it's already sent together with HTML).
+       # It also prevents multiple Datepicker initializations (if there are several on the page).
+        pop @{ $LayoutObject->{_JSOnDocumentComplete} };
+
+        if ( !$HasDatepicker ) {
+            my $VacationDays = $LayoutObject->DatepickerGetVacationDays();
+            my $TextDirection = $LanguageObject->{TextDirection} || '';
+
+            my $JSONString = $Kernel::OM->Get('Kernel::System::JSON')->Encode(
+                Data => {
+                    VacationDays => $VacationDays,
+                    IsRTL        => ( $TextDirection eq 'rtl' ) ? 1 : 0,
+                },
+            );
+
+            $HTML .= "<script>
+                Core.Config.Set('Datepicker', $JSONString);
+            </script>";
+
+            # If there are several DateTime settings, don't run this block again.
+            $LayoutObject->{HasDatepicker} = 1;
         }
     }
 

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -81,7 +81,7 @@ sub TypeAdd {
     if ( $Self->NameExistsCheck( Name => $Param{Name} ) ) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => "A type with name '$Param{Name}' already exists!"
+            Message  => "A type with the name '$Param{Name}' already exists.",
         );
         return;
     }
@@ -267,7 +267,7 @@ sub TypeUpdate {
     {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => "A type with name '$Param{Name}' already exists!"
+            Message  => "A type with the name '$Param{Name}' already exists.",
         );
         return;
     }
@@ -460,6 +460,7 @@ sub NameExistsCheck {
     }
     return 0;
 }
+
 1;
 
 =head1 TERMS AND CONDITIONS

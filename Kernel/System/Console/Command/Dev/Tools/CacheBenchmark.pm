@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,7 +13,7 @@ use warnings;
 
 use Time::HiRes ();
 
-use base qw(Kernel::System::Console::BaseCommand);
+use parent qw(Kernel::System::Console::BaseCommand);
 
 our @ObjectDependencies = (
     'Kernel::Config',
@@ -24,7 +24,7 @@ our @ObjectDependencies = (
 sub Configure {
     my ( $Self, %Param ) = @_;
 
-    $Self->Description('Runs a benchmark over the available cache backends.');
+    $Self->Description('Run a benchmark over the available cache backends.');
 
     return;
 }
@@ -86,7 +86,7 @@ sub Run {
 
         # load cache initially with 100k 1kB items
         print "Preloading cache with 100k x 1kB items... ";
-        $| = 1;
+        local $| = 1;
         my $Content1kB = '.' x 1024;
         for ( my $i = 0; $i < 100000; $i++ ) {
             $Result = $CacheObject->Set(
@@ -107,7 +107,6 @@ sub Run {
             my $OpCount = 10 + 50 * int( 7 - Log10($ItemSize) );
 
             printf( "%-15s %12d %10d ", $Module, $ItemSize, 100 * $OpCount );
-            $| = 1;
 
             # start timer
             my $Start = Time::HiRes::time();

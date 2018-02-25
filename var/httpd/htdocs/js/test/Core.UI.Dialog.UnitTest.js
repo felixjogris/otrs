@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -33,7 +33,7 @@ Core.UI.Dialog = (function (Namespace) {
                         Buttons: [
                             {
                                 Type: 'Close',
-                                Label: Core.Language.Translate("Close dialog"),
+                                Label: Core.Language.Translate("Close this dialog"),
                                 Function: function() {
                                     Core.UI.Dialog.CloseDialog($('.Dialog:visible'));
                                     return false;
@@ -61,7 +61,7 @@ Core.UI.Dialog = (function (Namespace) {
                         Buttons: [
                             {
                                 Type: 'Close',
-                                Label: Core.Language.Translate("Close dialog"),
+                                Label: Core.Language.Translate("Close this dialog"),
                                 Function: function() {
                                     Core.UI.Dialog.CloseDialog($('.Dialog:visible'));
                                     return false;

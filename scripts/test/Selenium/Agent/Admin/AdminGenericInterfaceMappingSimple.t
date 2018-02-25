@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -14,20 +14,17 @@ use vars (qw($Self));
 
 use Kernel::GenericInterface::Debugger;
 
-# get selenium object
 my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 
 $Selenium->RunTest(
     sub {
 
-        # get needed objects
         my $Helper           = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
         my $WebserviceObject = $Kernel::OM->Get('Kernel::System::GenericInterface::Webservice');
 
-        # define needed variable
         my $RandomID = $Helper->GetRandomID();
 
-        # create test webservice
+        # Create test web service.
         my $WebserviceID = $WebserviceObject->WebserviceAdd(
             Config => {
                 Debugger => {
@@ -40,17 +37,17 @@ $Selenium->RunTest(
                     },
                 },
             },
-            Name    => "Selenium $RandomID webservice",
+            Name    => "Selenium $RandomID web service",
             ValidID => 1,
             UserID  => 1,
         );
 
         $Self->True(
             $WebserviceID,
-            "Webservice ID $WebserviceID is created"
+            "Web service ID $WebserviceID is created"
         );
 
-        # create debugger object
+        # Create debugger object.
         my $DebuggerObject = Kernel::GenericInterface::Debugger->new(
             DebuggerConfig => {
                 DebugThreshold => 'debug',
@@ -66,7 +63,7 @@ $Selenium->RunTest(
             'DebuggerObject instantiate correctly',
         );
 
-        # create test user and login
+        # Create test user and login.
         my $TestUserLogin = $Helper->TestUserCreate(
             Groups => ['admin'],
         ) || die "Did not get test user";
@@ -77,30 +74,35 @@ $Selenium->RunTest(
             Password => $TestUserLogin,
         );
 
-        # get script alias
         my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
 
-        # navigate to AdminGenericInterfaceWebservice screen
+        # Navigate to AdminGenericInterfaceWebservice screen.
         $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AdminGenericInterfaceWebservice");
 
-        # check breadcrumb on Overview screen
+        # Check breadcrumb on Overview screen.
         $Self->True(
             $Selenium->find_element( '.BreadCrumb', 'css' ),
             "Breadcrumb is found on Overview screen.",
         );
 
-        # click on created webservice
+        # Click on created web service.
         $Selenium->find_element("//a[contains(\@href, 'WebserviceID=$WebserviceID')]")->VerifiedClick();
 
-        # select 'Ticket::TicketCreate' as option
+        # Select 'Ticket::TicketCreate' as option.
         $Selenium->execute_script(
             "\$('#OperationList').val('Ticket::TicketCreate').trigger('redraw.InputField').trigger('change');"
         );
 
-        # create webservice operation
+        # Wait until AJAX loads new form.
+        $Selenium->WaitFor(
+            JavaScript =>
+                'return typeof($) === "function" && $("#MappingInbound").length === 1 && $("#MappingOutbound").length === 1;'
+        );
+
+        # Create web service operation.
         $Selenium->find_element( "#Operation", 'css' )->send_keys('SeleniumOperation');
 
-        # select simple mapping for inbound and outbound data
+        # Select simple mapping for inbound and outbound data.
         $Selenium->execute_script(
             "\$('#MappingInbound').val('Simple').trigger('redraw.InputField').trigger('change');"
         );
@@ -108,13 +110,24 @@ $Selenium->RunTest(
             "\$('#MappingOutbound').val('Simple').trigger('redraw.InputField').trigger('change');"
         );
 
-        # submit operation
-        $Selenium->find_element("//button[\@value='Save and continue']")->VerifiedClick();
+        # Set include ticket data to Yes.
+        $Selenium->execute_script(
+            "\$('#IncludeTicketData').val('1').trigger('redraw.InputField').trigger('change');"
+        );
 
-        # click to configure inbound mapping simple
+        $Selenium->find_element( "#Submit", 'css' )->VerifiedClick();
+
+        # Verify ticket data option.
+        $Self->Is(
+            $Selenium->find_element( '#IncludeTicketData', 'css' )->get_value(),
+            '1',
+            'Include ticket data set to Yes'
+        );
+
+        # Click to configure inbound mapping simple.
         $Selenium->find_element("//button[\@id='MappingInboundConfigureButton']")->VerifiedClick();
 
-        # check screen
+        # Check screen.
         for my $ID (
             qw(DefaultKeyType_Search DefaultValueType_Search DefaultKeyMapTo DefaultValueMapTo AddKeyMapping)
             )
@@ -124,13 +137,13 @@ $Selenium->RunTest(
             $Element->is_displayed();
         }
 
-        # check for breadcrumb on screen
+        # Check for breadcrumb on screen.
         my @Breadcrumbs = (
             {
                 Text => 'Web Service Management',
             },
             {
-                Text => "Selenium $RandomID webservice",
+                Text => "Selenium $RandomID web service",
             },
             {
                 Text => 'Operation: SeleniumOperation',
@@ -151,7 +164,7 @@ $Selenium->RunTest(
             $Count++;
         }
 
-        # verify DefaultKeyMapTo and DefaultValueMapTo are hidden with 'Keep (leave unchanged)' DefaultMapTo
+        # Verify DefaultKeyMapTo and DefaultValueMapTo are hidden with 'Keep (leave unchanged)' DefaultMapTo
         # and JS will show them when Map to (use provided value as default) is selected
         for my $DefaultMapTo (qw(DefaultKeyMapTo DefaultValueMapTo)) {
             $Self->True(
@@ -161,7 +174,7 @@ $Selenium->RunTest(
                 "Field $DefaultMapTo is hidden"
             );
 
-            # change default type
+            # Change default type.
             if ( $DefaultMapTo eq 'DefaultKeyMapTo' ) {
                 $Selenium->execute_script(
                     "\$('#DefaultKeyType').val('MapTo').trigger('redraw.InputField').trigger('change');"
@@ -180,8 +193,11 @@ $Selenium->RunTest(
                 "Field $DefaultMapTo is shown"
             );
 
-            # submit and check client side validation on MapTo fields
-            $Selenium->find_element("//button[\@value='Save']")->click();
+            # Submit and check client side validation on MapTo fields.
+            $Selenium->find_element( "#Submit", 'css' )->click();
+            $Selenium->WaitFor(
+                JavaScript => "return \$('#$DefaultMapTo.Error').length"
+            );
 
             $Self->Is(
                 $Selenium->execute_script(
@@ -191,21 +207,19 @@ $Selenium->RunTest(
                 "Client side validation correctly detected missing input value for field $DefaultMapTo",
             );
 
-            # input field
             $Selenium->find_element( "#$DefaultMapTo", 'css' )->send_keys($DefaultMapTo);
         }
 
-        # add key map
-        $Selenium->find_element( "#AddKeyMapping", 'css' )->click();
-
-        # add value map
+        # Add key map and value map.
+        $Selenium->find_element( "#AddKeyMapping",    'css' )->click();
         $Selenium->find_element( "#AddValueMapping1", 'css' )->click();
+        $Selenium->find_element( "#Submit",           'css' )->click();
 
-        # click on 'Save'
-        $Selenium->find_element("//button[\@value='Save']")->click();
-
-        # verify key and value mapping fields and check client side validation
+        # Verify key and value mapping fields and check client side validation.
         for my $MapFields (qw(KeyName1 KeyMapNew1 ValueName1_1 ValueMapNew1_1)) {
+            $Selenium->WaitFor(
+                JavaScript => "return \$('#$MapFields.Error').length"
+            );
             $Self->Is(
                 $Selenium->execute_script(
                     "return \$('#$MapFields').hasClass('Error')"
@@ -214,32 +228,31 @@ $Selenium->RunTest(
                 "Client side validation correctly detected missing input value for field $MapFields",
             );
 
-            # input checked field
             my $InputField = $MapFields . $RandomID;
             $Selenium->find_element( "#$MapFields", 'css' )->send_keys($InputField);
         }
 
-        # click on 'Save'
-        $Selenium->find_element("//button[\@value='Save']")->VerifiedClick();
+        # Click on 'Save'.
+        $Selenium->find_element( "#SubmitAndContinue", 'css' )->VerifiedClick();
 
-        # verify after 'Save' click it is the same screen
+        # Verify after 'Save' click it is the same screen.
         $Self->True(
             $Selenium->find_element( "#AddKeyMapping", 'css' ),
             'After click on Save it is the same screen'
         );
 
-        # click on 'Save and finish' test JS redirection
-        $Selenium->find_element("//button[\@value='Save and finish']")->VerifiedClick();
+        # Click on 'Save and finish' test JS redirection.
+        $Selenium->find_element( "#Submit", 'css' )->VerifiedClick();
 
         $Self->True(
             $Selenium->get_current_url() =~ /AdminGenericInterfaceOperationDefault/,
             'JS redirection is successful to AdminGenericInterfaceOperationDefault screen'
         );
 
-        # click to configure inbound mapping simple again
+        # Click to configure inbound mapping simple again.
         $Selenium->find_element("//button[\@id='MappingInboundConfigureButton']")->VerifiedClick();
 
-        # verify inputed values
+        # Verify inputed values.
         my %FieldValues = (
             DefaultKeyMapTo   => 'DefaultKeyMapTo',
             DefaultValueMapTo => 'DefaultValueMapTo',
@@ -257,17 +270,17 @@ $Selenium->RunTest(
             );
         }
 
-        # delete test created webservice
+        # Delete test created web service.
         my $Success = $WebserviceObject->WebserviceDelete(
             ID     => $WebserviceID,
             UserID => 1,
         );
         $Self->True(
             $Success,
-            "Webservice ID $WebserviceID is deleted"
+            "Web service ID $WebserviceID is deleted"
         );
 
-        # make sure cache is correct
+        # Make sure cache is correct.
         $Kernel::OM->Get('Kernel::System::Cache')->CleanUp( Type => 'Webservice' );
 
     }

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -22,10 +22,11 @@ use Kernel::System::UnitTest::Helper;
 
 our @ObjectDependencies = (
     'Kernel::Config',
+    'Kernel::System::AuthSession',
     'Kernel::System::Log',
     'Kernel::System::Main',
-    'Kernel::System::Time',
-    'Kernel::System::UnitTest',
+    'Kernel::System::DateTime',
+    'Kernel::System::UnitTest::Driver',
     'Kernel::System::UnitTest::Helper',
 );
 
@@ -50,15 +51,28 @@ To do this, you need a running C<selenium> or C<phantomjs> server.
 
 Specify the connection details in C<Config.pm>, like this:
 
+    # For testing with Firefox until v. 47 (testing with recent FF and marionette is currently not supported):
     $Self->{'SeleniumTestsConfig'} = {
         remote_server_addr  => 'localhost',
         port                => '4444',
-        browser_name        => 'phantomjs',
         platform            => 'ANY',
-        window_height       => 1200,    # optional, default 1000
-        window_width        => 1600,    # optional, default 1200
+        browser_name        => 'firefox',
         extra_capabilities => {
             marionette     => \0,   # Required to run FF 47 or older on Selenium 3+.
+        },
+    };
+
+    # For testing with Chrome/Chromium (requires installed geckodriver):
+    $Self->{'SeleniumTestsConfig'} = {
+        remote_server_addr  => 'localhost',
+        port                => '4444',
+        platform            => 'ANY',
+        browser_name        => 'chrome',
+        extra_capabilities => {
+            chromeOptions => {
+                # disable-infobars makes sure window size calculations are ok
+                args => [ "disable-infobars" ],
+            },
         },
     };
 
@@ -69,15 +83,15 @@ Then you can use the full API of L<Selenium::Remote::Driver> on this object.
 sub new {
     my ( $Class, %Param ) = @_;
 
-    $Param{UnitTestObject} ||= $Kernel::OM->Get('Kernel::System::UnitTest');
+    $Param{UnitTestDriverObject} ||= $Kernel::OM->Get('Kernel::System::UnitTest::Driver');
 
-    $Param{UnitTestObject}->True( 1, "Starting up Selenium scenario..." );
+    $Param{UnitTestDriverObject}->True( 1, "Starting up Selenium scenario..." );
 
     my %SeleniumTestsConfig = %{ $Kernel::OM->Get('Kernel::Config')->Get('SeleniumTestsConfig') // {} };
 
     if ( !%SeleniumTestsConfig ) {
         my $Self = bless {}, $Class;
-        $Self->{UnitTestObject} = $Param{UnitTestObject};
+        $Self->{UnitTestDriverObject} = $Param{UnitTestDriverObject};
         return $Self;
     }
 
@@ -97,8 +111,8 @@ sub new {
         webelement_class => 'Kernel::System::UnitTest::Selenium::WebElement',
         %SeleniumTestsConfig
     );
-    $Self->{UnitTestObject}      = $Param{UnitTestObject};
-    $Self->{SeleniumTestsActive} = 1;
+    $Self->{UnitTestDriverObject} = $Param{UnitTestDriverObject};
+    $Self->{SeleniumTestsActive}  = 1;
 
     #$Self->debug_on();
 
@@ -110,6 +124,9 @@ sub new {
 
     $Self->{BaseURL} = $Kernel::OM->Get('Kernel::Config')->Get('HttpType') . '://';
     $Self->{BaseURL} .= Kernel::System::UnitTest::Helper->GetTestHTTPHostname();
+
+    # Remember the start system time for the selenium test run.
+    $Self->{TestStartSystemTime} = time;    ## no critic
 
     return $Self;
 }
@@ -127,7 +144,7 @@ sub RunTest {
     my ( $Self, $Test ) = @_;
 
     if ( !$Self->{SeleniumTestsActive} ) {
-        $Self->{UnitTestObject}->True( 1, 'Selenium testing is not active, skipping tests.' );
+        $Self->{UnitTestDriverObject}->True( 1, 'Selenium testing is not active, skipping tests.' );
         return 1;
     }
 
@@ -160,8 +177,8 @@ sub _execute_command {    ## no critic
     my $TestName = 'Selenium command success: ';
     $TestName .= $Kernel::OM->Get('Kernel::System::Main')->Dump(
         {
-            %{ $Res    || {} },
-            %{ $Params || {} },
+            %{ $Res    || {} },    ## no critic
+            %{ $Params || {} },    ## no critic
         }
     );
 
@@ -169,7 +186,7 @@ sub _execute_command {    ## no critic
         print $TestName;
     }
     else {
-        $Self->{UnitTestObject}->True( 1, $TestName );
+        $Self->{UnitTestDriverObject}->True( 1, $TestName );
     }
 
     return $Result;
@@ -189,12 +206,35 @@ sub get {    ## no critic
     my ( $Self, $URL ) = @_;
 
     if ( $URL !~ m{http[s]?://}smx ) {
+        $URL =~ s{\A/+}{}smx;    # Chop off leading slashes to avoid duplicates.
         $URL = "$Self->{BaseURL}/$URL";
     }
 
     $Self->SUPER::get($URL);
 
     return;
+}
+
+=head2 get_alert_text()
+
+Override get_alert_text() method of base class to return alert text as string.
+
+    my $AlertText = $SeleniumObject->get_alert_text();
+
+returns
+
+    my $AlertText = 'Some alert text!'
+
+=cut
+
+sub get_alert_text {    ## no critic
+    my ($Self) = @_;
+
+    my $AlertText = $Self->SUPER::get_alert_text();
+
+    die "Alert dialog is not present" if ref $AlertText eq 'HASH';    # Chrome returns HASH when there is no alert text.
+
+    return $AlertText;
 }
 
 =head2 VerifiedGet()
@@ -269,7 +309,7 @@ sub Login {
         }
     }
 
-    $Self->{UnitTestObject}->True( 1, 'Initiating login...' );
+    $Self->{UnitTestDriverObject}->True( 1, 'Initiating login...' );
 
     # we will try several times to log in
     my $MaxTries = 5;
@@ -295,13 +335,13 @@ sub Login {
             # login successful?
             $Self->find_element( 'a#LogoutButton', 'css' );    # dies if not found
 
-            $Self->{UnitTestObject}->True( 1, 'Login sequence ended...' );
+            $Self->{UnitTestDriverObject}->True( 1, 'Login sequence ended...' );
         };
 
         # an error happend
         if ($@) {
 
-            $Self->{UnitTestObject}->True( 1, "Login attempt $Try of $MaxTries not successful." );
+            $Self->{UnitTestDriverObject}->True( 1, "Login attempt $Try of $MaxTries not successful." );
 
             # try again
             next TRY if $Try < $MaxTries;
@@ -375,6 +415,40 @@ sub WaitFor {
     $Argument = "Callback" if $Param{Callback};
 
     die "WaitFor($Argument) failed.";
+}
+
+=head2 SwitchToFrame()
+
+Change focus to another frame on the page. If C<WaitForLoad> is passed, it will wait until the frame has loaded the
+page completely.
+
+    my $Success = $SeleniumObject->SwitchToFrame(
+        FrameSelector => '.Iframe',     # (required) CSS selector of the frame element
+        WaitForLoad   => 1,             # (optional) Wait until the frame has loaded, if necessary
+        Time          => 20,            # (optional) Wait time in seconds (default 20)
+    );
+
+=cut
+
+sub SwitchToFrame {
+    my ( $Self, %Param ) = @_;
+
+    if ( !$Param{FrameSelector} ) {
+        die 'Need FrameSelector.';
+    }
+
+    if ( $Param{WaitForLoad} ) {
+        $Self->WaitFor(
+            JavaScript => "return typeof(\$('$Param{FrameSelector}').get(0).contentWindow.Core) == 'object'
+                && typeof(\$('$Param{FrameSelector}').get(0).contentWindow.Core.App) == 'object'
+                && \$('$Param{FrameSelector}').get(0).contentWindow.Core.App.PageLoadComplete;",
+            Time => $Param{Time},
+        );
+    }
+
+    $Self->switch_to_frame( $Self->find_element( $Param{FrameSelector}, 'css' ) );
+
+    return 1;
 }
 
 =head2 DragAndDrop()
@@ -455,7 +529,7 @@ for analysis (in folder /var/otrs-unittest if it exists, in $Home/var/httpd/htdo
 sub HandleError {
     my ( $Self, $Error ) = @_;
 
-    $Self->{UnitTestObject}->False( 1, "Exception in Selenium': $Error" );
+    $Self->{UnitTestDriverObject}->False( 1, "Exception in Selenium': $Error" );
 
     #eval {
     my $Data = $Self->screenshot();
@@ -468,7 +542,8 @@ sub HandleError {
     my $LocalScreenshotDir = $Kernel::OM->Get('Kernel::Config')->Get('Home') . '/var/httpd/htdocs/SeleniumScreenshots';
     mkdir $LocalScreenshotDir || return $Self->False( 1, "Could not create $LocalScreenshotDir." );
 
-    my $Filename = $Kernel::OM->Get('Kernel::System::Time')->CurrentTimestamp();
+    my $DateTimeObj = $Kernel::OM->Create('Kernel::System::DateTime');
+    my $Filename    = $DateTimeObj->ToString();
     $Filename .= '-' . ( int rand 100_000_000 ) . '.png';
     $Filename =~ s{[ :]}{-}smxg;
 
@@ -496,14 +571,17 @@ sub HandleError {
             Directory => $SharedScreenshotDir,
             Filename  => $Filename,
             Content   => \$Data,
-        ) || return $Self->False( 1, "Could not write file $SharedScreenshotDir/$Filename" );
+            )
+            || return $Self->{UnitTestDriverObject}->False( 1, "Could not write file $SharedScreenshotDir/$Filename" );
     }
 
-    $Self->{UnitTestObject}->False( 1, "Saved screenshot in $URL" );
-    $Self->{UnitTestObject}->AttachSeleniumScreenshot(
+    $Self->{UnitTestDriverObject}->False( 1, "Saved screenshot in $URL" );
+    $Self->{UnitTestDriverObject}->AttachSeleniumScreenshot(
         Filename => $Filename,
         Content  => $Data
     );
+
+    return;
 }
 
 =head2 DEMOLISH()
@@ -517,25 +595,44 @@ sub DEMOLISH {
     my $Self = shift;
 
     # Could be missing on early die.
-    if ( $Self->{UnitTestObject} ) {
-        $Self->{UnitTestObject}->True( 1, "Shutting down Selenium scenario." );
+    if ( $Self->{UnitTestDriverObject} ) {
+        $Self->{UnitTestDriverObject}->True( 1, "Shutting down Selenium scenario." );
     }
 
     if ( $Self->{SeleniumTestsActive} ) {
         $Self->SUPER::DEMOLISH(@_);
-    }
 
-    # Cleanup possibly leftover zombie firefox profiles.
-    my @LeftoverFirefoxProfiles = $Kernel::OM->Get('Kernel::System::Main')->DirectoryRead(
-        Directory => '/tmp/',
-        Filter    => 'anonymous*webdriver-profile',
-    );
+        # Cleanup possibly leftover zombie firefox profiles.
+        my @LeftoverFirefoxProfiles = $Kernel::OM->Get('Kernel::System::Main')->DirectoryRead(
+            Directory => '/tmp/',
+            Filter    => 'anonymous*webdriver-profile',
+        );
 
-    for my $LeftoverFirefoxProfile (@LeftoverFirefoxProfiles) {
-        if ( -d $LeftoverFirefoxProfile ) {
-            File::Path::remove_tree($LeftoverFirefoxProfile);
+        for my $LeftoverFirefoxProfile (@LeftoverFirefoxProfiles) {
+            if ( -d $LeftoverFirefoxProfile ) {
+                File::Path::remove_tree($LeftoverFirefoxProfile);
+            }
+        }
+
+        # Cleanup all sessions, which was created after the selenium test start time.
+        my $AuthSessionObject = $Kernel::OM->Get('Kernel::System::AuthSession');
+
+        my @Sessions = $AuthSessionObject->GetAllSessionIDs();
+
+        SESSION:
+        for my $SessionID (@Sessions) {
+
+            my %SessionData = $AuthSessionObject->GetSessionIDData( SessionID => $SessionID );
+
+            next SESSION if !%SessionData;
+            next SESSION
+                if $SessionData{UserSessionStart} && $SessionData{UserSessionStart} < $Self->{TestStartSystemTime};
+
+            $AuthSessionObject->RemoveSessionID( SessionID => $SessionID );
         }
     }
+
+    return;
 }
 
 1;

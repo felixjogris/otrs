@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # Copyright (C) 2010 Thomas Kaltenbrunner <tkaltenbrunner at opc.de>
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
@@ -28,6 +28,9 @@ sub Data {
 
     # csv separator
     $Self->{Separator} = ';';
+
+    $Self->{DecimalSeparator}    = ',';
+    $Self->{ThousandSeparator}   = '.';
 
     $Self->{Translation} = {
 
@@ -3647,6 +3650,7 @@ sub Data {
         'State Type Historic' => 'Statustypchronik',
         'Until times' => '',
         'Historic Time Range' => 'Historischer Zeitbereich',
+        'Number'              => 'Nummer',
 
         # Perl Module: Kernel/System/Stats/Dynamic/TicketSolutionResponseTime.pm
         'Solution Average' => '',

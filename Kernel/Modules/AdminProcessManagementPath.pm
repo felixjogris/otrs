@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -102,6 +102,12 @@ sub Run {
         $TransferData->{TransitionInfo}     = $GetParam->{TransitionInfo};
 
         for my $Needed (qw(ProcessEntityID TransitionEntityID ProcessData TransitionInfo)) {
+
+            # Send needed data to JS.
+            $LayoutObject->AddJSData(
+                Key   => $Needed,
+                Value => $TransferData->{$Needed}
+            );
 
             # show error if can't update
             if ( !$TransferData->{$Needed} ) {
@@ -461,4 +467,5 @@ sub _PopupResponse {
 
     return $Output;
 }
+
 1;

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -279,6 +279,18 @@ sub Run {
 
     # otherwise use Preview as default as in LayoutTicket
     $View ||= 'Preview';
+
+    # Check if selected view is available.
+    my $Backends = $ConfigObject->Get('Ticket::Frontend::Overview');
+    if ( !$Backends->{$View} ) {
+
+        # Try to find fallback, take first configured view mode.
+        KEY:
+        for my $Key ( sort keys %{$Backends} ) {
+            $View = $Key;
+            last KEY;
+        }
+    }
 
     # get personal page shown count
     my $PageShownPreferencesKey = 'UserTicketOverview' . $View . 'PageShown';
@@ -657,16 +669,18 @@ sub _MaskQueueView {
         }
         $QueueStrg .= '" class="';
 
-        # should i highlight this queue
-        # the oldest queue
-        if ( $Queue{QueueID} == $QueueIDOfMaxAge && $Self->{Blink} ) {
-            $QueueStrg .= 'Oldest';
-        }
-        elsif ( $Queue{MaxAge} >= $Self->{HighlightAge2} ) {
-            $QueueStrg .= 'OlderLevel2';
-        }
-        elsif ( $Queue{MaxAge} >= $Self->{HighlightAge1} ) {
-            $QueueStrg .= 'OlderLevel1';
+        # Primary control is Visual Alarms and, if disabled, will turn off all highlights.
+        # Secondary control highlights individual queues depending on age.
+        if ( $Config->{VisualAlarms} ) {
+            if ( $Queue{QueueID} == $QueueIDOfMaxAge && $Self->{Blink} ) {
+                $QueueStrg .= 'Oldest';
+            }
+            elsif ( $Queue{MaxAge} >= $Self->{HighlightAge2} ) {
+                $QueueStrg .= 'OlderLevel2';
+            }
+            elsif ( $Queue{MaxAge} >= $Self->{HighlightAge1} ) {
+                $QueueStrg .= 'OlderLevel1';
+            }
         }
 
         # display the current and all its lower levels in bold

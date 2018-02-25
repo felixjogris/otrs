@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,13 +11,22 @@ package Kernel::System::MailAccount::POP3TLS;
 use strict;
 use warnings;
 
-use Net::SSLGlue::POP3;
+use Net::POP3;
 
-use base qw(Kernel::System::MailAccount::POP3);
+use parent qw(Kernel::System::MailAccount::POP3);
 
 our @ObjectDependencies = (
     'Kernel::System::Log',
 );
+
+# Use Net::SSLGlue::POP3 on systems with older Net::POP3 modules that cannot handle POP3S.
+BEGIN {
+    if ( !defined &Net::POP3::starttls ) {
+        ## nofilter(TidyAll::Plugin::OTRS::Perl::Require)
+        ## nofilter(TidyAll::Plugin::OTRS::Perl::SyntaxCheck)
+        require Net::SSLGlue::POP3;
+    }
+}
 
 sub Connect {
     my ( $Self, %Param ) = @_;
@@ -25,11 +34,10 @@ sub Connect {
     # check needed stuff
     for (qw(Login Password Host Timeout Debug)) {
         if ( !defined $Param{$_} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "Need $_!"
+            return (
+                Successful => 0,
+                Message    => "Need $_!",
             );
-            return;
         }
     }
 

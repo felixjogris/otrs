@@ -1,16 +1,20 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
 # did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 # --
 
-[% SET OTRSBusinessLabel = '<strong>OTRS Business Solution</strong>™' %]
+[% IF Data.OTRSSTORMIsInstalled %]
+    [% SET OTRSBusinessLabel = '<strong>STORM powered by OTRS</strong>™' %]
+[% ELSE %]
+    [% SET OTRSBusinessLabel = '<strong>OTRS Business Solution</strong>™' %]
+[% END %]
 
 [% RenderBlockStart("Overview") %]
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
-    <h1>[% Translate("System Registration Management") | html %]</h1>
+    <h1 class="InvisibleText">[% Translate("System Registration Management") | html %]</h1>
 
     [% BreadcrumbPath = [
             {
@@ -100,7 +104,7 @@
                 <fieldset class="TableLike">
 
                     <label>[% Translate("System type") | html %]:</label>
-                    <div class="Value">[% Data.Type | html %]</div>
+                    <div class="Value">[% Translate(Data.Type) | html %]</div>
                     <div class="Clear"></div>
 
                     <label>[% Translate("Description") | html %]:</label>
@@ -141,7 +145,7 @@
             </div>
             <div class="Content">
                 <p>
-                    [% Translate("Please note that you can't deregister your system if you're using the %s or having a valid service contract.", OTRSBusinessLabel) %]
+                    [% Translate("Please note that you can't deregister your system if you're using the %s or having a valid service contract.") | html | ReplacePlaceholders(OTRSBusinessLabel) %]
                 </p>
             </div>
             <div class="Clear"></div>
@@ -211,7 +215,7 @@
                                 [% Translate("Your system will send updates to the registration server at regular intervals.") | html %] [% Translate("Typically this would be around once every three days.") | html %]
                             </p>
                             <p>
-                                [% Translate("In case you would have further questions we would be glad to answer them.") | html %] [% Translate("Please visit our") | html %] <a href="https://portal.otrs.com/" target="_blank">[% Translate("portal") | html %]</a> [% Translate("and file a request.") | html %]
+                                [% Translate("In case you would have further questions we would be glad to answer them.") | html %] [% Translate("Please visit our customer portal and file a request.") | html %]
                             </p>
                         </div>
                     </div>

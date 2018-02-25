@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,11 +12,12 @@ use utf8;
 
 use vars (qw($Self %Param));
 
-# get needed objects
-my $ConfigObject      = $Kernel::OM->Get('Kernel::Config');
-my $TicketObject      = $Kernel::OM->Get('Kernel::System::Ticket');
-my $ArticleObject     = $Kernel::OM->Get('Kernel::System::Ticket::Article');
-my $UploadCacheObject = $Kernel::OM->Get('Kernel::System::Web::UploadCache');
+my $ConfigObject         = $Kernel::OM->Get('Kernel::Config');
+my $TicketObject         = $Kernel::OM->Get('Kernel::System::Ticket');
+my $UploadCacheObject    = $Kernel::OM->Get('Kernel::System::Web::UploadCache');
+my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForChannel(
+    ChannelName => 'Internal',
+);
 
 # get helper object
 $Kernel::OM->ObjectParamAdd(
@@ -58,22 +59,22 @@ Special case from Lotus Notes:
 </body>
 </html>';
 
-my $ArticleID = $ArticleObject->ArticleCreate(
-    TicketID       => $TicketID,
-    ArticleType    => 'note-internal',
-    SenderType     => 'agent',
-    From           => 'Some Agent <email@example.com>',
-    To             => 'Some Customer <customer@example.com>',
-    Subject        => 'Fax Agreement laalala',
-    Body           => $HTML,
-    ContentType    => 'text/html; charset=ISO-8859-15',
-    HistoryType    => 'OwnerUpdate',
-    HistoryComment => 'Some free text!',
-    UserID         => 1,
-    NoAgentNotify  => 1,                                        # if you don't want to send agent notifications
+my $ArticleID = $ArticleBackendObject->ArticleCreate(
+    TicketID             => $TicketID,
+    IsVisibleForCustomer => 0,
+    SenderType           => 'agent',
+    From                 => 'Some Agent <email@example.com>',
+    To                   => 'Some Customer <customer@example.com>',
+    Subject              => 'Fax Agreement laalala',
+    Body                 => $HTML,
+    ContentType          => 'text/html; charset=ISO-8859-15',
+    HistoryType          => 'OwnerUpdate',
+    HistoryComment       => 'Some free text!',
+    UserID               => 1,
+    NoAgentNotify        => 1,                                        # if you don't want to send agent notifications
 );
 
-$ArticleObject->ArticleWriteAttachment(
+$ArticleBackendObject->ArticleWriteAttachment(
     Filename    => 'some.html',
     MimeType    => 'text/html',
     ContentType => 'text/html',
@@ -83,7 +84,7 @@ $ArticleObject->ArticleWriteAttachment(
     UserID      => 1,
 );
 
-$ArticleObject->ArticleWriteAttachment(
+$ArticleBackendObject->ArticleWriteAttachment(
     Filename    => 'image.png',
     MimeType    => 'image/png',
     ContentType => 'image/png',
@@ -93,7 +94,7 @@ $ArticleObject->ArticleWriteAttachment(
     UserID      => 1,
 );
 
-$ArticleObject->ArticleWriteAttachment(
+$ArticleBackendObject->ArticleWriteAttachment(
     Filename    => 'image2.png',
     MimeType    => 'image/png',
     ContentType => 'image/png',
@@ -101,7 +102,7 @@ $ArticleObject->ArticleWriteAttachment(
     ArticleID   => $ArticleID,
     UserID      => 1,
 );
-$ArticleObject->ArticleWriteAttachment(
+$ArticleBackendObject->ArticleWriteAttachment(
     Filename    => 'image3.png',
     MimeType    => 'image/png',
     ContentType => 'image/png',
@@ -109,7 +110,7 @@ $ArticleObject->ArticleWriteAttachment(
     ArticleID   => $ArticleID,
     UserID      => 1,
 );
-$ArticleObject->ArticleWriteAttachment(
+$ArticleBackendObject->ArticleWriteAttachment(
     Filename    => 'image4.png',
     MimeType    => 'image/png',
     ContentType => 'image/png',
@@ -118,7 +119,7 @@ $ArticleObject->ArticleWriteAttachment(
     ArticleID   => $ArticleID,
     UserID      => 1,
 );
-$ArticleObject->ArticleWriteAttachment(
+$ArticleBackendObject->ArticleWriteAttachment(
     Filename    => 'image.bmp',
     MimeType    => 'image/bmp',
     ContentType => 'image/bmp',
@@ -136,7 +137,7 @@ my @Tests = (
         },
         BodyRegExp => [
             '<b>Test HTML document.<\/b>',
-            '<img src="[^;]+?Action=PictureUpload;FormID=[0-9.]+;SessionID=123;ContentID=1234" border="0">',
+            '<img src="[^;]+?Action=PictureUpload;FormID=[0-9.]+;ContentID=1234" border="0">',
         ],
         AttachmentsInclude => 1,
         Attachment         => {
@@ -152,7 +153,7 @@ my @Tests = (
         },
         BodyRegExp => [
             '<b>Test HTML document.<\/b>',
-            '<img src="[^;]+?Action=PictureUpload;FormID=[0-9.]+;SessionID=123;ContentID=_1_09B1841409B1651C003EDE23C325785D" border="0">',
+            '<img src="[^;]+?Action=PictureUpload;FormID=[0-9.]+;ContentID=_1_09B1841409B1651C003EDE23C325785D" border="0">',
         ],
         AttachmentsInclude => 1,
         Attachment         => {
@@ -166,7 +167,7 @@ my @Tests = (
         },
         BodyRegExp => [
             '<b>Test HTML document.<\/b>',
-            '<img src="[^;]+?Action=PictureUpload;FormID=[0-9.]+;SessionID=123;ContentID=1234" border="0">',
+            '<img src="[^;]+?Action=PictureUpload;FormID=[0-9.]+;ContentID=1234" border="0">',
         ],
         AttachmentsInclude => 0,
         Attachment         => {
@@ -207,7 +208,7 @@ my @Tests = (
             'Frontend::RichText' => 1,
         },
         BodyRegExp => [
-            '<img src="[^;]+?Action=PictureUpload;FormID=[0-9.]+;SessionID=123;ContentID=Untitled%2520Attachment" border="0">',
+            '<img src="[^;]+?Action=PictureUpload;FormID=[0-9.]+;ContentID=Untitled%2520Attachment" border="0">',
         ],
         AttachmentsInclude => 0,
         Attachment         => {

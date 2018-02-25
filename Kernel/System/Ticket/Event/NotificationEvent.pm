@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,6 +12,7 @@ use strict;
 use warnings;
 
 use List::Util qw(first);
+use Mail::Address;
 
 use Kernel::System::VariableCheck qw(:all);
 
@@ -33,8 +34,9 @@ our @ObjectDependencies = (
     'Kernel::System::TemplateGenerator',
     'Kernel::System::Ticket',
     'Kernel::System::Ticket::Article',
-    'Kernel::System::Time',
+    'Kernel::System::DateTime',
     'Kernel::System::User',
+    'Kernel::System::CheckItem',
 );
 
 sub new {
@@ -145,27 +147,22 @@ sub Run {
             # add attachments to notification
             if ( $Notification{Data}->{ArticleAttachmentInclude}->[0] ) {
 
-                # get article, it is needed for the correct behavior of the
-                # StripPlainBodyAsAttachment flag into the ArticleAttachmentIndex function
-                my %Article = $ArticleObject->ArticleGet(
-                    ArticleID     => $Param{Data}->{ArticleID},
-                    UserID        => $Param{UserID},
-                    DynamicFields => 0,
+                my $BackendObject = $ArticleObject->BackendForArticle(
+                    TicketID  => $Param{Data}->{TicketID},
+                    ArticleID => $Param{Data}->{ArticleID},
                 );
 
-                my %Index = $ArticleObject->ArticleAttachmentIndex(
-                    ArticleID                  => $Param{Data}->{ArticleID},
-                    Article                    => \%Article,
-                    UserID                     => $Param{UserID},
-                    StripPlainBodyAsAttachment => 3,
+                my %Index = $BackendObject->ArticleAttachmentIndex(
+                    ArticleID        => $Param{Data}->{ArticleID},
+                    ExcludePlainText => 1,
+                    ExcludeHTMLBody  => 1,
                 );
                 if (%Index) {
                     FILE_ID:
                     for my $FileID ( sort keys %Index ) {
-                        my %Attachment = $ArticleObject->ArticleAttachment(
+                        my %Attachment = $BackendObject->ArticleAttachment(
                             ArticleID => $Param{Data}->{ArticleID},
                             FileID    => $FileID,
-                            UserID    => $Param{UserID},
                         );
                         next FILE_ID if !%Attachment;
                         push @Attachments, \%Attachment;
@@ -183,14 +180,14 @@ sub Run {
 
         my @NotificationBundle;
 
-        # get template generator object;
+        # get template generator object
         my $TemplateGeneratorObject = $Kernel::OM->Get('Kernel::System::TemplateGenerator');
 
         # parse all notification tags for each user
         for my $Recipient (@RecipientUsers) {
 
             my %ReplacedNotification = $TemplateGeneratorObject->NotificationEvent(
-                TicketID              => $Param{Data}->{TicketID},
+                TicketData            => \%Ticket,
                 Recipient             => $Recipient,
                 Notification          => \%Notification,
                 CustomerMessageParams => $Param{Data}->{CustomerMessageParams},
@@ -333,7 +330,7 @@ sub Run {
 
                 # replace all notification tags for each special recipient
                 my %ReplacedNotification = $TemplateGeneratorObject->NotificationEvent(
-                    TicketID              => $Param{Data}->{TicketID},
+                    TicketData            => \%Ticket,
                     Recipient             => $Recipient,
                     Notification          => \%Notification,
                     CustomerMessageParams => $Param{Data}->{CustomerMessageParams} || {},
@@ -350,26 +347,6 @@ sub Run {
                     Transport             => $Transport,
                     TransportObject       => $TransportObject,
                     UserID                => $Param{UserID},
-                );
-            }
-        }
-
-        if ( %AlreadySent && $Param{Data}->{ArticleID} && $Param{Data}->{ArticleType} ) {
-
-            # update to field
-            my $UpdateToSuccess = $Self->_ArticleToUpdate(
-                ArticleID   => $Param{Data}->{ArticleID},
-                ArticleType => $Param{Data}->{ArticleType},
-                UserIDs     => \%AlreadySent,
-                UserID      => $Param{UserID},
-            );
-
-            # check for errors
-            if ( !$UpdateToSuccess ) {
-
-                $Kernel::OM->Get('Kernel::System::Log')->Log(
-                    Priority => 'error',
-                    Message  => "Could not update To field for Article: $Param{Data}->{ArticleID}.",
                 );
             }
         }
@@ -392,9 +369,15 @@ sub _NotificationFilter {
     # get dynamic field backend object
     my $DynamicFieldBackendObject = $Kernel::OM->Get('Kernel::System::DynamicField::Backend');
 
+    my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+
+    # get the search article fields to retrieve values for
+    my %ArticleSearchableFields = $ArticleObject->ArticleSearchableFieldsList();
+
     KEY:
     for my $Key ( sort keys %{ $Notification{Data} } ) {
 
+        # TODO: This function here should be fixed to not use hardcoded attribute values!
         # ignore not ticket related attributes
         next KEY if $Key eq 'Recipients';
         next KEY if $Key eq 'SkipRecipients';
@@ -403,12 +386,11 @@ sub _NotificationFilter {
         next KEY if $Key eq 'RecipientRoles';
         next KEY if $Key eq 'TransportEmailTemplate';
         next KEY if $Key eq 'Events';
-        next KEY if $Key eq 'ArticleTypeID';
         next KEY if $Key eq 'ArticleSenderTypeID';
-        next KEY if $Key eq 'ArticleSubjectMatch';
-        next KEY if $Key eq 'ArticleBodyMatch';
+        next KEY if $Key eq 'ArticleIsVisibleForCustomer';
+        next KEY if $Key eq 'ArticleCommunicationChannelID';
         next KEY if $Key eq 'ArticleAttachmentInclude';
-        next KEY if $Key eq 'NotificationArticleTypeID';
+        next KEY if $Key eq 'IsVisibleForCustomer';
         next KEY if $Key eq 'Transports';
         next KEY if $Key eq 'OncePerDay';
         next KEY if $Key eq 'VisibleForAgent';
@@ -423,21 +405,24 @@ sub _NotificationFilter {
         next KEY if $Key eq 'EmailDefaultSigningKeys';
         next KEY if $Key eq 'NotificationType';
 
-        # check recipient fields from transport methods
-        if ( $Key =~ m{\A Recipient}xms ) {
+        # ignore article searchable fields
+        next KEY if $ArticleSearchableFields{$Key};
+
+        # skip transport related attributes
+        if ( $Key =~ m{ \A ( Recipient | Transport ) }xms ) {
             next KEY;
         }
 
         # check ticket attributes
-        next KEY if !$Notification{Data}->{$Key};
+        next KEY if !defined $Notification{Data}->{$Key};
+        next KEY if !defined $Notification{Data}->{$Key}->[0];
         next KEY if !@{ $Notification{Data}->{$Key} };
-        next KEY if !$Notification{Data}->{$Key}->[0];
         my $Match = 0;
 
         VALUE:
         for my $Value ( @{ $Notification{Data}->{$Key} } ) {
 
-            next VALUE if !$Value;
+            next VALUE if !defined $Value;
 
             # check if key is a search dynamic field
             if ( $Key =~ m{\A Search_DynamicField_}xms ) {
@@ -484,7 +469,11 @@ sub _NotificationFilter {
             }
             else {
 
-                if ( $Value eq $Param{Ticket}->{$Key} ) {
+                if (
+                    $Param{Ticket}->{$Key}
+                    && $Value eq $Param{Ticket}->{$Key}
+                    )
+                {
                     $Match = 1;
                     last VALUE;
                 }
@@ -500,23 +489,34 @@ sub _NotificationFilter {
         && $Param{Data}->{ArticleID}
         )
     {
+        my $BackendObject = $ArticleObject->BackendForArticle(
+            TicketID  => $Param{Data}->{TicketID},
+            ArticleID => $Param{Data}->{ArticleID},
+        );
 
-        my %Article = $Kernel::OM->Get('Kernel::System::Ticket::Article')->ArticleGet(
+        my %Article = $BackendObject->ArticleGet(
+            TicketID      => $Param{Data}->{TicketID},
             ArticleID     => $Param{Data}->{ArticleID},
-            UserID        => $Param{UserID},
             DynamicFields => 0,
         );
 
-        # check article type
-        if ( $Notification{Data}->{ArticleTypeID} ) {
+        # Check for active article filters:
+        #   - SenderTypeID
+        #   - IsVisibleForCustomer
+        #   - CommunicationChannelID
+        ARTICLE_FILTER:
+        for my $ArticleFilter (qw(ArticleSenderTypeID ArticleIsVisibleForCustomer ArticleCommunicationChannelID)) {
+            next ARTICLE_FILTER if !$Notification{Data}->{$ArticleFilter};
 
             my $Match = 0;
             VALUE:
-            for my $Value ( @{ $Notification{Data}->{ArticleTypeID} } ) {
+            for my $Value ( @{ $Notification{Data}->{$ArticleFilter} } ) {
+                next VALUE if !defined $Value;
 
-                next VALUE if !$Value;
+                my $ArticleField = $ArticleFilter;
+                $ArticleField =~ s/^Article//;
 
-                if ( $Value == $Article{ArticleTypeID} ) {
+                if ( $Value == $Article{$ArticleField} ) {
                     $Match = 1;
                     last VALUE;
                 }
@@ -525,37 +525,25 @@ sub _NotificationFilter {
             return if !$Match;
         }
 
-        # check article sender type
-        if ( $Notification{Data}->{ArticleSenderTypeID} ) {
+        my %ArticleData = $BackendObject->ArticleSearchableContentGet(
+            TicketID  => $Param{Data}->{TicketID},
+            ArticleID => $Param{Data}->{ArticleID},
+            UserID    => $Param{UserID},
+        );
 
-            my $Match = 0;
-            VALUE:
-            for my $Value ( @{ $Notification{Data}->{ArticleSenderTypeID} } ) {
-
-                next VALUE if !$Value;
-
-                if ( $Value == $Article{SenderTypeID} ) {
-                    $Match = 1;
-                    last VALUE;
-                }
-            }
-
-            return if !$Match;
-        }
-
-        # check subject & body
+        # check article backend fields
         KEY:
-        for my $Key (qw(Subject Body)) {
+        for my $Key ( sort keys %ArticleSearchableFields ) {
 
-            next KEY if !$Notification{Data}->{ 'Article' . $Key . 'Match' };
+            next KEY if !$Notification{Data}->{$Key};
 
             my $Match = 0;
             VALUE:
-            for my $Value ( @{ $Notification{Data}->{ 'Article' . $Key . 'Match' } } ) {
+            for my $Value ( @{ $Notification{Data}->{$Key} } ) {
 
                 next VALUE if !$Value;
 
-                if ( $Article{$Key} =~ /\Q$Value\E/i ) {
+                if ( $ArticleData{$Key}->{String} =~ /\Q$Value\E/i ) {
                     $Match = 1;
                     last VALUE;
                 }
@@ -588,6 +576,7 @@ sub _RecipientsGet {
 
     my @RecipientUserIDs;
     my @RecipientUsers;
+    my @RecipientUserEmails;
 
     # add pre-calculated recipient
     if ( IsArrayRefWithData( $Param{Data}->{Recipients} ) ) {
@@ -603,18 +592,20 @@ sub _RecipientsGet {
     if ( $Notification{Data}->{Recipients} ) {
 
         # get needed objects
-        my $QueueObject        = $Kernel::OM->Get('Kernel::System::Queue');
-        my $CustomerUserObject = $Kernel::OM->Get('Kernel::System::CustomerUser');
+        my $QueueObject         = $Kernel::OM->Get('Kernel::System::Queue');
+        my $CustomerUserObject  = $Kernel::OM->Get('Kernel::System::CustomerUser');
+        my $CheckItemObject     = $Kernel::OM->Get('Kernel::System::CheckItem');
+        my $SystemAddressObject = $Kernel::OM->Get('Kernel::System::SystemAddress');
+        my $UserObject          = $Kernel::OM->Get('Kernel::System::User');
 
         RECIPIENT:
         for my $Recipient ( @{ $Notification{Data}->{Recipients} } ) {
 
             if (
                 $Recipient
-                =~ /^Agent(Owner|Responsible|Watcher|WritePermissions|MyQueues|MyServices|MyQueuesMyServices)$/
+                =~ /^Agent(Owner|Responsible|Watcher|WritePermissions|MyQueues|MyServices|MyQueuesMyServices|CreateBy)$/
                 )
             {
-
                 if ( $Recipient eq 'AgentOwner' ) {
                     push @{ $Notification{Data}->{RecipientAgents} }, $Ticket{OwnerID};
                 }
@@ -716,33 +707,84 @@ sub _RecipientsGet {
 
                     push @{ $Notification{Data}->{RecipientAgents} }, @UserIDs;
                 }
+                elsif ( $Recipient eq 'AgentCreateBy' ) {
+
+                    # Check if the first article was created by an agent.
+                    my @Articles = $ArticleObject->ArticleList(
+                        TicketID   => $Param{Data}->{TicketID},
+                        SenderType => 'agent',
+                        OnlyFirst  => 1,
+                    );
+
+                    if ( $Articles[0] && $Articles[0]->{ArticleNumber} == 1 ) {
+                        push @{ $Notification{Data}->{RecipientAgents} }, $Ticket{CreateBy};
+                    }
+
+                }
             }
 
             # Other OTRS packages might add other kind of recipients that are normally handled by
             #   other modules then an elsif condition here is useful.
             elsif ( $Recipient eq 'Customer' ) {
 
-                # get old article for quoting
-                my %Article = $ArticleObject->ArticleLastCustomerArticle(
-                    TicketID      => $Param{Data}->{TicketID},
-                    DynamicFields => 0,
+                # Get last article from customer.
+                my @CustomerArticles = $ArticleObject->ArticleList(
+                    TicketID   => $Param{Data}->{TicketID},
+                    SenderType => 'customer',
+                    OnlyLast   => 1,
                 );
 
-                # If the ticket has no articles yet, get the raw ticket data
-                if ( !%Article ) {
-                    %Article = $TicketObject->TicketGet(
-                        TicketID      => $Param{Data}->{TicketID},
+                my %CustomerArticle;
+
+                ARTICLE:
+                for my $Article (@CustomerArticles) {
+                    next ARTICLE if !$Article->{ArticleID};
+
+                    %CustomerArticle = $ArticleObject->BackendForArticle( %{$Article} )->ArticleGet(
+                        %{$Article},
                         DynamicFields => 0,
                     );
                 }
 
+                my %Article = %CustomerArticle;
+
+                # If the ticket has no customer article, get the last agent article.
+                if ( !%CustomerArticle ) {
+
+                    # Get last article from agent.
+                    my @AgentArticles = $ArticleObject->ArticleList(
+                        TicketID   => $Param{Data}->{TicketID},
+                        SenderType => 'agent',
+                        OnlyLast   => 1,
+                    );
+
+                    my %AgentArticle;
+
+                    ARTICLE:
+                    for my $Article (@AgentArticles) {
+                        next ARTICLE if !$Article->{ArticleID};
+
+                        %AgentArticle = $ArticleObject->BackendForArticle( %{$Article} )->ArticleGet(
+                            %{$Article},
+                            DynamicFields => 0,
+                        );
+                    }
+
+                    %Article = %AgentArticle;
+                }
+
+                # Get raw ticket data.
+                my %Ticket = $TicketObject->TicketGet(
+                    TicketID      => $Param{Data}->{TicketID},
+                    DynamicFields => 0,
+                );
+
                 my %Recipient;
 
-                # ArticleLastCustomerArticle() returns the latest customer article but if there
-                # is no customer article, it returns the latest agent article. In this case
-                # notification must not be send to the "From", but to the "To" article field.
+                # When there is no customer article, last agent article will be used. In this case notification must not
+                #   be sent to the "From", but to the "To" article field.
 
-                # Check if we actually do have an article
+                # Check if we actually do have an article.
                 if ( defined $Article{SenderType} ) {
                     if ( $Article{SenderType} eq 'customer' ) {
                         $Recipient{UserEmail} = $Article{From};
@@ -756,7 +798,7 @@ sub _RecipientsGet {
                 # check if customer notifications should be send
                 if (
                     $ConfigObject->Get('CustomerNotifyJustToRealCustomer')
-                    && !$Article{CustomerUserID}
+                    && !$Ticket{CustomerUserID}
                     )
                 {
                     $Kernel::OM->Get('Kernel::System::Log')->Log(
@@ -769,10 +811,10 @@ sub _RecipientsGet {
                 # get language and send recipient
                 $Recipient{Language} = $ConfigObject->Get('DefaultLanguage') || 'en';
 
-                if ( $Article{CustomerUserID} ) {
+                if ( $Ticket{CustomerUserID} ) {
 
                     my %CustomerUser = $CustomerUserObject->CustomerUserDataGet(
-                        User => $Article{CustomerUserID},
+                        User => $Ticket{CustomerUserID},
 
                     );
 
@@ -781,10 +823,10 @@ sub _RecipientsGet {
                         !IsHashRefWithData( \%CustomerUser )
                         && !$ConfigObject->Get('CustomerNotifyJustToRealCustomer')
                         && $Kernel::OM->Get('Kernel::System::CheckItem')
-                        ->CheckEmail( Address => $Article{CustomerUserID} )
+                        ->CheckEmail( Address => $Ticket{CustomerUserID} )
                         )
                     {
-                        $Recipient{UserEmail} = $Article{CustomerUserID};
+                        $Recipient{UserEmail} = $Ticket{CustomerUserID};
                     }
                     else {
 
@@ -799,9 +841,9 @@ sub _RecipientsGet {
                 }
 
                 # get real name
-                if ( $Article{CustomerUserID} ) {
+                if ( $Ticket{CustomerUserID} ) {
                     $Recipient{Realname} = $CustomerUserObject->CustomerName(
-                        UserLogin => $Article{CustomerUserID},
+                        UserLogin => $Ticket{CustomerUserID},
                     );
                 }
                 if ( !$Recipient{Realname} ) {
@@ -809,6 +851,118 @@ sub _RecipientsGet {
                     $Recipient{Realname} =~ s/<.*>|\(.*\)|\"|;|,//g;
                     $Recipient{Realname} =~ s/( $)|(  $)//g;
                 }
+
+                # Skip notification if email address is already used by other groups.
+                next RECIPIENT if grep { $_ eq $Recipient{UserEmail} } @RecipientUserEmails;
+
+                # Push Email Addresses into array to prevent multiple notifications.
+                push @RecipientUserEmails, $Recipient{UserEmail};
+
+                push @RecipientUsers, \%Recipient;
+            }
+            elsif ( $Recipient eq 'AllRecipientsFirstArticle' || $Recipient eq 'AllRecipientsLastArticle' ) {
+
+                my $SystemSenderType = $ArticleObject->ArticleSenderTypeLookup( SenderType => 'system' );
+
+                my %Article;
+                my @MetaArticles = grep { $_->{SenderTypeID} ne $SystemSenderType } $ArticleObject->ArticleList(
+                    TicketID => $Param{Data}->{TicketID},
+                );
+
+                # Get the first or the last article.
+                if ( $Recipient eq 'AllRecipientsFirstArticle' ) {
+                    @MetaArticles = splice @MetaArticles, 0, 1;
+                }
+                elsif ( $Recipient eq 'AllRecipientsLastArticle' ) {
+                    @MetaArticles = splice @MetaArticles, -1, 1;
+                }
+
+                if (@MetaArticles) {
+                    my $ArticleBackend = $ArticleObject->BackendForArticle( %{ $MetaArticles[0] } );
+                    if ( $ArticleBackend->ChannelNameGet() ne 'Email' ) {
+                        next RECIPIENT;
+
+                    }
+                    %Article = $ArticleBackend->ArticleGet(
+                        %{ $MetaArticles[0] },
+                        DynamicFields => 0,
+                    );
+                }
+
+                if ( !%Article ) {
+                    next RECIPIENT;
+                }
+
+                my %Recipient;
+                my @AllRecipients;
+                my @TmpRecipients;
+                my @TmpRecipientAgents;
+                my @RecipientAgents;
+
+                # Get recipient agents to prevent multiple notifications
+                if ( IsArrayRefWithData( $Notification{Data}->{RecipientAgents} ) ) {
+                    @RecipientAgents = @{ $Notification{Data}->{RecipientAgents} };
+                }
+
+                if (@RecipientAgents) {
+                    for my $UserID (@RecipientAgents) {
+
+                        my %User = $UserObject->GetUserData(
+                            UserID => $UserID,
+                        );
+
+                        push @TmpRecipientAgents, $User{UserEmail};
+                    }
+                }
+
+                # Get all recipients from the article.
+                ALLRECIPIENTS:
+                for my $Header (qw(From To Cc)) {
+
+                    next ALLRECIPIENTS if !$Article{$Header};
+
+                    push @TmpRecipients, split ',', $Article{$Header};
+                }
+
+                # Loop through recipients.
+                EMAIL:
+                for my $Email ( Mail::Address->parse(@TmpRecipients) ) {
+
+                    # Skip notification if email address is already used by other groups.
+                    next EMAIL if grep { $_ eq $Email->address() } @RecipientUserEmails;
+
+                    # Validate email address.
+                    my $Valid = $CheckItemObject->CheckEmail(
+                        Address => $Email->address(),
+                    );
+
+                    # Skip invalid.
+                    next EMAIL if !$Valid;
+
+                    # Check if email address is a local.
+                    my $IsLocal = $SystemAddressObject->SystemAddressIsLocalAddress(
+                        Address => $Email->address(),
+                    );
+
+                    # Skip local email address.
+                    next EMAIL if $IsLocal;
+
+                    # Skip email addresses from agents selected by other groups.
+                    next EMAIL if grep { $_ eq $Email->address() } @TmpRecipientAgents;
+
+                    push @AllRecipients, $Email->address();
+
+                    # Push Email Addresses into array to prevent multiple notifications.
+                    push @RecipientUserEmails, $Email->address();
+                }
+
+                # Merge recipients.
+                $Recipient{UserEmail} = join( ',', @AllRecipients );
+
+                $Recipient{Type} = 'Customer';
+
+                # Get user language.
+                $Recipient{Language} = $ConfigObject->Get('DefaultLanguage') || 'en';
 
                 push @RecipientUsers, \%Recipient;
             }
@@ -899,10 +1053,7 @@ sub _RecipientsGet {
     @RecipientUserIDs = sort keys %TempRecipientUserIDs;
 
     # get time object
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
-
-    # get current time-stamp
-    my $Time = $TimeObject->SystemTime();
+    my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
 
     # get all data for recipients as they should be needed by all notification transports
     RECIPIENT:
@@ -932,19 +1083,25 @@ sub _RecipientsGet {
                 $User{OutOfOfficeStartYear}, $User{OutOfOfficeStartMonth},
                 $User{OutOfOfficeStartDay}
             );
-            my $TimeStart = $TimeObject->TimeStamp2SystemTime(
-                String => $Start,
+            my $TimeStart = $Kernel::OM->Create(
+                'Kernel::System::DateTime',
+                ObjectParams => {
+                    String => $Start,
+                    }
             );
             my $End = sprintf(
                 "%04d-%02d-%02d 23:59:59",
                 $User{OutOfOfficeEndYear}, $User{OutOfOfficeEndMonth},
                 $User{OutOfOfficeEndDay}
             );
-            my $TimeEnd = $TimeObject->TimeStamp2SystemTime(
-                String => $End,
+            my $TimeEnd = $Kernel::OM->Create(
+                'Kernel::System::DateTime',
+                ObjectParams => {
+                    String => $End,
+                    }
             );
 
-            next RECIPIENT if $TimeStart < $Time && $TimeEnd > $Time;
+            next RECIPIENT if $TimeStart < $DateTimeObject && $TimeEnd > $DateTimeObject;
         }
 
         # skip users with out ro permissions
@@ -994,36 +1151,39 @@ sub _SendRecipientNotification {
         );
 
         # get last notification sent ticket history entry for this transport and this user
-        my $LastNotificationHistory = first {
-            $_->{HistoryType} eq 'SendAgentNotification'
-                && $_->{Name} eq
-                "\%\%$Param{Notification}->{Name}\%\%$Param{Recipient}->{UserLogin}\%\%$Param{Transport}"
+        my $LastNotificationHistory;
+        if ( defined $Param{Recipient}->{Source} && $Param{Recipient}->{Source} eq 'CustomerUser' ) {
+            $LastNotificationHistory = first {
+                $_->{HistoryType} eq 'SendCustomerNotification'
+                    && $_->{Name} eq
+                    "\%\%$Param{Recipient}->{UserEmail}"
+            }
+            reverse @HistoryLines;
         }
-        reverse @HistoryLines;
+        else {
+            $LastNotificationHistory = first {
+                $_->{HistoryType} eq 'SendAgentNotification'
+                    && $_->{Name} eq
+                    "\%\%$Param{Notification}->{Name}\%\%$Param{Recipient}->{UserLogin}\%\%$Param{Transport}"
+            }
+            reverse @HistoryLines;
+        }
 
         if ( $LastNotificationHistory && $LastNotificationHistory->{CreateTime} ) {
 
-            # get time object
-            my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+            my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
 
-            # get last notification date
-            my ( $Sec, $Min, $Hour, $Day, $Month, $Year, $WeekDay ) = $TimeObject->SystemTime2Date(
-                SystemTime => $TimeObject->TimeStamp2SystemTime(
+            my $LastNotificationDateTimeObject = $Kernel::OM->Create(
+                'Kernel::System::DateTime',
+                ObjectParams => {
                     String => $LastNotificationHistory->{CreateTime},
-                    )
+                },
             );
-
-            # get current date
-            my ( $CurrSec, $CurrMin, $CurrHour, $CurrDay, $CurrMonth, $CurrYear, $CurrWeekDay )
-                = $TimeObject->SystemTime2Date(
-                SystemTime => $TimeObject->SystemTime(),
-                );
 
             # do not send the notification if it has been sent already today
             if (
-                $CurrYear == $Year
-                && $CurrMonth == $Month
-                && $CurrDay == $Day
+                $DateTimeObject->Format( Format => "%Y-%m-%d" ) eq
+                $LastNotificationDateTimeObject->Format( Format => "%Y-%m-%d" )
                 )
             {
                 return;
@@ -1078,47 +1238,6 @@ sub _SendRecipientNotification {
     # ticket event
     $TicketObject->EventHandler(
         %EventData,
-    );
-
-    return 1;
-}
-
-sub _ArticleToUpdate {
-    my ( $Self, %Param ) = @_;
-
-    # check needed params
-    for my $Needed (qw(ArticleID ArticleType UserIDs UserID)) {
-        return if !$Param{$Needed};
-    }
-
-    # not update for User 1
-    return 1 if $Param{UserID} eq 1;
-
-    # get needed objects
-    my $DBObject   = $Kernel::OM->Get('Kernel::System::DB');
-    my $UserObject = $Kernel::OM->Get('Kernel::System::User');
-
-    # not update if its not a note article
-    return 1 if $Param{ArticleType} !~ /^note\-/;
-
-    my $NewTo = $Param{To} || '';
-    for my $UserID ( sort keys %{ $Param{UserIDs} } ) {
-        my %UserData = $UserObject->GetUserData(
-            UserID => $UserID,
-            Valid  => 1,
-        );
-        if ($NewTo) {
-            $NewTo .= ', ';
-        }
-        $NewTo .= "$UserData{UserFirstname} $UserData{UserLastname} <$UserData{UserEmail}>";
-    }
-
-    # not update if To is the same
-    return 1 if !$NewTo;
-
-    return if !$DBObject->Do(
-        SQL  => 'UPDATE article SET a_to = ? WHERE id = ?',
-        Bind => [ \$NewTo, \$Param{ArticleID} ],
     );
 
     return 1;

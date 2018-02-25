@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,9 +11,11 @@ package Kernel::System::Console::Command::Maint::Ticket::Dump;
 use strict;
 use warnings;
 
-use base qw(Kernel::System::Console::BaseCommand);
+use parent qw(Kernel::System::Console::BaseCommand);
 
 our @ObjectDependencies = (
+    'Kernel::Output::HTML::Layout',
+    'Kernel::System::CommunicationChannel',
     'Kernel::System::Ticket',
     'Kernel::System::Ticket::Article',
 );
@@ -21,7 +23,7 @@ our @ObjectDependencies = (
 sub Configure {
     my ( $Self, %Param ) = @_;
 
-    $Self->Description('Prints a ticket and its articles to the console.');
+    $Self->Description('Print a ticket and its articles to the console.');
     $Self->AddOption(
         Name        => 'article-limit',
         Description => "Maximum number of articles to print.",
@@ -55,13 +57,9 @@ sub Run {
     $Self->Print( "<green>" . ( '=' x 69 ) . "</green>\n" );
 
     KEY:
-    for my $Key (qw(TicketNumber TicketID Title Created Queue State Priority Lock CustomerID CustomerUserID))
-    {
-
-        next KEY if !$Key;
+    for my $Key (qw(TicketNumber TicketID Title Created Queue State Priority Lock CustomerID CustomerUserID)) {
         next KEY if !$Ticket{$Key};
-
-        $Self->Print("<yellow>$Key:</yellow> $Ticket{$Key}\n");
+        $Self->Print( sprintf( "<yellow>%-20s</yellow> %s\n", "$Key:", $Ticket{$Key} ) );
     }
 
     $Self->Print( "<green>" . ( '-' x 69 ) . "</green>\n" );
@@ -69,39 +67,63 @@ sub Run {
     my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
 
     # get article index
-    my @Index = $ArticleObject->ArticleIndex(
+    my @MetaArticles = $ArticleObject->ArticleList(
         TicketID => $Self->GetArgument('ticket-id'),
     );
 
+    $Kernel::OM->ObjectParamAdd(
+        'Kernel::Output::HTML::Layout' => {
+            UserID => 1,
+        },
+    );
+
+    my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
+
     my $Counter      = 1;
     my $ArticleLimit = $Self->GetOption('article-limit');
-    ARTICLEID:
-    for my $ArticleID (@Index) {
+    META_ARTICLE:
+    for my $MetaArticle (@MetaArticles) {
 
-        last ARTICLEID if defined $ArticleLimit && $ArticleLimit < $Counter;
-        next ARTICLEID if !$ArticleID;
+        last META_ARTICLE if defined $ArticleLimit && $ArticleLimit < $Counter;
 
         # get article data
-        my %Article = $ArticleObject->ArticleGet(
-            ArticleID     => $ArticleID,
+        my %Article = $ArticleObject->BackendForArticle( %{$MetaArticle} )->ArticleGet(
+            %{$MetaArticle},
             DynamicFields => 0,
         );
 
-        next ARTICLEID if !%Article;
+        next META_ARTICLE if !%Article;
+
+        my %CommunicationChannel = $Kernel::OM->Get('Kernel::System::CommunicationChannel')->ChannelGet(
+            ChannelID => $Article{CommunicationChannelID},
+        );
+        $Article{Channel} = $CommunicationChannel{ChannelName};
 
         KEY:
-        for my $Key (qw(ArticleID From To Cc Subject ReplyTo InReplyTo Created SenderType)) {
-
-            next KEY if !$Key;
+        for my $Key (qw(ArticleID CreateTime SenderType Channel)) {
             next KEY if !$Article{$Key};
-
-            $Self->Print("<yellow>$Key:</yellow> $Article{$Key}\n");
+            $Self->Print( sprintf( "<yellow>%-20s</yellow> %s\n", "$Key:", $Article{$Key} ) );
         }
 
-        $Article{Body} ||= '';
+        my %ArticleFields = $LayoutObject->ArticleFields(%Article);
 
-        $Self->Print("<yellow>Body:</yellow>\n");
-        $Self->Print("$Article{Body}\n");
+        for my $ArticleFieldKey (
+            sort { $ArticleFields{$a}->{Prio} <=> $ArticleFields{$b}->{Prio} }
+            keys %ArticleFields
+            )
+        {
+            my %ArticleField = %{ $ArticleFields{$ArticleFieldKey} // {} };
+            $Self->Print( sprintf( "<yellow>%-20s</yellow> %s\n", "$ArticleField{Label}:", $ArticleField{Value} ) );
+        }
+
+        $Self->Print( "<green>" . ( '-' x 69 ) . "</green>\n" );
+
+        my $ArticlePreview = $LayoutObject->ArticlePreview(
+            %Article,
+            ResultType => 'plain',
+        );
+        $Self->Print("$ArticlePreview\n");
+
         $Self->Print( "<green>" . ( '-' x 69 ) . "</green>\n" );
     }
     continue {

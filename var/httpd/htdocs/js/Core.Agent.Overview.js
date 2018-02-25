@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -31,6 +31,32 @@ Core.Agent.Overview = (function (TargetNS) {
         var Profile = Core.Config.Get('Profile'),
             View = Core.Config.Get('View'),
             TicketID, ActionRowTickets = Core.Config.Get('ActionRowTickets') || {};
+
+        // Disable any event handlers on the "label" elements.
+        $('ul.Actions form > label').off("click").on("click", function() {
+            return false;
+        });
+
+        // create open popup event for dropdown actions
+        $('ul.Actions form > select').off("change").on("change", function() {
+            var URL;
+            if ($(this).val() !== '0') {
+                if (Core.Config.Get('Action') === 'AgentTicketQueue' ||
+                    Core.Config.Get('Action') === 'AgentTicketService' ||
+                    Core.Config.Get('Action') === 'AgentTicketStatusView' ||
+                    Core.Config.Get('Action') === 'AgentTicketEscalationView'
+                ) {
+                    $(this).closest('form').submit();
+                }
+                else {
+                    URL = Core.Config.Get('Baselink') + $(this).parents().serialize();
+                    Core.UI.Popup.OpenPopup(URL, 'TicketAction');
+
+                    // reset the select box so that it can be used again from the same window
+                    $(this).val('0');
+                }
+            }
+        });
 
         // open ticket search modal dialog
         $('#TicketSearch').on('click', function () {
@@ -91,6 +117,10 @@ Core.Agent.Overview = (function (TargetNS) {
             TargetNS.InitViewPreview();
         }
 
+        $('a.SplitSelection').off('click').on('click', function() {
+            Core.Agent.TicketSplit.OpenSplitSelection($(this).attr('href'));
+            return false;
+        });
     };
 
     /**
@@ -211,10 +241,12 @@ Core.Agent.Overview = (function (TargetNS) {
                                         $TriggerObj
                                             .next('.ColumnSettingsContainer')
                                             .find('select')
-                                            .after('<span class="SelectedValue Hidden"><a href="#">x</a>' + AutoCompleteText + ' (' + AutoCompleteValue + ')</span>')
+                                            .after('<span class="SelectedValue Hidden">' + AutoCompleteText + ' (' + AutoCompleteValue + ')</span>')
                                             .parent()
-                                            .find('.SelectedValue')
-                                            .find('a')
+                                            .find('input[type=text]')
+                                            .after('<a href="#" class="DeleteFilter"><i class="fa fa-trash-o"></i></a>')
+                                            .parent()
+                                            .find('a.DeleteFilter')
                                             .off()
                                             .on('click', function() {
                                                 $(this)
@@ -268,22 +300,28 @@ Core.Agent.Overview = (function (TargetNS) {
      *      This function initializes the inline actions mini overlay in medium/preview views.
      */
     TargetNS.InitInlineActions = function () {
-        $('.OverviewMedium li, .OverviewLarge li').on('mouseenter', function() {
+        $('.OverviewMedium > li, .OverviewLarge > li').on('mouseenter', function() {
             $(this).find('ul.InlineActions').css('top', '0px');
-        });
-        $('.OverviewMedium li, .OverviewLarge li').on('mouseleave', function(Event) {
 
-            // Workaround for bug#12403: The inlineActions would hide if hovering
-            // over the queue selection due to a bug in IE. As this is working fine
-            // in MS Edge with the former pure css solution, this whole function
-            // TargetNS.InitInlineActions could be dropped as soon as IE11 support is
-            // ceased for OTRS. Remember to re-add the needed css in this case:
-            //      .OverviewLarge > li:hover ul.InlineActions { top: 0px; }    (Core.OverviewLarge.css)
-            //      .OverviewPreview > li:hover ul.InlineActions { top: 0px; }  (Core.OverviewMedium.css)
-            if (Event.target.tagName.toLowerCase() === 'select') {
+            Core.App.Publish('Event.Agent.TicketOverview.InlineActions.Shown');
+        });
+        $('.OverviewMedium > li, .OverviewLarge > li').on('mouseleave', function(Event) {
+
+            // The inline actions would hide if hovering over the queue selection due to a bug in IE.
+            //   See bug#12403 for more information.
+            // The exception has to be added also for modernized dropdowns.
+            //   See bug#13100 for more information.
+            if (
+                Event.target.tagName.toLowerCase() === 'select'
+                || $(Event.target).hasClass('InputField_Search')
+                )
+            {
                 return false;
             }
-            $(this).find('ul.InlineActions').css('top', '-30px');
+
+            $(this).find('ul.InlineActions').css('top', '-35px');
+
+            Core.App.Publish('Event.Agent.TicketOverview.InlineActions.Hidden', [$(this).find('ul.InlineActions')]);
         });
     };
 
@@ -415,6 +453,10 @@ Core.Agent.Overview = (function (TargetNS) {
         // initializes the accordion effect on the specified list
         Core.UI.Accordion.Init($('.Preview > ul'), 'li h3 a', '.HiddenBlock');
 
+        Core.App.Subscribe('Event.UI.Accordion.OpenElement', function($Element) {
+            Core.UI.InputFields.Activate($Element);
+        });
+
         // Stop propagation on click on a part of the InlienActionRow without a link
         // Otherwise that would trigger the li-wide link to the ticketzoom
         $('ul.InlineActions').click(function (Event) {
@@ -439,9 +481,17 @@ Core.Agent.Overview = (function (TargetNS) {
         $('.MasterAction').off('click').on('click', function (Event) {
             $MasterActionLink = $(this).find('.MasterActionLink');
 
-            // if the user is trying to select text from an article, MasterAction should not be executed
-            if (typeof Event.target === 'object' && ($(Event.target).hasClass('ArticleBody') || $(Event.target).hasClass('ActionRow'))) {
-                return false;
+            // If the user is trying to select text from or use article actions, MasterAction should not be executed.
+            if (
+                typeof Event.target === 'object'
+                && (
+                    $(Event.target).hasClass('ArticleBody')
+                    || $(Event.target).hasClass('ItemActions')
+                    || $(Event.target).parents('.Actions').length
+                )
+                )
+            {
+                return true;
             }
 
             // prevent MasterAction on Dynamic Fields links

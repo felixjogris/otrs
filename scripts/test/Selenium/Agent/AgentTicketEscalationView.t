@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -195,9 +195,7 @@ $Selenium->RunTest(
 
             # switch to "Tomorrow" if it is already past 22:00 to avoid day switch errors.
             if ( $Filter eq 'Today' ) {
-                my $CurrentTimestamp = $Kernel::OM->Get('Kernel::System::Time')->SystemTime2TimeStamp(
-                    SystemTime => $Kernel::OM->Get('Kernel::System::Time')->SystemTime(),
-                );
+                my $CurrentTimestamp = $Kernel::OM->Create('Kernel::System::DateTime')->ToString();
 
                 my ($Hour) = $CurrentTimestamp =~ m{(\d{2}):\d{2}:\d{2}};
                 if ( $Hour >= 22 ) {

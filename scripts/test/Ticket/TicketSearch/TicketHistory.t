@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -73,7 +73,11 @@ $Self->True(
 
 $Helper->FixedTimeAddSeconds(60);
 
-my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+
+my $TicketCloseTimeNewerDateObj = $DateTimeObject->Clone();
+$TicketCloseTimeNewerDateObj->Subtract( Seconds => 61 );
+my $TicketCloseTimeNewerDateTimeStamp = $TicketCloseTimeNewerDateObj->ToString();
 
 # the following tests should provoke a join in ticket_history table and the resulting SQL should be valid
 my @Tests = (
@@ -115,23 +119,21 @@ my @Tests = (
     {
         Name   => "TicketChangeTimeOlderDate",
         Config => {
-            TicketChangeTimeOlderDate => $TimeObject->CurrentTimestamp(),
+            TicketChangeTimeOlderDate => $DateTimeObject->ToString(),
         },
         ExpectedTicketIDs => [ $TicketIDs[0], $TicketIDs[1] ],
     },
     {
         Name   => "TicketCloseTimeOlderDate",
         Config => {
-            TicketCloseTimeOlderDate => $TimeObject->CurrentTimestamp(),
+            TicketCloseTimeOlderDate => $DateTimeObject->ToString(),
         },
         ExpectedTicketIDs => [ $TicketIDs[1] ],
     },
     {
         Name   => "TicketCloseTimeNewerDate",
         Config => {
-            TicketCloseTimeNewerDate => $TimeObject->SystemTime2TimeStamp(
-                SystemTime => $TimeObject->SystemTime() - 61,
-            ),
+            TicketCloseTimeNewerDate => $TicketCloseTimeNewerDateTimeStamp,
         },
         ExpectedTicketIDs => [ $TicketIDs[1] ],
     },

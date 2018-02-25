@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -103,7 +103,7 @@ Core.UI.Autocomplete = (function (TargetNS) {
     // which matches the search term.
     $.ui.autocomplete.prototype._renderItem = function(ul, item) {
 
-        var Regex = new RegExp("(" + this.term.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&") + ")", "i"),
+        var Regex = new RegExp("(" + this.term.replace(/[-[\]/{}()*+?.\\^$|]/g, "\\$&") + ")", "i"),
             Label = Core.App.EscapeHTML(item.label);
 
         // Mark matches with strong tag.
@@ -174,7 +174,11 @@ Core.UI.Autocomplete = (function (TargetNS) {
         AutocompleteConfig = InitConfig(Type, Options);
 
         $Element.each(function () {
+
             var $SingleElement = $(this);
+
+            $(this).data('request-counter', 0);
+
             $SingleElement.autocomplete({
                 minLength: AutocompleteConfig.MinQueryLength,
                 delay: AutocompleteConfig.QueryDelay,
@@ -188,13 +192,17 @@ Core.UI.Autocomplete = (function (TargetNS) {
                         $SingleElement.after(LoaderHTML);
                         $Loader = $('#' + AJAXLoaderPrefix + Core.App.EscapeSelector(FieldID));
                     }
-                    else {
-                        $Loader.show();
-                    }
+
+                    $SingleElement.data('request-counter', parseInt($SingleElement.data('request-counter'), 10) + 1);
+
+                    $Loader.show();
                 },
                 response: function() {
-                    // remove loader again
-                    $Loader.hide();
+                    // remove loader again if there are no results
+                    $SingleElement.data('request-counter', parseInt($SingleElement.data('request-counter'), 10) - 1);
+                    if (parseInt($SingleElement.data('request-counter'), 10) <= 0) {
+                        $Loader.hide();
+                    }
                 },
                 open: function() {
                     // force a higher z-index than the overlay/dialog

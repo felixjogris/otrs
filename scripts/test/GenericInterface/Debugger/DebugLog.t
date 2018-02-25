@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,7 +12,7 @@ use utf8;
 
 use vars (qw($Self));
 
-# get webservice object
+# get web service object
 my $WebserviceObject = $Kernel::OM->Get('Kernel::System::GenericInterface::Webservice');
 
 # get helper object
@@ -37,7 +37,7 @@ my $WebserviceID = $WebserviceObject->WebserviceAdd(
             },
         },
     },
-    Name    => "$RandomID webservice",
+    Name    => "$RandomID web service",
     ValidID => 1,
     UserID  => 1,
 );
@@ -59,7 +59,7 @@ $Self->Is(
 );
 
 my $MainObject = $Kernel::OM->Get('Kernel::System::Main');
-my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+my $SystemTime = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
 
 my @Tests = (
 
@@ -67,7 +67,7 @@ my @Tests = (
         Name   => 'Without WebserviceID',
         Config => {
             CommunicationID => $MainObject->MD5sum(
-                String => $TimeObject->SystemTime() . $Helper->GetRandomID(),
+                String => $SystemTime . $Helper->GetRandomID(),
             ),
             CommunicationType => 'Provider',       # 'Provider' or 'Requester'
             RemoteIP          => '192.168.0.1',    # optional
@@ -101,7 +101,7 @@ my @Tests = (
         Name   => 'Without CommunicationType',
         Config => {
             CommunicationID => $MainObject->MD5sum(
-                String => $TimeObject->SystemTime() . $Helper->GetRandomID(),
+                String => $SystemTime . $Helper->GetRandomID(),
             ),
             WebserviceID => $WebserviceID,
             RemoteIP     => '192.168.0.1',
@@ -119,7 +119,7 @@ my @Tests = (
         Name   => 'Without RemoteIP',
         Config => {
             CommunicationID => $MainObject->MD5sum(
-                String => $TimeObject->SystemTime() . $Helper->GetRandomID(),
+                String => $SystemTime . $Helper->GetRandomID(),
             ),
             WebserviceID      => $WebserviceID,
             CommunicationType => 'Provider',
@@ -138,7 +138,7 @@ my @Tests = (
         SuccessAdd => '1',
         Config     => {
             CommunicationID => $MainObject->MD5sum(
-                String => $TimeObject->SystemTime() . $Helper->GetRandomID(),
+                String => $SystemTime . $Helper->GetRandomID(),
             ),
             CommunicationType => 'Provider',
             RemoteIP          => '192.168.0.1',
@@ -155,7 +155,7 @@ my @Tests = (
         SuccessAdd => '1',
         Config     => {
             CommunicationID => $MainObject->MD5sum(
-                String => $TimeObject->SystemTime() . $Helper->GetRandomID(),
+                String => $SystemTime . $Helper->GetRandomID(),
             ),
             CommunicationType => 'Provider',
             RemoteIP          => '192.168.0.1',
@@ -174,7 +174,7 @@ my @Tests = (
         SuccessAdd => '1',
         Config     => {
             CommunicationID => $MainObject->MD5sum(
-                String => $TimeObject->SystemTime() . $Helper->GetRandomID(),
+                String => $SystemTime . $Helper->GetRandomID(),
             ),
             CommunicationType => 'Provider',
             RemoteIP          => '',
@@ -192,7 +192,7 @@ my @Tests = (
         SuccessAdd => '1',
         Config     => {
             CommunicationID => $MainObject->MD5sum(
-                String => $TimeObject->SystemTime() . $Helper->GetRandomID(),
+                String => $SystemTime . $Helper->GetRandomID(),
             ),
             CommunicationType => 'Requester',
             RemoteIP          => '192.168.0.1',
@@ -210,7 +210,7 @@ my @Tests = (
         SuccessAdd => '1',
         Config     => {
             CommunicationID => $MainObject->MD5sum(
-                String => $TimeObject->SystemTime() . $Helper->GetRandomID(),
+                String => $SystemTime . $Helper->GetRandomID(),
             ),
             CommunicationType => 'Requester',
             RemoteIP          => '',
@@ -472,14 +472,14 @@ my $AllEntries = $DebugLogObject->LogSearch(
 for my $Entry ( @{$AllEntries} ) {
     $Self->True(
         $DebugLogIDCheck{ $Entry->{CommunicationID} },
-        "LogSearch() for webservice found CommunicationID $Entry->{CommunicationID}",
+        "LogSearch() for web service found CommunicationID $Entry->{CommunicationID}",
     );
     delete $DebugLogIDCheck{ $Entry->{CommunicationID} };
 }
 for my $CommunicationID ( sort keys %DebugLogIDCheck ) {
     $Self->False(
         $CommunicationID,
-        "LogSearch() for webservice found CommunicationID $CommunicationID",
+        "LogSearch() for web service found CommunicationID $CommunicationID",
     );
 }
 

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -42,7 +42,7 @@ $Selenium->RunTest(
         $Selenium->execute_script(
             "\$('#UserTimeZone').val('Europe/Berlin').trigger('redraw.InputField').trigger('change');"
         );
-        $Selenium->find_element( "#UserTimeZone", 'css' )->VerifiedSubmit();
+        $Selenium->find_element( "#UserTimeZoneUpdate", 'css' )->VerifiedClick();
 
         # check for update preference message on screen
         my $UpdateMessage = "Time zone updated successfully!";

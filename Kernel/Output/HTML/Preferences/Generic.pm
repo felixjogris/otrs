@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -61,6 +61,17 @@ sub Run {
     for my $Key ( sort keys %{ $Param{GetParam} } ) {
         my @Array = @{ $Param{GetParam}->{$Key} };
         for (@Array) {
+
+            # check if the value needs to be validated
+            if (
+                $Self->{ConfigItem}->{ValidateRegex}
+                && $Self->{ConfigItem}->{ValidateRegexMessage}
+                && $_ !~ m{$Self->{ConfigItem}->{ValidateRegex}}
+                )
+            {
+                $Self->{Error} = $Self->{ConfigItem}->{ValidateRegexMessage};
+                return;
+            }
 
             # pref update db
             if ( !$Kernel::OM->Get('Kernel::Config')->Get('DemoSystem') ) {

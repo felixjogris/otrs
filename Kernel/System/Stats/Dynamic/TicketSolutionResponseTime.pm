@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -27,8 +27,9 @@ our @ObjectDependencies = (
     'Kernel::System::Service',
     'Kernel::System::SLA',
     'Kernel::System::State',
+    'Kernel::System::Stats',
     'Kernel::System::Ticket',
-    'Kernel::System::Time',
+    'Kernel::System::DateTime',
     'Kernel::System::Type',
     'Kernel::System::User',
 );
@@ -219,7 +220,7 @@ sub GetObjectAttributes {
             UseAsXvalue      => 0,
             UseAsValueSeries => 0,
             UseAsRestriction => 1,
-            Element          => 'From',
+            Element          => 'MIMEBase_From',
             Block            => 'InputField',
         },
         {
@@ -227,7 +228,7 @@ sub GetObjectAttributes {
             UseAsXvalue      => 0,
             UseAsValueSeries => 0,
             UseAsRestriction => 1,
-            Element          => 'To',
+            Element          => 'MIMEBase_To',
             Block            => 'InputField',
         },
         {
@@ -235,7 +236,7 @@ sub GetObjectAttributes {
             UseAsXvalue      => 0,
             UseAsValueSeries => 0,
             UseAsRestriction => 1,
-            Element          => 'Cc',
+            Element          => 'MIMEBase_Cc',
             Block            => 'InputField',
         },
         {
@@ -243,7 +244,7 @@ sub GetObjectAttributes {
             UseAsXvalue      => 0,
             UseAsValueSeries => 0,
             UseAsRestriction => 1,
-            Element          => 'Subject',
+            Element          => 'MIMEBase_Subject',
             Block            => 'InputField',
         },
         {
@@ -251,7 +252,7 @@ sub GetObjectAttributes {
             UseAsXvalue      => 0,
             UseAsValueSeries => 0,
             UseAsRestriction => 1,
-            Element          => 'Body',
+            Element          => 'MIMEBase_Body',
             Block            => 'InputField',
         },
         {
@@ -445,7 +446,7 @@ sub GetObjectAttributes {
         }
 
         my %ObjectAttribute = (
-            Name             => Translatable('CustomerID'),
+            Name             => Translatable('Customer ID'),
             UseAsXvalue      => 1,
             UseAsValueSeries => 1,
             UseAsRestriction => 1,
@@ -496,7 +497,7 @@ sub GetObjectAttributes {
         }
 
         my %ObjectAttribute = (
-            Name             => Translatable('CustomerUserLogin'),
+            Name             => Translatable('Assigned to Customer User Login'),
             UseAsXvalue      => 1,
             UseAsValueSeries => 1,
             UseAsRestriction => 1,
@@ -511,7 +512,7 @@ sub GetObjectAttributes {
 
         my @CustomerIDAttributes = (
             {
-                Name             => Translatable('CustomerUserLogin (complex search)'),
+                Name             => Translatable('Assigned to Customer User Login (complex search)'),
                 UseAsXvalue      => 0,
                 UseAsValueSeries => 0,
                 UseAsRestriction => 1,
@@ -519,17 +520,36 @@ sub GetObjectAttributes {
                 Block            => 'InputField',
             },
             {
-                Name             => Translatable('CustomerUserLogin (exact match)'),
-                UseAsXvalue      => 0,
-                UseAsValueSeries => 0,
-                UseAsRestriction => 1,
-                Element          => 'CustomerUserLoginRaw',
-                Block            => 'InputField',
+                Name               => Translatable('Assigned to Customer User Login (exact match)'),
+                UseAsXvalue        => 0,
+                UseAsValueSeries   => 0,
+                UseAsRestriction   => 1,
+                Element            => 'CustomerUserLoginRaw',
+                Block              => 'InputField',
+                CSSClass           => 'CustomerAutoCompleteSimple',
+                HTMLDataAttributes => {
+                    'customer-search-type' => 'CustomerUser',
+                },
             },
         );
 
         push @ObjectAttributes, @CustomerIDAttributes;
     }
+
+    # Add always the field for the customer user login accessible tickets as auto complete field.
+    my %ObjectAttribute = (
+        Name               => Translatable('Accessible to Customer User Login (exact match)'),
+        UseAsXvalue        => 0,
+        UseAsValueSeries   => 0,
+        UseAsRestriction   => 1,
+        Element            => 'CustomerUserID',
+        Block              => 'InputField',
+        CSSClass           => 'CustomerAutoCompleteSimple',
+        HTMLDataAttributes => {
+            'customer-search-type' => 'CustomerUser',
+        },
+    );
+    push @ObjectAttributes, \%ObjectAttribute;
 
     # get dynamic field backend object
     my $DynamicFieldBackendObject = $Kernel::OM->Get('Kernel::System::DynamicField::Backend');
@@ -692,7 +712,7 @@ sub GetStatElement {
 
             SEARCHATTRIBUTE:
             for my $SearchAttribute ( sort keys %Param ) {
-                next SEARCHATTRIBUTE if $SearchAttribute !~ m{ \A \Q$Attribute\E _ }xms;
+                next SEARCHATTRIBUTE if $SearchAttribute !~ m{ \A \Q$Attribute\E }xms;
                 $TicketSearch{$SearchAttribute} = $Param{$SearchAttribute};
 
                 # Don't exist loop , there can be more than one attribute param per allowed attribute.
@@ -802,8 +822,6 @@ sub GetStatElement {
     # Do nothing, if there are no tickets.
     return 0 if !@TicketIDs;
 
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
-
     my $Counter        = 0;
     my $CounterAllOver = 0;
 
@@ -825,11 +843,21 @@ sub GetStatElement {
             DynamicFields => 0,
         );
 
-        my $SolutionTime = $TimeObject->TimeStamp2SystemTime(
-            String => $Ticket{Closed},
+        my $CreatedDateTimeObject = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                String => $Ticket{Created}
+            },
+        );
+        my $ClosedDateTimeObject = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                String => $Ticket{Closed}
+            },
         );
 
-        $SolutionAllOver{$TicketID} = $SolutionTime - $Ticket{CreateTimeUnix};
+        my $Delta = $ClosedDateTimeObject->Delta( DateTimeObject => $CreatedDateTimeObject );
+        $SolutionAllOver{$TicketID} = $Delta->{AbsoluteSeconds};
 
         next TICKET if !defined $Ticket{SolutionInMin};
 
@@ -839,11 +867,16 @@ sub GetStatElement {
         $SolutionWorkingTime{$TicketID} = $Ticket{SolutionInMin};
 
         if ( $Ticket{FirstResponse} ) {
-            my $FirstResponse = $TimeObject->TimeStamp2SystemTime(
-                String => $Ticket{FirstResponse},
+
+            my $FirstResponseDateTimeObject = $Kernel::OM->Create(
+                'Kernel::System::DateTime',
+                ObjectParams => {
+                    String => $Ticket{FirstResponse}
+                },
             );
 
-            $Response{$TicketID}            = $FirstResponse - $Ticket{CreateTimeUnix};
+            my $Delta = $FirstResponseDateTimeObject->Delta( DateTimeObject => $CreatedDateTimeObject );
+            $Response{$TicketID}            = $Delta->{AbsoluteSeconds};
             $ResponseWorkingTime{$TicketID} = $Ticket{FirstResponseInMin};
         }
         else {
@@ -1010,9 +1043,9 @@ sub GetStatElement {
 
     # Convert min in hh:mm.
     if ( $SelectedKindOfReporting ne 'NumberOfTickets' && $SelectedKindOfReporting ne 'NumberOfTicketsAllOver' ) {
-        my $Hours   = int( $Reporting / 60 );
-        my $Minutes = int( $Reporting % 60 );
-        $Reporting = $Hours . 'h ' . $Minutes . 'm';
+        $Reporting = $Kernel::OM->Get('Kernel::System::Stats')->_HumanReadableAgeGet(
+            Age => $Reporting * 60,
+        );
     }
 
     return $Reporting;
@@ -1190,7 +1223,7 @@ sub _GetAverage {
 
     my $Sum = 0;
     for my $Value ( values %{ $Param{Content} } ) {
-        $Sum += $Value;
+        $Sum += $Value || 0;
     }
     return $Sum / $Param{Count};
 }

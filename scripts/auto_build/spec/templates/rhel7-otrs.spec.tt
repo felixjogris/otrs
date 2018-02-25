@@ -7,6 +7,7 @@
         'perl(Archive::Zip)',
         'perl(Crypt::SSLeay)',
         'perl(Date::Format)',
+        'perl(DateTime)',
         'perl(DBI)',
         'perl(IO::Socket::SSL)',
         'perl(LWP::UserAgent)',

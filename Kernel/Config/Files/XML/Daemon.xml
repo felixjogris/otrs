@@ -24,7 +24,7 @@
     </Setting>
     <Setting Name="Frontend::NotifyModule###8000-Daemon-Check" Required="0" Valid="1">
         <Description Translatable="1">Defines the module to display a notification in the agent interface if the OTRS Daemon is not running.</Description>
-        <Navigation>Frontend::Agent::ModuleNotify</Navigation>
+        <Navigation>Frontend::Agent::FrontendNotification</Navigation>
         <Value>
             <Hash>
                 <Item Key="Module">Kernel::Output::HTML::Notification::DaemonCheck</Item>
@@ -33,7 +33,7 @@
     </Setting>
     <Setting Name="Loader::Agent::CommonCSS###001-Daemon" Required="1" Valid="1">
         <Description Translatable="1">List of CSS files to always be loaded for the agent interface.</Description>
-        <Navigation>Core::Web</Navigation>
+        <Navigation>Frontend::Base::Loader</Navigation>
         <Value>
             <Array>
                 <Item>Core.Agent.Daemon.css</Item>
@@ -42,7 +42,7 @@
     </Setting>
     <Setting Name="Loader::Agent::CommonJS###001-Daemon" Required="1" Valid="1">
         <Description Translatable="1">List of JS files to always be loaded for the agent interface.</Description>
-        <Navigation>Core::Web</Navigation>
+        <Navigation>Frontend::Base::Loader</Navigation>
         <Value>
             <Array>
                 <Item>Core.Agent.Daemon.js</Item>
@@ -51,7 +51,7 @@
     </Setting>
     <Setting Name="Daemon::Log::RotationType" Required="1" Valid="1">
         <Description Translatable="1">Type of daemon log rotation to use: Choose 'OTRS' to let OTRS system to handle the file rotation, or choose 'External' to use a 3rd party rotation mechanism (i.e. logrotate). Note: External rotation mechanism requires its own and independent configuration.</Description>
-        <Navigation>Core::Log</Navigation>
+        <Navigation>Daemon::Log</Navigation>
         <Value>
             <Item ValueType="Select" SelectedID="otrs"><!-- default OTRS -->
                 <Item ValueType="Option" Value="otrs" Translatable="1">OTRS</Item>
@@ -59,23 +59,30 @@
             </Item>
         </Value>
     </Setting>
+    <Setting Name="Daemon::PID::Path" Required="0" Valid="0">
+        <Description Translatable="1">If enabled the daemon will use this directory to create its PID files. Note: Please stop the daemon before any change and use this setting only if &lt;$OTRSHome&gt;/var/run/ can not be used.</Description>
+        <Navigation>Daemon</Navigation>
+        <Value>
+            <Item ValueRegex="" ValueType="Directory">/opt/otrs/var/run/</Item>
+        </Value>
+    </Setting>
     <Setting Name="Daemon::Log::DaysToKeep" Required="0" Valid="0">
         <Description Translatable="1">Defines the number of days to keep the daemon log files.</Description>
-        <Navigation>Core::Log</Navigation>
+        <Navigation>Daemon::Log</Navigation>
         <Value>
             <Item ValueType="String" ValueRegex="^[1-9]\d*">1</Item><!-- default 1 day -->
         </Value>
     </Setting>
     <Setting Name="Daemon::Log::STDOUT" Required="1" Valid="1">
         <Description Translatable="1">If enabled the daemon will redirect the standard output stream to a log file.</Description>
-        <Navigation>Core::Log</Navigation>
+        <Navigation>Daemon::Log</Navigation>
         <Value>
             <Item ValueType="Checkbox">0</Item>
         </Value>
     </Setting>
     <Setting Name="Daemon::Log::STDERR" Required="1" Valid="1">
         <Description Translatable="1">If enabled the daemon will redirect the standard error stream to a log file.</Description>
-        <Navigation>Core::Log</Navigation>
+        <Navigation>Daemon::Log</Navigation>
         <Value>
             <Item ValueType="Checkbox">1</Item>
         </Value>
@@ -113,6 +120,15 @@
         <Value>
             <Hash>
                 <Item Key="Module">Kernel::System::Daemon::DaemonModules::SchedulerTaskWorker</Item>
+            </Hash>
+        </Value>
+    </Setting>
+    <Setting Name="DaemonModules###SystemConfigurationSyncManager" Required="1" Valid="1">
+        <Description Translatable="1">The daemon registration for the system configuration deployment sync manager.</Description>
+        <Navigation>Daemon::ModuleRegistration</Navigation>
+        <Value>
+            <Hash>
+                <Item Key="Module">Kernel::System::Daemon::DaemonModules::SystemConfigurationSyncManager</Item>
             </Hash>
         </Value>
     </Setting>
@@ -376,7 +392,7 @@
         </Value>
     </Setting>
     <Setting Name="Daemon::SchedulerCronTaskManager::Task###RenewCustomerSMIMECertificates" Required="0" Valid="1">
-        <Description Translatable="1">Renew existing SMIME certificates from customer backend. Note: SMIME and SMIME::FetchFromCustomer needs to be active in SysConfig and customer backend needs to be configured to fetch UserSMIMECertificate attribute.</Description>
+        <Description Translatable="1">Renew existing SMIME certificates from customer backend. Note: SMIME and SMIME::FetchFromCustomer needs to be enabled in SysConfig and customer backend needs to be configured to fetch UserSMIMECertificate attribute.</Description>
         <Navigation>Daemon::SchedulerCronTaskManager::Task</Navigation>
         <Value>
             <Hash>
@@ -387,6 +403,63 @@
                 <Item Key="MaximumParallelInstances">1</Item>
                 <Item Key="Params">
                     <Array>
+                    </Array>
+                </Item>
+            </Hash>
+        </Value>
+    </Setting>
+    <Setting Name="Daemon::SchedulerCronTaskManager::Task###ArticleSearchIndexRebuild" Required="0" Valid="1" ConfigLevel="100">
+        <Description Translatable="1">Checks for articles that needs to be updated in the article search index.</Description>
+        <Navigation>Daemon::SchedulerCronTaskManager::Task</Navigation>
+        <Value>
+            <Hash>
+                <Item Key="TaskName">ArticleSearchIndexRebuild</Item>
+                <Item Key="Schedule">* * * * *</Item> <!-- default: every minute -->
+                <Item Key="Module">Kernel::System::Console::Command::Maint::Ticket::FulltextIndexRebuildWorker</Item>
+                <Item Key="Function">Execute</Item>
+                <Item Key="MaximumParallelInstances">1</Item>
+                <Item Key="Params">
+                    <Array>
+                        <Item>--children</Item>
+                        <Item>4</Item>
+                        <Item>--limit</Item>
+                        <Item>20000</Item>
+                    </Array>
+                </Item>
+            </Hash>
+        </Value>
+    </Setting>
+    <Setting Name="Daemon::SchedulerCronTaskManager::Task###MailQueueSend" Required="0" Valid="1" ConfigLevel="100">
+        <Description Translatable="1">Checks for queued outgoing emails to be sent.</Description>
+        <Navigation>Daemon::SchedulerCronTaskManager::Task</Navigation>
+        <Value>
+            <Hash>
+                <Item Key="TaskName">MailQueueSend</Item>
+                <Item Key="Schedule">* * * * *</Item> <!-- default every minute -->
+                <Item Key="Module">Kernel::System::Console::Command::Maint::Email::MailQueue</Item>
+                <Item Key="Function">Execute</Item>
+                <Item Key="MaximumParallelInstances">1</Item>
+                <Item Key="Params">
+                    <Array>
+                        <Item>--send</Item>
+                    </Array>
+                </Item>
+            </Hash>
+        </Value>
+    </Setting>
+    <Setting Name="Daemon::SchedulerCronTaskManager::Task###CommunicationLogDelete" Required="0" Valid="1" ConfigLevel="100">
+        <Description Translatable="1">Checks for communication log entries to be deleted.</Description>
+        <Navigation>Daemon::SchedulerCronTaskManager::Task</Navigation>
+        <Value>
+            <Hash>
+                <Item Key="TaskName">CommunicationLogDelete</Item>
+                <Item Key="Schedule">00 03 * * *</Item> <!-- default each day at 03:00 AM -->
+                <Item Key="Module">Kernel::System::Console::Command::Maint::Log::CommunicationLog</Item>
+                <Item Key="Function">Execute</Item>
+                <Item Key="MaximumParallelInstances">1</Item>
+                <Item Key="Params">
+                    <Array>
+                        <Item>--purge</Item>
                     </Array>
                 </Item>
             </Hash>
@@ -548,7 +621,7 @@
     </Setting>
     <!-- custom generic agent tasks -->
     <Setting Name="Daemon::SchedulerCronTaskManager::Task###GenericAgentFile1" Required="0" Valid="0" ConfigLevel="100">
-        <Description Translatable="1">Run file based generic agent jobs (Note: module name need needs to be specified in -configuration-module param e.g. "Kernel::System::GenericAgent").</Description>
+        <Description Translatable="1">Run file based generic agent jobs (Note: module name needs to be specified in -configuration-module param e.g. "Kernel::System::GenericAgent").</Description>
         <Navigation>Daemon::SchedulerCronTaskManager::Task</Navigation>
         <Value>
             <Hash>
@@ -568,7 +641,7 @@
         </Value>
     </Setting>
     <Setting Name="Daemon::SchedulerCronTaskManager::Task###GenericAgentFile2" Required="0" Valid="0" ConfigLevel="100">
-        <Description Translatable="1">Run file based generic agent jobs (Note: module name need needs to be specified in -configuration-module param e.g. "Kernel::System::GenericAgent").</Description>
+        <Description Translatable="1">Run file based generic agent jobs (Note: module name needs to be specified in -configuration-module param e.g. "Kernel::System::GenericAgent").</Description>
         <Navigation>Daemon::SchedulerCronTaskManager::Task</Navigation>
         <Value>
             <Hash>
@@ -588,7 +661,7 @@
         </Value>
     </Setting>
     <Setting Name="Daemon::SchedulerCronTaskManager::Task###GenericAgentFile3" Required="0" Valid="0" ConfigLevel="100">
-        <Description Translatable="1">Run file based generic agent jobs (Note: module name need needs to be specified in -configuration-module param e.g. "Kernel::System::GenericAgent").</Description>
+        <Description Translatable="1">Run file based generic agent jobs (Note: module name needs to be specified in -configuration-module param e.g. "Kernel::System::GenericAgent").</Description>
         <Navigation>Daemon::SchedulerCronTaskManager::Task</Navigation>
         <Value>
             <Hash>
@@ -608,7 +681,7 @@
         </Value>
     </Setting>
     <Setting Name="Daemon::SchedulerCronTaskManager::Task###GenericAgentFile4" Required="0" Valid="0" ConfigLevel="100">
-        <Description Translatable="1">Run file based generic agent jobs (Note: module name need needs to be specified in -configuration-module param e.g. "Kernel::System::GenericAgent").</Description>
+        <Description Translatable="1">Run file based generic agent jobs (Note: module name needs to be specified in -configuration-module param e.g. "Kernel::System::GenericAgent").</Description>
         <Navigation>Daemon::SchedulerCronTaskManager::Task</Navigation>
         <Value>
             <Hash>
@@ -628,7 +701,7 @@
         </Value>
     </Setting>
     <Setting Name="Daemon::SchedulerCronTaskManager::Task###GenericAgentFile5" Required="0" Valid="0" ConfigLevel="100">
-        <Description Translatable="1">Run file based generic agent jobs (Note: module name need needs to be specified in -configuration-module param e.g. "Kernel::System::GenericAgent").</Description>
+        <Description Translatable="1">Run file based generic agent jobs (Note: module name needs to be specified in -configuration-module param e.g. "Kernel::System::GenericAgent").</Description>
         <Navigation>Daemon::SchedulerCronTaskManager::Task</Navigation>
         <Value>
             <Hash>
@@ -740,5 +813,60 @@
             </Hash>
         </Value>
     </Setting>
-
+    <Setting Name="Daemon::SchedulerCronTaskManager::Task###TicketNumberCounterCleanup" Required="1" Valid="1" ConfigLevel="100">
+        <Description Translatable="1">Removes old ticket number counters (Sunday mornings).</Description>
+        <Navigation>Daemon::SchedulerCronTaskManager::Task</Navigation>
+        <Value>
+            <Hash>
+                <Item Key="TaskName">TicketNumberCounterCleanup</Item>
+                <Item Key="Schedule">*/10 * * * *</Item> <!-- each 10 mins -->
+                <Item Key="Module">Kernel::System::Ticket::Number::AutoIncrement</Item> <!-- use AutoIncrement to have access to the base function. -->
+                <Item Key="Function">TicketNumberCounterCleanup</Item>
+                <Item Key="MaximumParallelInstances">1</Item>
+                <Item Key="Params">
+                    <Array>
+                    </Array>
+                </Item>
+            </Hash>
+        </Value>
+    </Setting>
+    <Setting Name="Daemon::SchedulerCronTaskManager::Task###GeneticInterfaceDebugLogCleanup" Required="0" Valid="1">
+        <Description Translatable="1">Renew existing SMIME certificates from customer backend. Note: SMIME and SMIME::FetchFromCustomer needs to be enabled in SysConfig and customer backend needs to be configured to fetch UserSMIMECertificate attribute.</Description>
+        <Navigation>Daemon::SchedulerCronTaskManager::Task</Navigation>
+        <Value>
+            <Hash>
+                <Item Key="TaskName">GeneticInterfaceDebugLogCleanup</Item>
+                <Item Key="Schedule">02 03 * * *</Item> <!-- default each day at 03:02 AM -->
+                <Item Key="Module">Kernel::System::Console::Command::Maint::GenericInterface::DebugLog::Cleanup</Item>
+                <Item Key="Function">Execute</Item>
+                <Item Key="MaximumParallelInstances">1</Item>
+                <Item Key="Params">
+                    <Array>
+                        <Item>--created-before-days</Item>
+                        <Item>14</Item>
+                    </Array>
+                </Item>
+            </Hash>
+        </Value>
+    </Setting>
+    <Setting Name="Daemon::SchedulerCronTaskManager::Task###TicketDraftDeleteExpired" Required="0" Valid="1" ConfigLevel="100">
+        <Description Translatable="1">Delete expired ticket draft entries.</Description>
+        <Navigation>Daemon::SchedulerCronTaskManager::Task</Navigation>
+        <Value>
+            <Hash>
+                <Item Key="TaskName">TicketDraftDeleteExpired</Item>
+                <Item Key="Schedule">55 * * * *</Item> <!-- default every hour in minute 55 -->
+                <Item Key="Module">Kernel::System::Console::Command::Maint::FormDraft::Delete</Item>
+                <Item Key="Function">Execute</Item>
+                <Item Key="MaximumParallelInstances">1</Item>
+                <Item Key="Params">
+                    <Array>
+                        <Item>--object-type</Item>
+                        <Item>Ticket</Item>
+                        <Item>--expired</Item>
+                    </Array>
+                </Item>
+            </Hash>
+        </Value>
+    </Setting>
 </otrs_config>

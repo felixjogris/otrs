@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,7 +11,7 @@ package Kernel::System::Console::Command::Admin::Package::Uninstall;
 use strict;
 use warnings;
 
-use base qw(Kernel::System::Console::BaseCommand Kernel::System::Console::Command::Admin::Package::List);
+use parent qw(Kernel::System::Console::BaseCommand Kernel::System::Console::Command::Admin::Package::List);
 
 our @ObjectDependencies = (
     'Kernel::System::Package',
@@ -23,7 +23,7 @@ sub Configure {
     $Self->Description('Uninstall an OTRS package.');
     $Self->AddOption(
         Name        => 'force',
-        Description => 'Force package Uninstallation even if validation fails.',
+        Description => 'Force package uninstallation even if validation fails.',
         Required    => 0,
         HasValue    => 0,
     );

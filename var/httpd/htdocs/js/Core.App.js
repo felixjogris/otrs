@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -93,16 +93,12 @@ Core.App = (function (TargetNS) {
      * @name GetSessionInformation
      * @memberof Core.App
      * @function
-     * @returns {Object} Hash with session data, if needed.
+     * @returns {Object} Hash with session data.
      * @description
      *      Collects session data in a hash if available.
      */
     TargetNS.GetSessionInformation = function () {
         var Data = {};
-        if (!Core.Config.Get('SessionIDCookie')) {
-            Data[Core.Config.Get('SessionName')] = Core.Config.Get('SessionID');
-            Data[Core.Config.Get('CustomerPanelSessionName')] = Core.Config.Get('SessionID');
-        }
         Data.ChallengeToken = Core.Config.Get('ChallengeToken');
         return Data;
     };
@@ -209,8 +205,7 @@ Core.App = (function (TargetNS) {
             $('body').removeClass('ConnectionErrorDetected');
 
             // if there is already a dialog, we just exchange the content
-            if ($('#AjaxErrorDialogInner').is(':visible')) {
-
+            if ($('#AjaxErrorDialogInner').find('.NoConnection').is(':visible')) {
                 $('#AjaxErrorDialogInner').find('.NoConnection').hide();
                 $('#AjaxErrorDialogInner').find('.ConnectionReEstablished').show().delay(1000).find('.Icon').addClass('Green');
             }
@@ -253,7 +248,7 @@ Core.App = (function (TargetNS) {
             }
         });
 
-        // check for ajax errors and show overlay in case there is one
+        // Check for AJAX connection errors and show overlay in case there is one.
         TargetNS.Subscribe('Core.App.AjaxError', function() {
 
             var $DialogObj = $('#AjaxErrorDialog');
@@ -266,8 +261,9 @@ Core.App = (function (TargetNS) {
                 return false;
             }
 
-            // only show one dialog at a time
-            if ($('#AjaxErrorDialogInner').find('.NoConnection').is(':visible')) {
+            // Only show one dialog at a time. Do not show the dialog if communication error dialog was displayed
+            //   previously, leave it open since it might point to a more serious issue.
+            if ($('#AjaxErrorDialogInner').find('.NoConnection,.CommunicationError').is(':visible')) {
                 return false;
             }
 
@@ -280,13 +276,17 @@ Core.App = (function (TargetNS) {
                 }, 5000);
             }
 
-            // if a connection warning dialog is open but shows the "connection re-established"
-            // notice, show the warning again. This could happen if the connection had been lost
-            // but also re-established and the dialog informing about it is still there
-            if ($('#AjaxErrorDialogInner').find('.ConnectionReEstablished').is(':visible')) {
-                $('#AjaxErrorDialogInner').find('.ConnectionReEstablished').hide().prev('.NoConnection').show();
+            // If a connection warning dialog is open but shows the "Connection re-established" or "Communication error"
+            //   notice, show the warning again. This could happen if the connection had been lost but also
+            //   re-established in the meantime, or there were some communication errors encountered.
+            if ($('#AjaxErrorDialogInner').find('.ConnectionReEstablished,.CommunicationError').is(':visible')) {
+                $('#AjaxErrorDialogInner').find('.ConnectionReEstablished,.CommunicationError').hide().prev('.NoConnection').show();
                 return false;
             }
+
+            // Show 'No Connection' dialog content.
+            $DialogObj.find('.ConnectionReEstablished,.CommunicationError').hide();
+            $DialogObj.find('.NoConnection').show();
 
             Core.UI.Dialog.ShowDialog({
                 HTML : $DialogObj,
@@ -320,6 +320,61 @@ Core.App = (function (TargetNS) {
             // the only possibility to close the dialog should be the button
             $('#AjaxErrorDialogInner').closest('.Dialog').find('.Close').remove();
         });
+
+        // Check for AJAX communication errors and show overlay in case there is one.
+        TargetNS.Subscribe('Core.App.AjaxCommunicationError', function() {
+
+            var $DialogObj = $('#AjaxErrorDialog');
+
+            // Set a body class to remember that we detected the error.
+            $('body').addClass('CommunicationErrorDetected');
+
+            // Only show one dialog at a time.
+            if ($('#AjaxErrorDialogInner').find('.CommunicationError').is(':visible')) {
+                return false;
+            }
+
+            // If a connection warning dialog is open but shows the "No connection" or "Connection re-established"
+            //   notice, show the warning nevertheless. Communication error is of a higher order and should always be
+            //   displayed.
+            if ($('#AjaxErrorDialogInner').find('.NoConnection,.ConnectionReEstablished').is(':visible')) {
+                $('#AjaxErrorDialogInner').find('.NoConnection,.ConnectionReEstablished').hide().prev('.CommunicationError').show();
+                return false;
+            }
+
+            // Show 'Communication error' dialog content.
+            $DialogObj.find('.NoConnection,.ConnectionReEstablished').hide();
+            $DialogObj.find('.CommunicationError').show();
+
+            Core.UI.Dialog.ShowDialog({
+                HTML : $DialogObj,
+                Title : Core.Language.Translate("Communication error"),
+                Modal : true,
+                CloseOnClickOutside : false,
+                CloseOnEscape : false,
+                PositionTop: '100px',
+                PositionLeft: 'Center',
+                Buttons: [
+                    {
+                        Label: Core.Language.Translate("Reload page"),
+                        Class: 'Primary',
+                        Function: function () {
+                            location.reload();
+                        }
+                    },
+                    {
+                        Label: Core.Language.Translate("Close this dialog"),
+                        Function: function () {
+                            Core.UI.Dialog.CloseDialog($('#AjaxErrorDialogInner'));
+                        }
+                    }
+                ],
+                AllowAutoGrow: true
+            });
+
+            // the only possibility to close the dialog should be the button
+            $('#AjaxErrorDialogInner').closest('.Dialog').find('.Close').remove();
+        });
     };
 
     /**
@@ -329,7 +384,6 @@ Core.App = (function (TargetNS) {
      * @param {Object} Data - The query data (like: {Action: 'MyAction', Subaction: 'Add'})
      * @description
      *      Performs an internal redirect based on the given data parameters.
-     *      If needed, session information like SessionID and ChallengeToken are appended.
      */
     TargetNS.InternalRedirect = function (Data) {
         var URL;
@@ -352,7 +406,7 @@ Core.App = (function (TargetNS) {
      */
     TargetNS.EscapeSelector = function (Selector) {
         if (Selector && Selector.length) {
-            return Selector.replace(/( |#|:|\.|\[|\]|@|!|"|\$|%|&|<|=|>|'|\(|\)|\*|\+|,|\?|\/|\;|\\|\^|{|}|`|\||~)/g, '\\$1');
+            return Selector.replace(/( |#|:|\.|\[|\]|@|!|"|\$|%|&|<|=|>|'|\(|\)|\*|\+|,|\?|\/|;|\\|\^|{|}|`|\||~)/g, '\\$1');
         }
         return '';
     };
@@ -374,10 +428,81 @@ Core.App = (function (TargetNS) {
             '>': '&gt;',
             '"': '&quot;'
         };
+
+        if (!StringToEscape) {
+            return '';
+        }
+
         return StringToEscape.replace(/[&<>"]/g, function(Entity) {
             return HTMLEntities[Entity] || Entity;
         });
     };
+
+    /**
+     * @name HumanReadableDataSize
+     * @memberof Core.App
+     * @function
+     * @returns {String} Result string.
+     * @param {Number} Size - Bytes which needs to be formatted
+     * @description
+     *      Formats bytes as human readable text (like 45.6 MB).
+     */
+    TargetNS.HumanReadableDataSize = function (Size) {
+
+        var SizeStr,
+            ReadableSize;
+
+        var FormatSize = function(Size) {
+            var ReadableSize,
+                Integer,
+                Float,
+                Separator;
+
+            if (Number.isInteger(Size)) {
+                ReadableSize = Size.toString();
+            }
+            else {
+
+                // Get integer and decimal parts.
+                Integer = Math.floor(Size);
+                Float   = Math.round((Size - Integer) * 10);
+
+                Separator = Core.Language.DecimalSeparatorGet() || '.';
+
+                // Format size with provided decimal separator.
+                ReadableSize = Integer.toString() + Separator.toString() + Float.toString();
+            }
+
+            return ReadableSize;
+        }
+
+        // Use convention described on https://en.wikipedia.org/wiki/File_size
+        if (Size >= Math.pow(1024, 4)) {
+
+            ReadableSize = FormatSize(Size / Math.pow(1024, 4));
+            SizeStr = Core.Language.Translate('%s TB', ReadableSize);
+        }
+        else if (Size >= Math.pow(1024, 3)) {
+
+            ReadableSize = FormatSize(Size / Math.pow(1024, 3));
+            SizeStr = Core.Language.Translate('%s GB', ReadableSize);
+        }
+        else if (Size >= Math.pow(1024, 2)) {
+
+            ReadableSize = FormatSize(Size / Math.pow(1024, 2));
+            SizeStr = Core.Language.Translate('%s MB', ReadableSize);
+        }
+        else if (Size >= 1024) {
+
+            ReadableSize = FormatSize(Size / 1024);
+            SizeStr = Core.Language.Translate('%s KB', ReadableSize);
+        }
+        else {
+            SizeStr = Core.Language.Translate('%s B', Size);
+        }
+
+        return SizeStr;
+    }
 
     /**
      * @name Publish

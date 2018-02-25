@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -31,59 +31,51 @@ my %DefaultSettingAddTemplate = (
     XMLFilename    => 'UnitTest.xml',
 );
 
-my @SetingsXML = (
-    << 'EOF',
-<Setting Name="Test0" Required="1" Valid="1">
-    <Description Translatable="1">Test.</Description>
-    <Navigation>Core::Test</Navigation>
-    <Value>
-        <Item ValueType="String" ValueRegex=".*">Test</Item>
-    </Value>
-</Setting>
+my $SetingsXML = << 'EOF',
+<?xml version="1.0" encoding="utf-8"?>
+<otrs_config version="2.0" init="Application">
+    <Setting Name="Test0" Required="1" Valid="1">
+        <Description Translatable="1">Test.</Description>
+        <Navigation>Core::Test</Navigation>
+        <Value>
+            <Item ValueType="String" ValueRegex=".*">Test</Item>
+        </Value>
+    </Setting>
+    <Setting Name="Test1" Required="1" Valid="1">
+        <Description Translatable="1">Test.</Description>
+        <Navigation>Core::Test</Navigation>
+        <Value>
+            <Item ValueType="String" ValueRegex=".*">Test</Item>
+        </Value>
+    </Setting>
+    <Setting Name="Test4" Required="1" Valid="1">
+        <Description Translatable="1">Test.</Description>
+        <Navigation>Core::Test</Navigation>
+        <Value>
+            <Item ValueType="String" ValueRegex="\d+">1</Item>
+        </Value>
+    </Setting>
+</otrs_config>
 EOF
-    << 'EOF',
-<Setting Name="Test1" Required="1" Valid="1">
-    <Description Translatable="1">Test.</Description>
-    <Navigation>Core::Test</Navigation>
-    <Value>
-        <Item ValueType="String" ValueRegex=".*">Test</Item>
-    </Value>
-</Setting>
-EOF
-    << 'EOF',
-<Setting Name="Test4" Required="1" Valid="1">
-    <Description Translatable="1">Test.</Description>
-    <Navigation>Core::Test</Navigation>
-    <Value>
-        <Item ValueType="String" ValueRegex="\d+">1</Item>
-    </Value>
-</Setting>
-EOF
+
+    # Get SysConfig XML object.
+    my $SysConfigXMLObject = $Kernel::OM->Get('Kernel::System::SysConfig::XML');
+my $SysConfigObject        = $Kernel::OM->Get('Kernel::System::SysConfig');
+
+my @DefaultSettingAddParams = $SysConfigXMLObject->SettingListParse(
+    %DefaultSettingAddTemplate,
+    XMLInput => $SetingsXML,
 );
 
-# Get SysConfig XML object.
-my $SysConfigXMLObject = $Kernel::OM->Get('Kernel::System::SysConfig::XML');
-my $SysConfigObject    = $Kernel::OM->Get('Kernel::System::SysConfig');
-
-my @DefaultSettingAddParams;
-for my $Setting (@SetingsXML) {
-
-    my $XMLContentParsed = $SysConfigXMLObject->SettingParse(
-        SettingXML => $Setting,
-    );
+for my $Setting (@DefaultSettingAddParams) {
 
     my $Value = $Kernel::OM->Get('Kernel::System::Storable')->Clone(
-        Data => $XMLContentParsed->{Value},
+        Data => $Setting->{XMLContentParsed}->{Value},
     );
 
-    my $EffectiveValue = $SysConfigObject->SettingEffectiveValueGet(
+    $Setting->{EffectiveValue} = $SysConfigObject->SettingEffectiveValueGet(
         Value => $Value,
     );
-    push @DefaultSettingAddParams, {
-        XMLContentRaw    => $Setting,
-        XMLContentParsed => $XMLContentParsed,
-        EffectiveValue   => $EffectiveValue,
-    };
 }
 
 my $RandomID = $HelperObject->GetRandomID();
@@ -493,8 +485,7 @@ for my $Test (@Tests) {
     if ( $Test->{Name} =~ m{(Deployed)} ) {
         delete $Setting{ChangeTime};
         delete $Setting{CreateTime};
-        $Kernel::OM->Get('Kernel::System::Log')
-            ->Dumper( 'N', $Test->{Name}, 'is', \%Setting, 'should', $Test->{ExpectedValue} );
+        delete $Setting{SettingUID};
     }
 
     if ( !$Test->{Success} ) {
@@ -507,7 +498,9 @@ for my $Test (@Tests) {
     }
 
     # Remove not important attributes
-    for my $Attribute (qw(CreateTime ChangeTime ExclusiveLockGUID ExclusiveLockUserID ExclusiveLockExpiryTime IsDirty))
+    for my $Attribute (
+        qw(CreateTime ChangeTime ExclusiveLockGUID ExclusiveLockUserID ExclusiveLockExpiryTime IsDirty SettingUID)
+        )
     {
         delete $Setting{$Attribute};
     }
@@ -1309,7 +1302,6 @@ for my $Test (@Tests) {
             ChangeBy     => 1,
         },
     },
-
 );
 
 my @SettingDirtyNames;
@@ -1365,7 +1357,7 @@ for my $Test (@Tests) {
 
     # Remove not important attributes
     for my $Attribute (
-        qw(ModifiedID CreateTime ChangeTime ExclusiveLockGUID ExclusiveLockUserID ExclusiveLockExpiryTime IsDirty)
+        qw(ModifiedID CreateTime ChangeTime ExclusiveLockGUID ExclusiveLockUserID ExclusiveLockExpiryTime IsDirty SettingUID)
         )
     {
         delete $Setting{$Attribute};

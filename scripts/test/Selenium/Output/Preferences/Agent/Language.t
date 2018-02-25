@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -53,6 +53,11 @@ $Selenium->RunTest(
             JavaScript =>
                 "return !\$('#UserLanguage').closest('.WidgetSimple').hasClass('HasOverlay')"
         );
+
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentPreferences;Subaction=Group;Group=UserProfile");
+
+        $Selenium->find_element("//*[text()='Sprache']");
+
     }
 );
 

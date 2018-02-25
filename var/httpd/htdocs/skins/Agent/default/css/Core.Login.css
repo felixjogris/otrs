@@ -15,6 +15,8 @@
 
 .LoginScreen {
     padding-top: 90px;
+    height: calc(100vh - 90px);
+    min-height: 430px;
 }
 
 .LoginScreen .MainBox {
@@ -41,16 +43,19 @@
 }
 
 .LoginScreen #Footer {
-    background: #eee;
     border: 0px;
     bottom: 0px;
     box-sizing: border-box;
-    padding: 10px 0px;
-    position: fixed;
+    padding: 15px 0px;
+    position: relative;
     text-align: center;
     text-shadow: 1px 1px 1px #fff;
     text-transform: uppercase;
     width: 100%;
+}
+
+.LoginScreen #Footer a {
+    padding-left: 0px;
 }
 
 #Footer a {
@@ -61,6 +66,7 @@
     padding-left: 18px;
     margin-bottom: 5px;
     transition: all ease 0.4s;
+    text-transform: none;
 }
 
 #Footer a span {
@@ -81,6 +87,7 @@
 
 #Footer a:hover span {
     opacity: 1;
+    transform: rotate(90deg);
 }
 
 .LoginBox,

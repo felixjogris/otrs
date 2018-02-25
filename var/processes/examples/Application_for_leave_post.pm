@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,11 +12,9 @@ package var::processes::examples::Application_for_leave_post;
 use strict;
 use warnings;
 
-our @ObjectDependencies = (
-    'Kernel::Config',
-    'Kernel::System::Log',
-    'Kernel::System::SysConfig',
-);
+use parent qw(var::processes::examples::Base);
+
+our @ObjectDependencies = ();
 
 sub new {
     my ( $Type, %Param ) = @_;
@@ -62,67 +60,10 @@ sub Run {
         }
     );
 
-    my $ConfigObject    = $Kernel::OM->Get('Kernel::Config');
-    my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');
-
-    my @UpdatedSettings;
-
-    for my $Item (@Data) {
-        my $ItemName     = ( keys %{$Item} )[0];
-        my $CurrentValue = $ConfigObject->Get($ItemName);
-
-        for my $Key ( sort keys %{ $Item->{$ItemName} } ) {
-
-            for my $InnerKey ( sort keys %{ $Item->{$ItemName}->{$Key} } ) {
-
-                my $Value = $Item->{$ItemName}->{$Key}->{$InnerKey};
-
-                if (
-                    !$CurrentValue->{$Key}->{$InnerKey}
-                    || $CurrentValue->{$Key}->{$InnerKey} ne $Value
-                    )
-                {
-                    $CurrentValue->{$Key}->{$InnerKey} = $Value;
-                }
-            }
-
-            my $SettingName = $ItemName . '###' . $Key;
-
-            my $ExclusiveLockGUID = $SysConfigObject->SettingLock(
-                Name   => $SettingName,
-                Force  => 1,
-                UserID => 1,
-            );
-
-            my %Result = $SysConfigObject->SettingUpdate(
-                Name              => $SettingName,
-                IsValid           => 1,
-                EffectiveValue    => $CurrentValue->{$Key},
-                ExclusiveLockGUID => $ExclusiveLockGUID,
-                UserID            => 1,
-            );
-
-            push @UpdatedSettings, $SettingName;
-        }
-
-        $ConfigObject->Set(
-            Key   => $ItemName,
-            Value => $CurrentValue,
-        );
-    }
-
-    my $Success = $SysConfigObject->ConfigurationDeploy(
-        Comments      => "Deployed by 'Application For Leave' process setup",
-        UserID        => 1,
-        Force         => 1,
-        DirtySettings => \@UpdatedSettings,
+    $Response{Success} = $Self->SystemConfigurationUpdate(
+        ProcessName => 'Application For Leave',
+        Data        => \@Data,
     );
-    if ( !$Success ) {
-        $Kernel::OM->Get('Kernel::System::Log')->Log(
-            Priority => 'error',
-            Message  => "System was unable to deploy settings needed for 'Application For Leave' process!"
-        );
-    }
 
     return %Response;
 }

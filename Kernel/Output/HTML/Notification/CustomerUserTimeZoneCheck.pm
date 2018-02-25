@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,13 +8,13 @@
 
 package Kernel::Output::HTML::Notification::CustomerUserTimeZoneCheck;
 
-use base 'Kernel::Output::HTML::Base';
+use parent 'Kernel::Output::HTML::Base';
 
 use strict;
 use warnings;
 
 use Kernel::Language qw(Translatable);
-use Kernel::System::DateTime qw(:all);
+use Kernel::System::DateTime;
 
 our @ObjectDependencies = (
     'Kernel::Config',
@@ -33,12 +33,24 @@ sub Run {
         UserID => $Self->{UserID},
     );
     return '' if !%CustomerUserPreferences;
-    return '' if defined $CustomerUserPreferences{UserTimeZone} && length $CustomerUserPreferences{UserTimeZone};
+
+    # Ignore stored time zone if it's actually an old-style offset which is not valid anymore.
+    #   Please see bug#13374 for more information.
+    if (
+        $CustomerUserPreferences{UserTimeZone}
+        && !Kernel::System::DateTime->IsTimeZoneValid( TimeZone => $CustomerUserPreferences{UserTimeZone} )
+        )
+    {
+        delete $CustomerUserPreferences{UserTimeZone};
+    }
+
+    # Do not show notification if user has already valid time zone in the preferences.
+    return '' if $CustomerUserPreferences{UserTimeZone};
 
     # If OTRSTimeZone and UserDefaultTimeZone match and are not set to UTC, don't show a notification,
     # because in this case it almost certainly means that only this time zone is relevant.
-    my $OTRSTimeZone        = OTRSTimeZoneGet();
-    my $UserDefaultTimeZone = UserDefaultTimeZoneGet();
+    my $OTRSTimeZone        = Kernel::System::DateTime->OTRSTimeZoneGet();
+    my $UserDefaultTimeZone = Kernel::System::DateTime->UserDefaultTimeZoneGet();
     return '' if $OTRSTimeZone eq $UserDefaultTimeZone && $OTRSTimeZone ne 'UTC';
 
     # show notification to set time zone
@@ -47,7 +59,7 @@ sub Run {
         Priority => 'Notice',
 
         # Link     => $LayoutObject->{Baselink} . 'Action=CustomerPreferences',
-        Data =>
+        Info =>
             Translatable('Please select a time zone in your preferences and confirm it by clicking the save button.'),
     );
 }

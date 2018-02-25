@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -84,8 +84,8 @@ handle response data of the configured remote web service.
 This will just return the data that was passed to the function.
 
     my $Result = $InvokerObject->HandleResponse(
-        ResponseSuccess      => 1,              # success status of the remote webservice
-        ResponseErrorMessage => '',             # in case of webservice error
+        ResponseSuccess      => 1,              # success status of the remote web service
+        ResponseErrorMessage => '',             # in case of web service error
         Data => {                               # data payload
             ...
         },

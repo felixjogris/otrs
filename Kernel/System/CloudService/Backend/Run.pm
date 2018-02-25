@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -19,6 +19,7 @@ our @ObjectDependencies = (
     'Kernel::System::Encode',
     'Kernel::System::JSON',
     'Kernel::System::Log',
+    'Kernel::System::OTRSBusiness',
     'Kernel::System::SystemData',
     'Kernel::System::WebUserAgent',
 );
@@ -185,10 +186,14 @@ sub Request {
     # create config object
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
-    # check if cloud services are disabled
-    my $CloudServicesDisabled = $ConfigObject->Get('CloudServices::Disabled');
+    # If OTRSSTORM package is installed, system is able to do a Cloud request even if CloudService is disabled.
+    if ( !$Kernel::OM->Get('Kernel::System::OTRSBusiness')->OTRSSTORMIsInstalled() ) {
 
-    return if $CloudServicesDisabled;
+        # check if cloud services are disabled
+        my $CloudServicesDisabled = $ConfigObject->Get('CloudServices::Disabled');
+
+        return if $CloudServicesDisabled;
+    }
 
     # check needed stuff
     if ( !defined $Param{RequestData} ) {
@@ -326,7 +331,7 @@ sub Request {
         },
     );
 
-    # perform webservice request
+    # Perform web service request.
     my %Response;
     TRY:
     for my $Try ( 1 .. 3 ) {
@@ -516,7 +521,13 @@ sub OperationResultGet {
         }
         else {
 
-            next RESULT if $OperationResult->{InstanceName} ne $Param{InstanceName};
+            if (
+                !defined $OperationResult->{InstanceName}
+                || $OperationResult->{InstanceName} ne $Param{InstanceName}
+                )
+            {
+                next RESULT;
+            }
         }
 
         return $OperationResult;

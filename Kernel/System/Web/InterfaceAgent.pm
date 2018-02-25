@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,7 +12,7 @@ use strict;
 use warnings;
 
 use Kernel::Language qw(Translatable);
-use Kernel::System::DateTime qw(:all);
+use Kernel::System::DateTime;
 
 our @ObjectDependencies = (
     'Kernel::Config',
@@ -25,7 +25,7 @@ our @ObjectDependencies = (
     'Kernel::System::Log',
     'Kernel::System::Main',
     'Kernel::System::Scheduler',
-    'Kernel::System::Time',
+    'Kernel::System::DateTime',
     'Kernel::System::User',
     'Kernel::System::Web::Request',
     'Kernel::System::Valid',
@@ -100,18 +100,41 @@ execute the object
 sub Run {
     my $Self = shift;
 
-    # get common framework params
-    my %Param;
-
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-    my $ParamObject  = $Kernel::OM->Get('Kernel::System::Web::Request');
+
+    my $QueryString = $ENV{QUERY_STRING} || '';
+
+    # Check if https forcing is active, and redirect if needed.
+    if ( $ConfigObject->Get('HTTPSForceRedirect') ) {
+
+        # Some web servers do not set HTTPS environment variable, so it's not possible to easily know if we are using
+        #   https protocol. Look also for similarly named keys in environment hash, since this should prevent loops in
+        #   certain cases.
+        if (
+            (
+                !defined $ENV{HTTPS}
+                && !grep {/^HTTPS(?:_|$)/} keys %ENV
+            )
+            || $ENV{HTTPS} ne 'on'
+            )
+        {
+            my $Host = $ENV{HTTP_HOST} || $ConfigObject->Get('FQDN');
+
+            # Redirect with 301 code. Add two new lines at the end, so HTTP headers are validated correctly.
+            print "Status: 301 Moved Permanently\nLocation: https://$Host$ENV{REQUEST_URI}\n\n";
+            return;
+        }
+    }
+
+    my $ParamObject = $Kernel::OM->Get('Kernel::System::Web::Request');
+
+    my %Param;
 
     # get session id
     $Param{SessionName} = $ConfigObject->Get('SessionName') || 'SessionID';
-    $Param{SessionID} = $ParamObject->GetParam( Param => $Param{SessionName} ) || '';
+    $Param{SessionID} = $ParamObject->GetCookie( Key => $Param{SessionName} ) // '';
 
     # drop old session id (if exists)
-    my $QueryString = $ENV{QUERY_STRING} || '';
     $QueryString =~ s/(\?|&|;|)$Param{SessionName}(=&|=;|=.+?&|=.+?$)/;/g;
 
     # define framework params
@@ -129,16 +152,6 @@ sub Run {
     # validate language
     if ( $Param{Lang} && $Param{Lang} !~ m{\A[a-z]{2}(?:_[A-Z]{2})?\z}xms ) {
         delete $Param{Lang};
-    }
-
-    # check if the browser sends the SessionID cookie and set the SessionID-cookie
-    # as SessionID! GET or POST SessionID have the lowest priority.
-    my $BrowserHasCookie = 0;
-    if ( $ConfigObject->Get('SessionUseCookie') ) {
-        $Param{SessionIDCookie} = $ParamObject->GetCookie( Key => $Param{SessionName} );
-        if ( $Param{SessionIDCookie} ) {
-            $Param{SessionID} = $Param{SessionIDCookie};
-        }
     }
 
     $Kernel::OM->ObjectParamAdd(
@@ -231,25 +244,6 @@ sub Run {
         # login is invalid
         if ( !$User ) {
 
-            my $Expires = '+' . $ConfigObject->Get('SessionMaxTime') . 's';
-            if ( !$ConfigObject->Get('SessionUseCookieAfterBrowserClose') ) {
-                $Expires = '';
-            }
-
-            $Kernel::OM->ObjectParamAdd(
-                'Kernel::Output::HTML::Layout' => {
-                    SetCookies => {
-                        OTRSBrowserHasCookie => $ParamObject->SetCookie(
-                            Key      => 'OTRSBrowserHasCookie',
-                            Value    => 1,
-                            Expires  => $Expires,
-                            Path     => $ConfigObject->Get('ScriptAlias'),
-                            Secure   => $CookieSecureAttribute,
-                            HTTPOnly => 1,
-                        ),
-                    },
-                    }
-            );
             my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
 
             # redirect to alternate login
@@ -283,18 +277,10 @@ sub Run {
 
         # login is successful
         my %UserData = $UserObject->GetUserData(
-            User  => $User,
-            Valid => 1
+            User          => $User,
+            Valid         => 1,
+            NoOutOfOffice => 1,
         );
-
-        # check if the browser supports cookies
-        if ( $ParamObject->GetCookie( Key => 'OTRSBrowserHasCookie' ) ) {
-            $Kernel::OM->ObjectParamAdd(
-                'Kernel::Output::HTML::Layout' => {
-                    BrowserHasCookie => 1,
-                },
-            );
-        }
 
         # check needed data
         if ( !$UserData{UserID} || !$UserData{UserLogin} ) {
@@ -312,10 +298,10 @@ sub Run {
             # show need user data error message
             $LayoutObject->Print(
                 Output => \$LayoutObject->Login(
-                    Title => 'Panic!',
+                    Title => 'Error',
                     Message =>
                         Translatable(
-                        'Panic, user authenticated but no user data can be found in OTRS DB!! Perhaps the user is invalid.'
+                        'Authentication succeeded, but no user data record is found in the database. Please contact the administrator.'
                         ),
                     %Param,
                     MessageType => 'Error',
@@ -324,11 +310,14 @@ sub Run {
             return;
         }
 
+        my $DateTimeObj = $Kernel::OM->Create('Kernel::System::DateTime');
+
         # create new session id
         my $NewSessionID = $SessionObject->CreateSessionID(
             %UserData,
-            UserLastRequest => $Kernel::OM->Get('Kernel::System::Time')->SystemTime(),
+            UserLastRequest => $DateTimeObj->ToEpoch(),
             UserType        => 'User',
+            SessionSource   => 'AgentInterface',
         );
 
         # show error message if no session id has been created
@@ -350,13 +339,10 @@ sub Run {
             return;
         }
 
-        # get time object
-        my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
-
         # execution in 20 seconds
-        my $ExecutionTime = $TimeObject->SystemTime2TimeStamp(
-            SystemTime => ( $TimeObject->SystemTime() + 20 ),
-        );
+        my $ExecutionTimeObj = $DateTimeObj->Clone();
+        $ExecutionTimeObj->Add( Seconds => 20 );
+        my $ExecutionTime = $ExecutionTimeObj->ToString();
 
         # add a asychronous executor scheduler task to count the concurrent user
         $Kernel::OM->Get('Kernel::System::Scheduler')->TaskAdd(
@@ -370,8 +356,8 @@ sub Run {
             },
         );
 
-        # get time zone
-        my $UserTimeZone = $UserData{UserTimeZone} || UserDefaultTimeZoneGet();
+        my $UserTimeZone = $Self->_UserTimeZoneGet(%UserData);
+
         $SessionObject->UpdateSessionID(
             SessionID => $NewSessionID,
             Key       => 'UserTimeZone',
@@ -400,7 +386,7 @@ sub Run {
             Value     => $UserTimeZoneOffsetDifference,
         );
 
-        # create a new LayoutObject with SessionIDCookie
+        # Create a new LayoutObject with sessioin cookie.
         my $Expires = '+' . $ConfigObject->Get('SessionMaxTime') . 's';
         if ( !$ConfigObject->Get('SessionUseCookieAfterBrowserClose') ) {
             $Expires = '';
@@ -416,20 +402,12 @@ sub Run {
         $Kernel::OM->ObjectParamAdd(
             'Kernel::Output::HTML::Layout' => {
                 SetCookies => {
-                    SessionIDCookie => $ParamObject->SetCookie(
+                    SessionID => $ParamObject->SetCookie(
                         Key      => $Param{SessionName},
                         Value    => $NewSessionID,
                         Expires  => $Expires,
                         Path     => $ConfigObject->Get('ScriptAlias'),
                         Secure   => scalar $CookieSecureAttribute,
-                        HTTPOnly => 1,
-                    ),
-                    OTRSBrowserHasCookie => $ParamObject->SetCookie(
-                        Key      => 'OTRSBrowserHasCookie',
-                        Value    => '',
-                        Expires  => '-1y',
-                        Path     => $ConfigObject->Get('ScriptAlias'),
-                        Secure   => $CookieSecureAttribute,
                         HTTPOnly => 1,
                     ),
                 },
@@ -515,9 +493,7 @@ sub Run {
             # show login screen
             $LayoutObject->Print(
                 Output => \$LayoutObject->Login(
-                    Title       => 'Logout',
-                    Message     => Translatable('Session invalid. Please log in again.'),
-                    MessageType => 'Error',
+                    Title => 'Logout',
                     %Param,
                 ),
             );
@@ -529,11 +505,13 @@ sub Run {
             SessionID => $Param{SessionID},
         );
 
+        $UserData{UserTimeZone} = $Self->_UserTimeZoneGet(%UserData);
+
         # create a new LayoutObject with %UserData
         $Kernel::OM->ObjectParamAdd(
             'Kernel::Output::HTML::Layout' => {
                 SetCookies => {
-                    SessionIDCookie => $ParamObject->SetCookie(
+                    SessionID => $ParamObject->SetCookie(
                         Key      => $Param{SessionName},
                         Value    => '',
                         Expires  => '-1y',
@@ -675,7 +653,7 @@ sub Run {
                 MimeType => 'text/plain',
                 Body     => $Body
             );
-            if ( !$Sent ) {
+            if ( !$Sent->{Success} ) {
                 $LayoutObject->FatalError(
                     Comment => Translatable('Please contact the administrator.'),
                 );
@@ -735,7 +713,7 @@ sub Run {
             Body     => $Body
         );
 
-        if ( !$Sent ) {
+        if ( !$Sent->{Success} ) {
             $LayoutObject->FatalError(
                 Comment => Translatable('Please contact the administrator.'),
             );
@@ -803,7 +781,7 @@ sub Run {
             $Kernel::OM->ObjectParamAdd(
                 'Kernel::Output::HTML::Layout' => {
                     SetCookies => {
-                        SessionIDCookie => $ParamObject->SetCookie(
+                        SessionID => $ParamObject->SetCookie(
                             Key      => $Param{SessionName},
                             Value    => '',
                             Expires  => '-1y',
@@ -859,6 +837,8 @@ sub Run {
             SessionID => $Param{SessionID},
         );
 
+        $UserData{UserTimeZone} = $Self->_UserTimeZoneGet(%UserData);
+
         # check needed data
         if ( !$UserData{UserID} || !$UserData{UserLogin} || $UserData{UserType} ne 'User' ) {
 
@@ -875,8 +855,8 @@ sub Run {
             # show login screen
             $LayoutObject->Print(
                 Output => \$LayoutObject->Login(
-                    Title       => 'Panic!',
-                    Message     => Translatable('Panic! Invalid Session!!!'),
+                    Title       => 'Error',
+                    Message     => Translatable('Error: invalid session.'),
                     MessageType => 'Error',
                     %Param,
                 ),
@@ -983,10 +963,12 @@ sub Run {
             )
             )
         {
+            my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+
             $SessionObject->UpdateSessionID(
                 SessionID => $Param{SessionID},
                 Key       => 'UserLastRequest',
-                Value     => $Kernel::OM->Get('Kernel::System::Time')->SystemTime(),
+                Value     => $DateTimeObject->ToEpoch(),
             );
         }
 
@@ -1090,7 +1072,7 @@ sub Run {
                 close $Out;
 
                 $Kernel::OM->Get('Kernel::System::Log')->Log(
-                    Priority => 'notice',
+                    Priority => 'debug',
                     Message  => "Response::Agent: "
                         . ( time() - $Self->{PerformanceLogStart} )
                         . "s taken (URL:$QueryString:$UserData{UserLogin})",
@@ -1110,6 +1092,7 @@ sub Run {
     my %Data = $SessionObject->GetSessionIDData(
         SessionID => $Param{SessionID},
     );
+    $Data{UserTimeZone} = $Self->_UserTimeZoneGet(%Data);
     $Kernel::OM->ObjectParamAdd(
         'Kernel::Output::HTML::Layout' => {
             %Param,
@@ -1121,6 +1104,44 @@ sub Run {
     );
     return;
 }
+
+=begin Internal:
+
+=head2 _UserTimeZoneGet()
+
+Get time zone for the current user. This function will validate passed time zone parameter and return default user time
+zone if it's not valid.
+
+    my $UserTimeZone = $Self->_UserTimeZoneGet(
+        UserTimeZone => 'Europe/Berlin',
+    );
+
+=cut
+
+sub _UserTimeZoneGet {
+    my ( $Self, %Param ) = @_;
+
+    my $UserTimeZone;
+
+    # Return passed time zone only if it's valid. It can happen that user preferences or session store an old-style
+    #   offset which is not valid anymore. In this case, return the default value.
+    #   Please see bug#13374 for more information.
+    if (
+        $Param{UserTimeZone}
+        && Kernel::System::DateTime->IsTimeZoneValid( TimeZone => $Param{UserTimeZone} )
+        )
+    {
+        $UserTimeZone = $Param{UserTimeZone};
+    }
+
+    $UserTimeZone ||= Kernel::System::DateTime->UserDefaultTimeZoneGet();
+
+    return $UserTimeZone;
+}
+
+=end Internal:
+
+=cut
 
 sub DESTROY {
     my $Self = shift;

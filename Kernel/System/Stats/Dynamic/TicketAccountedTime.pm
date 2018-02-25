@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -218,7 +218,7 @@ sub GetObjectAttributes {
             UseAsXvalue      => 0,
             UseAsValueSeries => 0,
             UseAsRestriction => 1,
-            Element          => 'From',
+            Element          => 'MIMEBase_From',
             Block            => 'InputField',
         },
         {
@@ -226,7 +226,7 @@ sub GetObjectAttributes {
             UseAsXvalue      => 0,
             UseAsValueSeries => 0,
             UseAsRestriction => 1,
-            Element          => 'To',
+            Element          => 'MIMEBase_To',
             Block            => 'InputField',
         },
         {
@@ -234,7 +234,7 @@ sub GetObjectAttributes {
             UseAsXvalue      => 0,
             UseAsValueSeries => 0,
             UseAsRestriction => 1,
-            Element          => 'Cc',
+            Element          => 'MIMEBase_Cc',
             Block            => 'InputField',
         },
         {
@@ -242,7 +242,7 @@ sub GetObjectAttributes {
             UseAsXvalue      => 0,
             UseAsValueSeries => 0,
             UseAsRestriction => 1,
-            Element          => 'Subject',
+            Element          => 'MIMEBase_Subject',
             Block            => 'InputField',
         },
         {
@@ -250,7 +250,7 @@ sub GetObjectAttributes {
             UseAsXvalue      => 0,
             UseAsValueSeries => 0,
             UseAsRestriction => 1,
-            Element          => 'Body',
+            Element          => 'MIMEBase_Body',
             Block            => 'InputField',
         },
         {
@@ -519,7 +519,7 @@ sub GetObjectAttributes {
         }
 
         my %ObjectAttribute = (
-            Name             => Translatable('CustomerID'),
+            Name             => Translatable('Customer ID'),
             UseAsXvalue      => 1,
             UseAsValueSeries => 1,
             UseAsRestriction => 1,
@@ -570,7 +570,7 @@ sub GetObjectAttributes {
         }
 
         my %ObjectAttribute = (
-            Name             => Translatable('CustomerUserLogin'),
+            Name             => Translatable('Assigned to Customer User Login'),
             UseAsXvalue      => 1,
             UseAsValueSeries => 1,
             UseAsRestriction => 1,
@@ -583,9 +583,9 @@ sub GetObjectAttributes {
     }
     else {
 
-        my @CustomerIDAttributes = (
+        my @CustomerUserAttributes = (
             {
-                Name             => Translatable('CustomerUserLogin (complex search)'),
+                Name             => Translatable('Assigned to Customer User Login (complex search)'),
                 UseAsXvalue      => 0,
                 UseAsValueSeries => 0,
                 UseAsRestriction => 1,
@@ -593,17 +593,36 @@ sub GetObjectAttributes {
                 Block            => 'InputField',
             },
             {
-                Name             => Translatable('CustomerUserLogin (exact match)'),
-                UseAsXvalue      => 0,
-                UseAsValueSeries => 0,
-                UseAsRestriction => 1,
-                Element          => 'CustomerUserLoginRaw',
-                Block            => 'InputField',
+                Name               => Translatable('Assigned to Customer User Login (exact match)'),
+                UseAsXvalue        => 0,
+                UseAsValueSeries   => 0,
+                UseAsRestriction   => 1,
+                Element            => 'CustomerUserLoginRaw',
+                Block              => 'InputField',
+                CSSClass           => 'CustomerAutoCompleteSimple',
+                HTMLDataAttributes => {
+                    'customer-search-type' => 'CustomerUser',
+                },
             },
         );
 
-        push @ObjectAttributes, @CustomerIDAttributes;
+        push @ObjectAttributes, @CustomerUserAttributes;
     }
+
+    # Add always the field for the customer user login accessible tickets as auto complete field.
+    my %ObjectAttribute = (
+        Name               => Translatable('Accessible to Customer User Login (exact match)'),
+        UseAsXvalue        => 0,
+        UseAsValueSeries   => 0,
+        UseAsRestriction   => 1,
+        Element            => 'CustomerUserID',
+        Block              => 'InputField',
+        CSSClass           => 'CustomerAutoCompleteSimple',
+        HTMLDataAttributes => {
+            'customer-search-type' => 'CustomerUser',
+        },
+    );
+    push @ObjectAttributes, \%ObjectAttribute;
 
     # get dynamic field backend object
     my $DynamicFieldBackendObject = $Kernel::OM->Get('Kernel::System::DynamicField::Backend');
@@ -883,88 +902,24 @@ sub GetStatElement {
         # Do nothing, if there are no tickets.
         return 0 if !@TicketIDs;
 
-        # get db type
-        my $DBType = $DBObject->{'DB::Type'};
-
-        # here comes a workaround for ORA-01795: maximum number of expressions in a list is 1000
-        # for oracle we make sure, that we don 't get more than 1000 ticket ids in a list
-        # so instead of "ticket_id IN ( 1, 2, 3, ... 2001 )", we are splitting this up to
-        # "ticket_id IN ( 1, 2, 3, ... 1000 ) OR ticket_id IN ( 1001, 1002, ... 2000)"
-        # see bugzilla #9723: http://bugs.otrs.org/show_bug.cgi?id=9723
-        if ( $DBType eq 'oracle' ) {
-
-            # save number of TicketIDs
-            my $TicketAmount = scalar @TicketIDs;
-
-            # init vars
-            my @TicketIDStrings;
-            my $TicktIDString   = '';
-            my $TicketIDCounter = 1;
-
-            # build array of strings with a maximum of 1000 ticket ids
-            for my $TicketID (@TicketIDs) {
-
-                # start building string
-                if ( $TicketIDCounter == 1 ) {
-                    $TicktIDString .= $TicketID;
-                }
-                else {
-                    $TicktIDString .= ', ' . $TicketID;
-                }
-
-                # at 1000 elements push them into array
-                if ( $TicketIDCounter == 1000 ) {
-
-                    # push string with maximum of 1000 values
-                    push @TicketIDStrings, $TicktIDString;
-
-                    # subtract 1000 from remaining ticket amount
-                    # we use this to push the remaining tickets
-                    $TicketAmount = $TicketAmount - 1000;
-
-                    # reset variables
-                    $TicktIDString   = '';
-                    $TicketIDCounter = 0;
-                }
-                $TicketIDCounter++;
-            }
-
-            # check if there are tickets left
-            if ($TicketAmount) {
-
-                # push remaining tickets
-                push @TicketIDStrings, $TicktIDString;
-            }
-
-            # init used vars for the following loop
-            my $TicketStringCounter = 1;
-            my $TicketString        = '';
-
-            # build sql string
-            for my $TicketIDString (@TicketIDStrings) {
-                if ( $TicketStringCounter == 1 ) {
-                    $TicketString .= "ticket_id IN ( $TicketIDString )";
-                }
-                else {
-                    $TicketString .= " OR ticket_id IN ( $TicketIDString )";
-                }
-                $TicketStringCounter++;
-            }
-
-            push @Where, $TicketString;
-        }
-        else {
-
-            # for all other databases, just join all TicketIDs in a string
-            my $TicketString = join ', ', @TicketIDs;
-            push @Where, "ticket_id IN ( $TicketString )";
-        }
+        my $SQLTicketIDInCondition = $DBObject->QueryInCondition(
+            Key       => 'ticket_id',
+            Values    => \@TicketIDs,
+            QuoteType => 'Integer',
+            BindMode  => 0,
+        );
+        push @Where, $SQLTicketIDInCondition;
     }
 
     if ( $Param{AccountedByAgent} ) {
-        my @AccountedByAgent = map { $DBObject->Quote( $_, 'Integer' ) } @{ $Param{AccountedByAgent} };
-        my $String = join ', ', @AccountedByAgent;
-        push @Where, "create_by IN ( $String )";
+
+        my $SQLAccountedByAgentInCondition = $DBObject->QueryInCondition(
+            Key       => 'create_by',
+            Values    => $Param{AccountedByAgent},
+            QuoteType => 'Integer',
+            BindMode  => 0,
+        );
+        push @Where, $SQLAccountedByAgentInCondition;
     }
 
     if ( $Param{ArticleAccountedTimeOlderDate} && $Param{ArticleAccountedTimeNewerDate} ) {

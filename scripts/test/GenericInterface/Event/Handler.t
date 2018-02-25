@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -15,7 +15,7 @@ use vars (qw($Self));
 
 use URI::Escape();
 
-# get config object
+my $HelperObject = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
 # unregister other ticket handlers
@@ -40,12 +40,7 @@ $Self->Is(
     "Event handler added to config",
 );
 
-# helper object
-
-my $HelperObject = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
-
-my $Home = $ConfigObject->Get('Home');
-
+my $Home   = $ConfigObject->Get('Home');
 my $Daemon = $Home . '/bin/otrs.Daemon.pl';
 
 # get daemon status (stop if necessary to reload configuration with planner daemon disabled)
@@ -92,6 +87,20 @@ $Self->True(
 
 if ( $CurrentDaemonStatus !~ m{Daemon not running}i ) {
     die "Daemon could not be stopped.";
+}
+
+my $SchedulerDBObject = $Kernel::OM->Get('Kernel::System::Daemon::SchedulerDB');
+
+# Remove scheduled tasks from DB, as they may interfere with tests run later.
+my @AllTasks = $SchedulerDBObject->TaskList();
+for my $Task (@AllTasks) {
+    my $Success = $SchedulerDBObject->TaskDelete(
+        TaskID => $Task->{TaskID},
+    );
+    $Self->True(
+        $Success,
+        "TaskDelete - Removed scheduled task $Task->{TaskID}",
+    );
 }
 
 my @Tests = (
@@ -145,6 +154,138 @@ my @Tests = (
                             {
                                 Event        => 'TicketCreate',
                                 Asynchronous => 1,
+                            },
+                        ],
+                    },
+                },
+            },
+        },
+        Asynchronous => 1,
+        ValidID      => 1,
+        Success      => 1,
+    },
+    {
+        Name             => 'Synchronous event call Filter Success',
+        WebserviceConfig => {
+            Debugger => {
+                DebugThreshold => 'debug',
+            },
+            Requester => {
+                Transport => {
+                    Type   => 'HTTP::Test',
+                    Config => {
+                        Fail => 0,
+                    },
+                },
+                Invoker => {
+                    test_operation => {
+                        Type   => 'Test::TestSimple',
+                        Events => [
+                            {
+                                Event        => 'TicketCreate',
+                                Asynchronous => 0,
+                                Condition    => {
+                                    Condition => {
+                                        ConditionLinking => 'and',
+                                        1                => {
+                                            Type   => 'and',
+                                            Fields => {
+                                                Queue => {
+                                                    Match => 'Raw',
+                                                    Type  => 'String',
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+            },
+        },
+        Asynchronous => 0,
+        ValidID      => 1,
+        Success      => 1,
+    },
+    {
+        Name             => 'Synchronous event call Filter Fail',
+        WebserviceConfig => {
+            Debugger => {
+                DebugThreshold => 'debug',
+            },
+            Requester => {
+                Transport => {
+                    Type   => 'HTTP::Test',
+                    Config => {
+                        Fail => 0,
+                    },
+                },
+                Invoker => {
+                    test_operation => {
+                        Type   => 'Test::TestSimple',
+                        Events => [
+                            {
+                                Event        => 'TicketCreate',
+                                Asynchronous => 0,
+                                Condition    => {
+                                    Condition => {
+                                        ConditionLinking => 'and',
+                                        1                => {
+                                            Type   => 'and',
+                                            Fields => {
+                                                Queue => {
+                                                    Match => 'Postmaster',
+                                                    Type  => 'String',
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+            },
+        },
+        Asynchronous => 0,
+        ValidID      => 1,
+        Success      => 0,
+    },
+    {
+        Name             => 'Asynchronous event call Filter Success',
+        WebserviceConfig => {
+            Debugger => {
+                DebugThreshold => 'debug',
+            },
+            Requester => {
+                Transport => {
+                    Type   => 'HTTP::Test',
+                    Config => {
+                        Fail => 0,
+                    },
+                },
+                Invoker => {
+                    test_operation => {
+                        Type   => 'Test::TestSimple',
+                        Events => [
+                            {
+                                Event        => 'TicketCreate',
+                                Asynchronous => 1,
+                                Condition    => {
+                                    Condition => {
+                                        ConditionLinking => 'and',
+                                        1                => {
+                                            Type   => 'and',
+                                            Fields => {
+                                                Queue => {
+                                                    Match => 'Raw',
+                                                    Type  => 'String',
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
                             },
                         ],
                     },
@@ -284,10 +425,9 @@ my @Tests = (
 );
 
 # get needed objects
-my $WebserviceObject  = $Kernel::OM->Get('Kernel::System::GenericInterface::Webservice');
-my $DebugLogObject    = $Kernel::OM->Get('Kernel::System::GenericInterface::DebugLog');
-my $TaskWorkerObject  = $Kernel::OM->Get('Kernel::System::Daemon::DaemonModules::SchedulerTaskWorker');
-my $SchedulerDBObject = $Kernel::OM->Get('Kernel::System::Daemon::SchedulerDB');
+my $WebserviceObject = $Kernel::OM->Get('Kernel::System::GenericInterface::Webservice');
+my $DebugLogObject   = $Kernel::OM->Get('Kernel::System::GenericInterface::DebugLog');
+my $TaskWorkerObject = $Kernel::OM->Get('Kernel::System::Daemon::DaemonModules::SchedulerTaskWorker');
 
 my $RandomID = $HelperObject->GetRandomID();
 

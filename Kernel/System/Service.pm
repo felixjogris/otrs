@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -638,7 +638,7 @@ sub ServiceAdd {
     if ($Exists) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => 'Can\'t add service! Service with same name and parent already exists.'
+            Message  => "A service with the name and parent '$Param{FullName}' already exists.",
         );
         return;
     }
@@ -780,7 +780,7 @@ sub ServiceUpdate {
     if ($Exists) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => 'Can\'t update service! Service with same name and parent already exists.'
+            Message  => "A service with the name and parent '$Param{FullName}' already exists.",
         );
         return;
 
@@ -1142,9 +1142,9 @@ set service preferences
 =cut
 
 sub ServicePreferencesSet {
-    my $Self = shift;
+    my ( $Self, %Param ) = @_;
 
-    $Self->{PreferencesObject}->ServicePreferencesSet(@_);
+    $Self->{PreferencesObject}->ServicePreferencesSet(%Param);
 
     $Kernel::OM->Get('Kernel::System::Cache')->CleanUp(
         Type => $Self->{CacheType},
@@ -1164,9 +1164,9 @@ get service preferences
 =cut
 
 sub ServicePreferencesGet {
-    my $Self = shift;
+    my ( $Self, %Param ) = @_;
 
-    return $Self->{PreferencesObject}->ServicePreferencesGet(@_);
+    return $Self->{PreferencesObject}->ServicePreferencesGet(%Param);
 }
 
 =head2 ServiceParentsGet()

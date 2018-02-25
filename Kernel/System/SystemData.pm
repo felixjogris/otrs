@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -249,7 +249,7 @@ sub SystemDataGroupGet {
     while ( my @Data = $DBObject->FetchrowArray() ) {
         $Data[0] =~ s/^${Group}:://;
 
-        $Result{ $Data[0] } = $Data[1];
+        $Result{ $Data[0] } = $Data[1] // '';
     }
 
     # set cache

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -30,7 +30,8 @@ sub new {
     # Get parser object.
     $Self->{ParserObject} = $Param{ParserObject} || die "Got no ParserObject!";
 
-    $Self->{Debug} = $Param{Debug} || 0;
+    # get communication log object and MessageID
+    $Self->{CommunicationLogObject} = $Param{CommunicationLogObject} || die "Got no CommunicationLogObject!";
 
     return $Self;
 }
@@ -41,9 +42,11 @@ sub Run {
     # Check needed stuff.
     for my $Needed (qw(JobConfig GetParam)) {
         if ( !$Param{$Needed} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => 'Need $Needed!',
+            $Self->{CommunicationLogObject}->ObjectLog(
+                ObjectLogType => 'Message',
+                Priority      => 'Error',
+                Key           => 'Kernel::System::PostMaster::Filter::Decrypt',
+                Value         => "Need $Needed!",
             );
             return;
         }
@@ -122,9 +125,11 @@ sub _DecryptPGP {
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
     if ( !$ConfigObject->Get('PGP') ) {
-        $Kernel::OM->Get('Kernel::System::Log')->Log(
-            Priority => 'error',
-            Message  => 'PGP is not activated',
+        $Self->{CommunicationLogObject}->ObjectLog(
+            ObjectLogType => 'Message',
+            Priority      => 'Error',
+            Key           => 'Kernel::System::PostMaster::Filter::Decrypt',
+            Value         => "PGP is not activated",
         );
         return;
     }
@@ -142,9 +147,11 @@ sub _DecryptPGP {
     my $CryptObject = $Kernel::OM->Get('Kernel::System::Crypt::PGP');
 
     if ( !$CryptObject ) {
-        $Kernel::OM->Get('Kernel::System::Log')->Log(
-            Priority => 'error',
-            Message  => 'Not possible to create crypt object',
+        $Self->{CommunicationLogObject}->ObjectLog(
+            ObjectLogType => 'Message',
+            Priority      => 'Error',
+            Key           => 'Kernel::System::PostMaster::Filter::Decrypt',
+            Value         => "Not possible to create crypt object",
         );
         return;
     }
@@ -175,9 +182,11 @@ sub _DecryptSMIME {
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
     if ( !$ConfigObject->Get('SMIME') ) {
-        $Kernel::OM->Get('Kernel::System::Log')->Log(
-            Priority => 'error',
-            Message  => 'SMIME is not activated',
+        $Self->{CommunicationLogObject}->ObjectLog(
+            ObjectLogType => 'Message',
+            Priority      => 'Error',
+            Key           => 'Kernel::System::PostMaster::Filter::Decrypt',
+            Value         => "SMIME is not activated",
         );
         return;
     }
@@ -195,9 +204,11 @@ sub _DecryptSMIME {
     my $CryptObject = $Kernel::OM->Get('Kernel::System::Crypt::SMIME');
 
     if ( !$CryptObject ) {
-        $Kernel::OM->Get('Kernel::System::Log')->Log(
-            Priority => 'error',
-            Message  => 'Not possible to create crypt object',
+        $Self->{CommunicationLogObject}->ObjectLog(
+            ObjectLogType => 'Message',
+            Priority      => 'Error',
+            Key           => 'Kernel::System::PostMaster::Filter::Decrypt',
+            Value         => "Not possible to create crypt object",
         );
         return;
     }

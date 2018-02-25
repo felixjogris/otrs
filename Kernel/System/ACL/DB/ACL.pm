@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,6 +11,7 @@ package Kernel::System::ACL::DB::ACL;
 use strict;
 use warnings;
 
+use Kernel::Language qw(Translatable);
 use Kernel::System::VariableCheck qw(:all);
 
 our @ObjectDependencies = (
@@ -19,7 +20,6 @@ our @ObjectDependencies = (
     'Kernel::System::DB',
     'Kernel::System::Log',
     'Kernel::System::Main',
-    'Kernel::System::Time',
     'Kernel::System::User',
     'Kernel::System::YAML',
 );
@@ -156,7 +156,7 @@ sub ACLAdd {
     if ($ACLExists) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => "The Name:$Param{Name} already exists for an ACL!"
+            Message  => "An ACL with the name '$Param{Name}' already exists.",
         );
         return;
     }
@@ -493,7 +493,7 @@ sub ACLUpdate {
     if ($ACLExists) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => "The Name:$Param{Name} already exists for a different ACL!",
+            Message  => "An ACL with the name '$Param{Name}' already exists.",
         );
         return;
     }
@@ -917,9 +917,6 @@ sub ACLDump {
         );
     }
 
-    # get current time for the file comment
-    my $CurrentTime = $Kernel::OM->Get('Kernel::System::Time')->CurrentTimestamp();
-
     # get user data of the current user to use for the file comment
     my %User = $Kernel::OM->Get('Kernel::System::User')->GetUserData(
         UserID => $Param{UserID},
@@ -937,7 +934,7 @@ sub ACLDump {
 package Kernel::Config::Files::ZZZACL;
 use strict;
 use warnings;
-no warnings 'redefine';
+no warnings 'redefine'; ## no critic
 use utf8;
 sub Load {
     my ($File, $Self) = @_;
@@ -945,6 +942,7 @@ sub Load {
 EOF
 
     my $FileEnd = <<'EOF';
+    return;
 }
 1;
 EOF
@@ -1007,8 +1005,7 @@ sub ACLImport {
     if ( ref $ACLData ne 'ARRAY' ) {
         return {
             Success => 0,
-            Message =>
-                "Couldn't read ACL configuration file. Please make sure the file is valid.",
+            Message => Translatable("Couldn't read ACL configuration file. Please make sure the file is valid."),
         };
     }
 

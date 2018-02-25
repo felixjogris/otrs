@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -18,12 +18,18 @@ my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 $Selenium->RunTest(
     sub {
 
-        # get needed objects
-        my $Helper              = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
-        my $TicketObject        = $Kernel::OM->Get('Kernel::System::Ticket');
-        my $SystemAddressObject = $Kernel::OM->Get('Kernel::System::SystemAddress');
+        my $Helper               = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+        my $TicketObject         = $Kernel::OM->Get('Kernel::System::Ticket');
+        my $SystemAddressObject  = $Kernel::OM->Get('Kernel::System::SystemAddress');
+        my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForChannel(
+            ChannelName => 'Email',
+        );
 
-        my @TicketIDs;
+        # Disable check of email addresses.
+        $Helper->ConfigSettingChange(
+            Key   => 'CheckEmailAddresses',
+            Value => 0,
+        );
 
         # create test system address
         my $SystemAddressID = $SystemAddressObject->SystemAddressAdd(
@@ -34,16 +40,29 @@ $Selenium->RunTest(
             Comment  => 'Selenium test address',
             UserID   => 1,
         );
+        $Self->True(
+            $SystemAddressID,
+            'System address added.'
+        );
+
+        my $RandomID = $Helper->GetRandomID();
+
+        my $CustomerID   = 'customer' . $RandomID;
+        my $CustomerUser = "$CustomerID\@localhost.com";
+        my $Queue        = 'Raw';
+        my $Priority     = '3 normal';
+        my $Subject      = 'Selenium test';
+        my $Body         = 'Just a test body for selenium testing';
 
         # create test ticket
         my $TicketID = $TicketObject->TicketCreate(
             Title        => 'First test ticket',
-            Queue        => 'Raw',
+            Queue        => $Queue,
             Lock         => 'unlock',
-            Priority     => '3 normal',
+            Priority     => $Priority,
             State        => 'new',
-            CustomerID   => '123465',
-            CustomerUser => 'customer@localhost.com',
+            CustomerID   => $CustomerID,
+            CustomerUser => $CustomerUser,
             OwnerID      => 1,
             UserID       => 1,
         );
@@ -53,9 +72,8 @@ $Selenium->RunTest(
         );
 
         # get create article data
-        my $Customer     = 'customer' . $Helper->GetRandomID();
-        my $ToCustomer   = "to$Customer\@localhost.com";
-        my $FromCustomer = "from$Customer\@localhost.com";
+        my $ToCustomer   = "to$CustomerID\@localhost.com";
+        my $FromCustomer = "from$CustomerID\@localhost.com";
         my @TestArticles = (
             {
                 SenderType => 'customer',
@@ -77,19 +95,19 @@ $Selenium->RunTest(
         # create test articles for test ticket
         my @ArticleIDs;
         for my $TestArticle (@TestArticles) {
-            my $ArticleID = $Kernel::OM->Get('Kernel::System::Ticket::Article')->ArticleCreate(
-                TicketID       => $TicketID,
-                ArticleType    => 'email-external',
-                SenderType     => $TestArticle->{SenderType},
-                From           => $TestArticle->{From},
-                To             => $TestArticle->{To},
-                Subject        => 'Selenium test',
-                Body           => 'Just a test body for selenium testing',
-                Charset        => 'ISO-8859-15',
-                MimeType       => 'text/plain',
-                HistoryType    => 'PhoneCallCustomer',
-                HistoryComment => 'Selenium testing',
-                UserID         => 1,
+            my $ArticleID = $ArticleBackendObject->ArticleCreate(
+                TicketID             => $TicketID,
+                IsVisibleForCustomer => 1,
+                SenderType           => $TestArticle->{SenderType},
+                From                 => $TestArticle->{From},
+                To                   => $TestArticle->{To},
+                Subject              => $Subject,
+                Body                 => $Body,
+                Charset              => 'ISO-8859-15',
+                MimeType             => 'text/plain',
+                HistoryType          => 'PhoneCallCustomer',
+                HistoryComment       => 'Selenium testing',
+                UserID               => 1,
             );
             $Self->True(
                 $ArticleID,
@@ -116,55 +134,178 @@ $Selenium->RunTest(
         my @Tests = (
             {
                 ArticleID      => $ArticleIDs[0],
-                ToValueOnSplit => $FromCustomer,
+                ToValueOnSplit => "From Customer <$FromCustomer>",
                 ResultMessage  => 'From is Customer, To is Queue',
             },
             {
                 ArticleID      => $ArticleIDs[1],
-                ToValueOnSplit => $ToCustomer,
-                ResultMessage  => 'From is SystemAddress, To is Customer'
+                ToValueOnSplit => "To Customer <$ToCustomer>",
+                ResultMessage  => 'From is SystemAddress, To is Customer',
             },
             {
                 ArticleID      => $ArticleIDs[2],
-                ToValueOnSplit => $FromCustomer,
-                ResultMessage  => 'From is Customer, To is Customer'
+                ToValueOnSplit => "From Customer <$FromCustomer>",
+                ResultMessage  => 'From is Customer, To is Customer',
             },
         );
+
+        my @AllTicketIDs = ($TicketID);
 
         # run test scenarios
         for my $Test (@Tests) {
 
-            # navigate to split ticket of test ticket first article
-            $Selenium->VerifiedGet(
-                "${ScriptAlias}index.pl?Action=AgentTicketPhone;TicketID=$TicketID;ArticleID=$Test->{ArticleID};LinkTicketID=$TicketID"
-            );
+            for my $Screen (qw(Phone Email)) {
 
-            $Self->Is(
-                $Selenium->find_element("//input[\@type='text'][\@name='CustomerTicketText_1']")->get_value(),
-                "$Test->{ToValueOnSplit}",
-                "$Test->{ResultMessage} - on article split value From",
-            );
+                # Navigate to the ticket zoom screen.
+                $Selenium->VerifiedGet(
+                    "${ScriptAlias}index.pl?Action=AgentTicketZoom;TicketID=$TicketID;ArticleID=$Test->{ArticleID}",
+                );
+
+                # Click on the split action.
+                $Selenium->find_element( '.SplitSelection', 'css' )->click();
+
+                $Selenium->WaitFor(
+                    JavaScript => 'return $("#SplitSubmit").length'
+                );
+
+                if ( $Screen eq 'Email' ) {
+
+                    # Change it to Email.
+                    $Selenium->execute_script(
+                        "\$('#SplitSelection').val('EmailTicket').trigger('redraw.InputField').trigger('change');"
+                    );
+                }
+
+                $Selenium->find_element( '#SplitSubmit', 'css' )->VerifiedClick();
+
+                # Check From field.
+                my $From = $Selenium->execute_script(
+                    "return \$('#CustomerTicketText_1').val();"
+                );
+                $Self->Is(
+                    $From,
+                    $Test->{ToValueOnSplit},
+                    "Check From field for ArticleID = $ArticleIDs[0] in $Screen split screen.",
+                );
+
+                # Check CustomerID.
+                my $TestCustomerID = $Selenium->execute_script(
+                    "return \$('#CustomerID').val();"
+                );
+                $Self->Is(
+                    $TestCustomerID,
+                    $CustomerID,
+                    "Check CustomerID field for ArticleID = $ArticleIDs[0] in $Screen split screen",
+                );
+
+                # Check Queue.
+                my $TestQueue = $Selenium->execute_script(
+                    "return \$('#Dest option:selected').text();"
+                );
+                $Self->Is(
+                    $TestQueue,
+                    $Queue,
+                    "Check Queue field for ArticleID = $ArticleIDs[0] in $Screen split screen",
+                );
+
+                # Check Priority.
+                my $TestPriority = $Selenium->execute_script(
+                    "return \$('#PriorityID option:selected').text();"
+                );
+                $Self->Is(
+                    $TestPriority,
+                    $Priority,
+                    "Check Priority field for ArticleID = $ArticleIDs[0] in $Screen split screen",
+                );
+
+                # Check Subject.
+                my $TestSubject = $Selenium->execute_script(
+                    "return \$('#Subject').val();"
+                );
+                $Self->Is(
+                    $TestSubject,
+                    $Subject,
+                    "Check Subject field for ArticleID = $ArticleIDs[0] in $Screen split screen",
+                );
+
+                # Check Body.
+                my $TestBody = $Selenium->execute_script(
+                    "return \$('#RichText').val();"
+                );
+                $Self->Is(
+                    $TestBody,
+                    $Body,
+                    "Check Subject field for ArticleID = $ArticleIDs[0] in $Screen split screen",
+                );
+
+                # Submit form.
+                $Selenium->find_element( '#submitRichText', 'css' )->VerifiedClick();
+
+                # Get all tickets that we created.
+                my @TicketIDs = $TicketObject->TicketSearch(
+                    Result            => 'ARRAY',
+                    CustomerUserLogin => $CustomerUser,
+                    Limit             => 1,
+                    OrderBy           => 'Down',
+                    SortBy            => 'Age',
+                    UserID            => 1,
+                );
+
+                my $CurrentTicketID = $TicketIDs[0];
+
+                my $OldTicket = grep { $_ == $CurrentTicketID } @AllTicketIDs;
+                $Self->False(
+                    $OldTicket,
+                    'Make sure that ticket is really created.',
+                ) || die;
+
+                push @AllTicketIDs, $CurrentTicketID;
+
+                # Get ticket data.
+                my %SplitTicketData = $TicketObject->TicketGet(
+                    TicketID => $CurrentTicketID,
+                    UserID   => 1,
+                );
+
+                # Check if customer is present.
+                $Self->Is(
+                    $SplitTicketData{CustomerID},
+                    $CustomerID,
+                    'Check if CustomerID is present.'
+                );
+
+                # Check if customer user is present.
+                $Self->Is(
+                    $SplitTicketData{CustomerUserID},
+                    $CustomerUser,
+                    'Check if CustomerUserID is present.'
+                );
+            }
         }
 
         # delete test system address
         my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
         my $Success  = $DBObject->Do(
-            SQL => "DELETE FROM system_address WHERE id= $SystemAddressID",
+            SQL  => "DELETE FROM system_address WHERE id = ?",
+            Bind => [ \$SystemAddressID ],
         );
         $Self->True(
             $Success,
             "SystemAddressID $SystemAddressID - deleted",
         );
 
-        # delete test created ticket
-        $Success = $TicketObject->TicketDelete(
-            TicketID => $TicketID,
-            UserID   => 1,
-        );
-        $Self->True(
-            $Success,
-            "TicketID $TicketID - deleted",
-        );
+        for my $DeleteTicketID (@AllTicketIDs) {
+
+            # delete test created ticket
+            $Success = $TicketObject->TicketDelete(
+                TicketID => $DeleteTicketID,
+                UserID   => 1,
+            );
+            $Self->True(
+                $Success,
+                "TicketID $DeleteTicketID - deleted",
+            );
+        }
     }
 );
 

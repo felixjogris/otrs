@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -2898,9 +2898,7 @@ $Self->True(
     "Test $TestCount: LinkDeleteAll() - check success",
 );
 
-#
 # ObjectPermission tests
-#
 my @Tests = (
     {
         Name   => 'regular admin access',
@@ -2942,64 +2940,324 @@ for my $Test (@Tests) {
     );
 }
 
-#
-# EventTypeConfigUpdate tests
-#
-my @EventTypeConfigUpdate = (
-    {
-        Name    => 'Dummy link type',
-        Object  => 'Ticket',
-        Backend => 'Kernel::System::LinkObject::Ticket',
-        Config  => {
-            Dummy => {
-                SourceName => 'Dummy',
-                TargetName => 'Dummy',
-            },
-        },
-        Result => [
-            'TicketSourceLinkAddDummy',
-            'TicketSourceLinkDeleteDummy',
-            'TicketTargetLinkAddDummy',
-            'TicketTargetLinkDeleteDummy',
-        ],
-    },
+# mass link test (for LinkList() performance and caching)
+
+# prepare data for insert
+my %TypeID;
+for my $Type (@TypeNames) {
+    $TypeID{$Type} = $LinkObject->TypeLookup(
+        Name   => $Type,
+        UserID => 1,
+    );
+}
+my $ValidStateID = $LinkObject->StateLookup(
+    Name => 'Valid',
+);
+my $TicketObjectID = $LinkObject->ObjectLookup(
+    Name => 'Ticket',
+);
+my %TypesNew;
+$ConfigObject->Set(
+    Key   => 'LinkObject::Type',
+    Value => \%TypesNew,
+);
+my %TypeGroupsNew;
+$ConfigObject->Set(
+    Key   => 'LinkObject::TypeGroup',
+    Value => \%TypeGroupsNew,
+);
+my %PossibleLinksNew;
+$ConfigObject->Set(
+    Key   => 'LinkObject::PossibleLink',
+    Value => \%PossibleLinksNew,
+);
+my %ExpectedLinkList;
+my %ExpectedSourceLinkList;
+my %ExpectedTargetLinkList;
+my %TypePointedLookup;
+my @DeleteEntryData;
+my %DeleteExpectedData;
+my $NumberOfLinks       = 0;
+my $NumberOfSourceLinks = 0;
+my $NumberOfTargetLinks = 0;
+
+# delete cache to ensure correct link type lookup (incl. pointed flag)
+$Kernel::OM->Get('Kernel::System::Cache')->CleanUp(
+    Type => 'LinkObject',
 );
 
-for my $Test (@EventTypeConfigUpdate) {
-    my $Success = $ConfigObject->Set(
-        Key   => 'LinkObject::Type',
-        Value => $Test->{Config},
-    );
-    $Self->True(
-        $Success,
-        "EventTypeConfigUpdate - $Test->{Name} - Registered link type",
-    );
+# add random links (including type<->object possibilities)
+my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
+OBJECT:
+for my $ObjectCount ( 0 .. 49 ) {
 
-    my $LinkObject = $Kernel::OM->Get( $Test->{Backend} );
-    $Success = $LinkObject->EventTypeConfigUpdate(
-        Helper => $Helper,
+    # use a random selection of the first 50 objects
+    next OBJECT if !int(
+        $MainObject->GenerateRandomString(
+            Length     => 1,
+            Dictionary => [ 0 .. 1 ],
+            )
     );
-    $Self->True(
-        $Success,
-        "EventTypeConfigUpdate - $Test->{Name} - Event config updated",
-    );
+    my $Object = $ObjectNames[$ObjectCount];
+    TYPE:
+    for my $TypeCount ( 0 .. 49 ) {
 
-    my $EventConfig = $ConfigObject->Get('Events')->{ $Test->{Object} };
+        # use a random selection of the first 50 types
+        next TYPE if !int(
+            $MainObject->GenerateRandomString(
+                Length     => 1,
+                Dictionary => [ 0 .. 1 ],
+                )
+        );
 
-    if ( @{ $Test->{Result} } ) {
-        for my $Event ( @{ $Test->{Result} } ) {
-            $Self->IsDeeply(
-                [ grep { $_ eq $Event } @{$EventConfig} ],
-                [$Event],
-                "EventTypeConfigUpdate - $Test->{Name} - Result event config",
+        my $Type = $TypeNames[$TypeCount];
+        if ( !exists $TypePointedLookup{$Type} ) {
+            $TypePointedLookup{$Type} = int(
+                $MainObject->GenerateRandomString(
+                    Length     => 1,
+                    Dictionary => [ 0 .. 1 ],
+                    )
+            );
+        }
+        my $Pointed = $TypePointedLookup{$Type};
+
+        # add used type to type config
+        $TypesNew{$Type} = {
+            SourceName => $Type,
+            TargetName => $Pointed ? $Type . 'Target' : $Type,
+        };
+        $ConfigObject->Set(
+            Key   => 'LinkObject::Type',
+            Value => \%TypesNew,
+        );
+
+        # add used type to type group config
+        $TypeGroupsNew{$Type} = [$Type];
+        $ConfigObject->Set(
+            Key   => 'LinkObject::TypeGroup',
+            Value => \%TypeGroupsNew,
+        );
+
+        # add used type/object combination to possible link config
+        $PossibleLinksNew{$Type} = {
+            Object1 => 'Ticket',
+            Object2 => $Object,
+            Type    => $Type,
+        };
+        $ConfigObject->Set(
+            Key   => 'LinkObject::PossibleLink',
+            Value => \%PossibleLinksNew,
+        );
+
+        # add random amount of links for type/object combination
+        COUNT:
+        for (
+            my $Count = int(
+                $MainObject->GenerateRandomString(
+                    Length     => 1,
+                    Dictionary => [ 0 .. 49 ],
+                    )
+            );
+            $Count > 0;
+            --$Count
+            )
+        {
+            ++$NumberOfLinks;
+
+            # randomly switch which object is source and which is target
+            my ( $SQLFirst, $SQLSecond, $ExpectedDirection );
+            my $SQLSource          = 'source_object_id, source_key, ';
+            my $SQLTarget          = 'target_object_id, target_key, ';
+            my $SwitchSourceTarget = int(
+                $MainObject->GenerateRandomString(
+                    Length     => 1,
+                    Dictionary => [ 0 .. 1 ],
+                    )
+            );
+            if ($SwitchSourceTarget) {
+                $SQLFirst          = $SQLTarget;
+                $SQLSecond         = $SQLSource;
+                $ExpectedDirection = 'Source';
+            }
+            else {
+                $SQLFirst          = $SQLSource;
+                $SQLSecond         = $SQLTarget;
+                $ExpectedDirection = $Pointed ? 'Target' : 'Source';
+            }
+
+            # add link (use direct database access for performance reasons)
+            my $Key = $TypeCount . $ObjectCount . $Count;
+            return if !$DBObject->Do(
+                SQL =>
+                    'INSERT INTO link_relation ('
+                    . $SQLFirst . $SQLSecond
+                    . 'type_id, state_id, create_time, create_by)'
+                    . ' VALUES (?, 321, ?, ?, ?, ?, current_timestamp, 1)',
+                Bind => [
+                    \$TicketObjectID,
+                    \$ObjectID{$Object}, \$Key,
+                    \$TypeID{$Type},     \$ValidStateID,
+                ],
+            );
+
+            # add link to list of expected links for comparison
+            $ExpectedLinkList{$Object}->{$Type}->{$ExpectedDirection}->{$Key} = 1;
+            if ( $ExpectedDirection eq 'Source' ) {
+                $ExpectedSourceLinkList{$Object}->{$Type}->{$ExpectedDirection}->{$Key} = 1;
+                ++$NumberOfSourceLinks;
+            }
+            else {
+                $ExpectedTargetLinkList{$Object}->{$Type}->{$ExpectedDirection}->{$Key} = 1;
+                ++$NumberOfTargetLinks;
+            }
+
+            # remember first entry for deletion (cache test)
+            next COUNT if @DeleteEntryData;
+            if ($SwitchSourceTarget) {
+                @DeleteEntryData = (
+                    \$ObjectID{$Object}, \$Key,
+                    \$TicketObjectID, \321,
+                );
+            }
+            else {
+                @DeleteEntryData = (
+                    \$TicketObjectID, \321,
+                    \$ObjectID{$Object}, \$Key,
+                );
+            }
+            push @DeleteEntryData, \$TypeID{$Type}, \$ValidStateID;
+            %DeleteExpectedData = (
+                Object    => $Object,
+                Type      => $Type,
+                Direction => $ExpectedDirection,
+                Key       => $Key,
             );
         }
     }
 }
 
-# ------------------------------------------------------------ #
+# delete cache to consider manually added links
+$Kernel::OM->Get('Kernel::System::Cache')->CleanUp(
+    Type => 'LinkObject',
+);
+
+# check complete structure
+my $LinkList = $LinkObject->LinkList(
+    Object => 'Ticket',
+    Key    => '321',
+    State  => 'Valid',
+    UserID => 1,
+);
+$Self->IsDeeply(
+    $LinkList,
+    \%ExpectedLinkList,
+    "LinkList() deep structure test for $NumberOfLinks links",
+);
+
+# check complete structure again (cached)
+$LinkList = $LinkObject->LinkList(
+    Object => 'Ticket',
+    Key    => '321',
+    State  => 'Valid',
+    UserID => 1,
+);
+$Self->IsDeeply(
+    $LinkList,
+    \%ExpectedLinkList,
+    "LinkList() deep structure test for $NumberOfLinks links - cached",
+);
+
+# check directional structures
+$LinkList = $LinkObject->LinkList(
+    Object    => 'Ticket',
+    Key       => '321',
+    Direction => 'Source',
+    State     => 'Valid',
+    UserID    => 1,
+);
+$Self->IsDeeply(
+    $LinkList,
+    \%ExpectedSourceLinkList,
+    "LinkList() deep structure test for $NumberOfSourceLinks source links",
+);
+$LinkList = $LinkObject->LinkList(
+    Object    => 'Ticket',
+    Key       => '321',
+    Direction => 'Target',
+    State     => 'Valid',
+    UserID    => 1,
+);
+$Self->IsDeeply(
+    $LinkList,
+    \%ExpectedTargetLinkList,
+    "LinkList() deep structure test for $NumberOfTargetLinks target links",
+);
+
+# remove one link manually to ensure cache is working
+return if !$DBObject->Do(
+    SQL =>
+        'DELETE FROM link_relation'
+        . ' WHERE source_object_id = ? AND source_key = ?'
+        . ' AND target_object_id = ? AND target_key = ? '
+        . ' AND type_id = ? AND state_id = ? AND create_by = 1',
+    Bind => \@DeleteEntryData,
+);
+$LinkList = $LinkObject->LinkList(
+    Object => 'Ticket',
+    Key    => '321',
+    State  => 'Valid',
+    UserID => 1,
+);
+$Self->IsDeeply(
+    $LinkList,
+    \%ExpectedLinkList,
+    "LinkList() deep structure test for $NumberOfLinks links - cache validation 1",
+);
+
+# Delete remove entry from expected list and cache, and try again.
+delete $ExpectedLinkList{ $DeleteExpectedData{Object} }->{ $DeleteExpectedData{Type} }
+    ->{ $DeleteExpectedData{Direction} }->{ $DeleteExpectedData{Key} };
+
+# If $ExpectedLinkList{ $DeleteExpectedData{Object} }->{ $DeleteExpectedData{Type} }->{ $DeleteExpectedData{Direction} }
+# is empty hash, delete it because LinkList does not return empty hash with this key.
+if (
+    !%{
+        $ExpectedLinkList{ $DeleteExpectedData{Object} }->{ $DeleteExpectedData{Type} }
+            ->{ $DeleteExpectedData{Direction} }
+    }
+    )
+{
+    delete $ExpectedLinkList{ $DeleteExpectedData{Object} }->{ $DeleteExpectedData{Type} }
+        ->{ $DeleteExpectedData{Direction} };
+}
+
+# If $ExpectedLinkList{ $DeleteExpectedData{Object} }->{ $DeleteExpectedData{Type} } is empty hash,
+# delete it because LinkList does not return empty hash with this key.
+if (
+    !%{
+        $ExpectedLinkList{ $DeleteExpectedData{Object} }->{ $DeleteExpectedData{Type} }
+    }
+    )
+{
+    delete $ExpectedLinkList{ $DeleteExpectedData{Object} }->{ $DeleteExpectedData{Type} };
+}
+
+$Kernel::OM->Get('Kernel::System::Cache')->CleanUp(
+    Type => 'LinkObject',
+);
+$LinkList = $LinkObject->LinkList(
+    Object => 'Ticket',
+    Key    => '321',
+    State  => 'Valid',
+    UserID => 1,
+);
+$Self->IsDeeply(
+    $LinkList,
+    \%ExpectedLinkList,
+    "LinkList() deep structure test for $NumberOfLinks links - cache validation 2",
+);
+
 # clean up link tests
-# ------------------------------------------------------------ #
 
 # remove random object names
 for my $Name (@ObjectNames) {
@@ -3011,6 +3269,11 @@ for my $Name (@ObjectNames) {
         DisableWarnings => 1,
     );
 }
+
+# delete cache to ensure test values are cleaned up
+$Kernel::OM->Get('Kernel::System::Cache')->CleanUp(
+    Type => 'LinkObject',
+);
 
 # cleanup is done by RestoreDatabase
 

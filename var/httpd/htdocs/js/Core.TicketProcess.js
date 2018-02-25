@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -98,15 +98,6 @@ Core.TicketProcess = (function (TargetNS) {
                 Core.AJAX.FormUpdate($(this).parents('form'), 'AJAXUpdate', 'PriorityID' , Core.Config.Get('PriorityFieldsToUpdate'));
             });
         }
-
-        // Bind event to FileUpload button
-        $('#FileUpload').on('change', function () {
-            var $Form;
-
-            $Form = $('#FileUpload').closest('form');
-            Core.Form.Validate.DisableValidation($Form);
-            $Form.find('#AttachmentUpload').val('1').end().submit();
-        });
 
         // Bind event to AttachmentDelete button
         $('button[id*=AttachmentDelete]').on('click', function () {

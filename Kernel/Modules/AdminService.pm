@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -68,6 +68,23 @@ sub Run {
 
         if ( !$GetParam{Name} ) {
             $Error{'NameInvalid'} = 'ServerError';
+        }
+
+        my $ServiceName = '';
+        if ( $GetParam{ParentID} ) {
+            my $Prefix = $ServiceObject->ServiceLookup(
+                ServiceID => $GetParam{ParentID},
+            );
+
+            if ($Prefix) {
+                $ServiceName = $Prefix . "::";
+            }
+        }
+        $ServiceName .= $GetParam{Name};
+
+        if ( length $ServiceName > 200 ) {
+            $Error{'NameInvalid'} = 'ServerError';
+            $Error{LongName} = 1;
         }
 
         if ( !%Error ) {
@@ -181,6 +198,7 @@ sub Run {
             %Param,
         );
         $Output .= $LayoutObject->Footer();
+        return $Output;
 
     }
 
@@ -200,7 +218,7 @@ sub Run {
                 Data     => $LayoutObject->{LanguageObject}->Translate( "Please activate %s first!", "Service" ),
                 Link =>
                     $LayoutObject->{Baselink}
-                    . 'Action=AdminSystemConfiguration;Subaction=Edit;SysConfigGroup=Ticket;SysConfigSubGroup=Core::Ticket#Ticket::Service',
+                    . 'Action=AdminSystemConfiguration;Subaction=View;Setting=Ticket%3A%3AService;',
             );
         }
 
@@ -266,6 +284,7 @@ sub Run {
 
         return $Output;
     }
+    return;
 }
 
 sub _MaskNew {
@@ -305,8 +324,9 @@ sub _MaskNew {
 
     # generate ParentOptionStrg
     my %ServiceList = $ServiceObject->ServiceList(
-        Valid  => 0,
-        UserID => $Self->{UserID},
+        Valid        => 1,
+        KeepChildren => $ConfigObject->Get('Ticket::Service::KeepChildren') // 0,
+        UserID       => $Self->{UserID},
     );
     $ServiceData{ParentOptionStrg} = $LayoutObject->BuildSelection(
         Data           => \%ServiceList,

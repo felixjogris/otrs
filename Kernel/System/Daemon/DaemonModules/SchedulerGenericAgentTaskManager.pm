@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,7 +12,7 @@ use strict;
 use warnings;
 use utf8;
 
-use base qw(Kernel::System::Daemon::BaseDaemon);
+use parent qw(Kernel::System::Daemon::BaseDaemon);
 
 our @ObjectDependencies = (
     'Kernel::Config',
@@ -22,7 +22,6 @@ our @ObjectDependencies = (
     'Kernel::System::Daemon::SchedulerDB',
     'Kernel::System::GenericAgent',
     'Kernel::System::Log',
-    'Kernel::System::Time',
 );
 
 =head1 NAME
@@ -113,10 +112,6 @@ sub PostRun {
 
     $Self->{DiscardCount}--;
 
-    if ( $Self->{Debug} ) {
-        print "  $Self->{DaemonName} Discard Count: $Self->{DiscardCount}\n";
-    }
-
     # Unlock long locked tasks.
     $Self->{SchedulerDBObject}->RecurrentTaskUnlockExpired(
         Type => 'GenericAgent',
@@ -125,6 +120,10 @@ sub PostRun {
     # Remove obsolete tasks before destroy.
     if ( $Self->{DiscardCount} == 0 ) {
         $Self->{SchedulerDBObject}->GenericAgentTaskCleanup();
+
+        if ( $Self->{Debug} ) {
+            print "  $Self->{DaemonName} will be stopped and set for restart!\n";
+        }
     }
 
     return if $Self->{DiscardCount} <= 0;

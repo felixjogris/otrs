@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -16,9 +16,10 @@ use vars (qw($Self));
 use Kernel::System::PostMaster;
 
 # get needed objects
-my $ConfigObject  = $Kernel::OM->Get('Kernel::Config');
-my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
-my $MainObject    = $Kernel::OM->Get('Kernel::System::Main');
+my $ConfigObject         = $Kernel::OM->Get('Kernel::Config');
+my $ArticleObject        = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+my $ArticleBackendObject = $ArticleObject->BackendForChannel( ChannelName => 'Email' );
+my $MainObject           = $Kernel::OM->Get('Kernel::System::Main');
 
 # get helper object
 $Kernel::OM->ObjectParamAdd(
@@ -32,7 +33,7 @@ my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 for my $Backend (qw(DB FS)) {
 
     $ConfigObject->Set(
-        Key   => 'Ticket::StorageModule',
+        Key   => 'Ticket::Article::Backend::MIMEBase::ArticleStorage',
         Value => 'Kernel::System::Ticket::ArticleStorage' . $Backend,
     );
 
@@ -47,13 +48,31 @@ for my $Backend (qw(DB FS)) {
 
     my $TicketID;
     {
+        my $CommunicationLogObject = $Kernel::OM->Create(
+            'Kernel::System::CommunicationLog',
+            ObjectParams => {
+                Transport => 'Email',
+                Direction => 'Incoming',
+            },
+        );
+        $CommunicationLogObject->ObjectLogStart( ObjectLogType => 'Message' );
+
         my $PostMasterObject = Kernel::System::PostMaster->new(
-            Email => $ContentRef,
+            CommunicationLogObject => $CommunicationLogObject,
+            Email                  => $ContentRef,
         );
 
         my @Return = $PostMasterObject->Run();
 
         $TicketID = $Return[1];
+
+        $CommunicationLogObject->ObjectLogStop(
+            ObjectLogType => 'Message',
+            Status        => 'Successful',
+        );
+        $CommunicationLogObject->CommunicationStop(
+            Status => 'Successful',
+        );
     }
 
     $Self->True(
@@ -61,15 +80,14 @@ for my $Backend (qw(DB FS)) {
         "$Backend - Ticket created",
     );
 
-    my @ArticleIDs = $ArticleObject->ArticleIndex( TicketID => $TicketID );
+    my @ArticleIDs = map { $_->{ArticleID} } $ArticleObject->ArticleList( TicketID => $TicketID );
     $Self->True(
         $ArticleIDs[0],
         "$Backend - Article created",
     );
 
-    my %Attachments = $ArticleObject->ArticleAttachmentIndex(
+    my %Attachments = $ArticleBackendObject->ArticleAttachmentIndex(
         ArticleID => $ArticleIDs[0],
-        UserID    => 1,
     );
 
     $Self->IsDeeply(
@@ -77,7 +95,6 @@ for my $Backend (qw(DB FS)) {
         {
             ContentAlternative => '',
             ContentID          => '',
-            Filesize           => '132 Bytes',
             ContentType        => 'application/pdf; name="=?UTF-8?Q?Documentacio=CC=81n=2Epdf?="',
             Filename           => 'Documentación.pdf',
             FilesizeRaw        => '132',

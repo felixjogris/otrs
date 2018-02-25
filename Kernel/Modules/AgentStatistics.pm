@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -244,15 +244,17 @@ sub ImportAction {
                 UserID  => $Self->{UserID},
             );
 
-            if ($StatID) {
+            if ( !$StatID ) {
                 $Errors{FileServerError}        = 'ServerError';
                 $Errors{FileServerErrorMessage} = Translatable("Statistic could not be imported.");
             }
+            else {
 
-            # redirect to configure
-            return $LayoutObject->Redirect(
-                OP => "Action=AgentStatistics;Subaction=Edit;StatID=$StatID"
-            );
+                # Redirect to statistic edit page.
+                return $LayoutObject->Redirect(
+                    OP => "Action=AgentStatistics;Subaction=Edit;StatID=$StatID"
+                );
+            }
         }
         else {
             $Errors{FileServerError}        = 'ServerError';
@@ -806,6 +808,11 @@ sub AddScreen {
         $Frontend{ShowFormInitially} = 1;
     }
 
+    # generate manual link
+    my $ManualVersion = $Kernel::OM->Get('Kernel::Config')->Get('Version');
+    $ManualVersion =~ m{^(\d{1,2}).+};
+    $ManualVersion = $1;
+
     # build output
     my $Output = $LayoutObject->Header(
         Title => Translatable('Add New Statistic'),
@@ -816,6 +823,7 @@ sub AddScreen {
         Data         => {
             %Frontend,
             %Errors,
+            ManualVersion  => $ManualVersion,
             BreadcrumbPath => $Self->{BreadcrumbPath},
         },
     );
@@ -854,6 +862,18 @@ sub AddAction {
         $Data{Object} = $Object;
     }
 
+    my $StatsObject = $Kernel::OM->Get('Kernel::System::Stats');
+
+    my $ObjectModuleCheck = $StatsObject->ObjectModuleCheck(
+        StatType                     => $Data{StatType},
+        ObjectModule                 => $Data{ObjectModule},
+        CheckAlreadyUsedStaticObject => 1,
+    );
+
+    if ( !$ObjectModuleCheck ) {
+        $Errors{ObjectModuleServerError} = 'ServerError';
+    }
+
     for my $Key (qw(SumRow SumCol Cache ShowAsDashboardWidget)) {
         $Data{$Key} = $ParamObject->GetParam( Param => $Key ) // '';
     }
@@ -879,7 +899,7 @@ sub AddAction {
         );
     }
 
-    $Param{StatID} = $Kernel::OM->Get('Kernel::System::Stats')->StatsAdd(
+    $Param{StatID} = $StatsObject->StatsAdd(
         UserID => $Self->{UserID},
     );
     if ( !$Param{StatID} ) {
@@ -887,7 +907,7 @@ sub AddAction {
             Message => Translatable('Could not create statistic.'),
         );
     }
-    $Kernel::OM->Get('Kernel::System::Stats')->StatsUpdate(
+    $StatsObject->StatsUpdate(
         StatID => $Param{StatID},
         Hash   => \%Data,
         UserID => $Self->{UserID},
@@ -1015,8 +1035,6 @@ sub RunAction {
         UserID    => $Self->{UserID},
         %Param
     );
-
-    return;
 }
 
 sub GeneralSpecificationsWidgetAJAX {

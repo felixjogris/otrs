@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -18,11 +18,12 @@ use Kernel::System::PostMaster;
 use Kernel::System::VariableCheck qw(:all);
 
 # get needed objects
-my $ConfigObject    = $Kernel::OM->Get('Kernel::Config');
-my $HTMLUtilsObject = $Kernel::OM->Get('Kernel::System::HTMLUtils');
-my $MainObject      = $Kernel::OM->Get('Kernel::System::Main');
-my $TicketObject    = $Kernel::OM->Get('Kernel::System::Ticket');
-my $ArticleObject   = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+my $ConfigObject         = $Kernel::OM->Get('Kernel::Config');
+my $HTMLUtilsObject      = $Kernel::OM->Get('Kernel::System::HTMLUtils');
+my $MainObject           = $Kernel::OM->Get('Kernel::System::Main');
+my $TicketObject         = $Kernel::OM->Get('Kernel::System::Ticket');
+my $ArticleObject        = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article::Backend::Email');
 
 # get helper object
 $Kernel::OM->ObjectParamAdd(
@@ -32,6 +33,12 @@ $Kernel::OM->ObjectParamAdd(
     },
 );
 my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+# Disable email addresses checking.
+$Helper->ConfigSettingChange(
+    Key   => 'CheckEmailAddresses',
+    Value => 0,
+);
 
 # set config
 $ConfigObject->Set(
@@ -53,8 +60,10 @@ $ConfigObject->Set(
     Value => 'Kernel::System::Email::DoNotSendEmail',
 );
 
+my $PGPBin = $ConfigObject->Get('PGP::Bin');
+
 # check if gpg is located there
-if ( !-e $ConfigObject->Get('PGP::Bin') ) {
+if ( !$PGPBin || !( -e $PGPBin ) ) {
 
     if ( -e '/usr/bin/gpg' ) {
         $ConfigObject->Set(
@@ -70,6 +79,19 @@ if ( !-e $ConfigObject->Get('PGP::Bin') ) {
             Value => '/opt/local/bin/gpg'
         );
     }
+
+    # Try to guess using system 'which'
+    else {    # try to guess
+        my $GPGBin = `which gpg`;
+        chomp $GPGBin;
+        if ($GPGBin) {
+            $ConfigObject->Set(
+                Key   => 'PGP::Bin',
+                Value => $GPGBin,
+            );
+        }
+    }
+
 }
 
 # create local crypt object
@@ -223,12 +245,30 @@ for my $Test (@Tests) {
         Result   => 'ARRAY',
     );
 
+    my $CommunicationLogObject = $Kernel::OM->Create(
+        'Kernel::System::CommunicationLog',
+        ObjectParams => {
+            Transport => 'Email',
+            Direction => 'Incoming',
+        },
+    );
+    $CommunicationLogObject->ObjectLogStart( ObjectLogType => 'Message' );
+
     # use post master to import mail into OTRS
     my $PostMasterObject = Kernel::System::PostMaster->new(
-        Email   => $Email,
-        Trusted => 1,
+        CommunicationLogObject => $CommunicationLogObject,
+        Email                  => $Email,
+        Trusted                => 1,
     );
     my @PostMasterResult = $PostMasterObject->Run( Queue => '' );
+
+    $CommunicationLogObject->ObjectLogStop(
+        ObjectLogType => 'Message',
+        Status        => 'Successful',
+    );
+    $CommunicationLogObject->CommunicationStop(
+        Status => 'Successful',
+    );
 
     # sanity check (if postmaster runs correctly)
     $Self->IsNot(
@@ -252,23 +292,29 @@ for my $Test (@Tests) {
         push @AddedTickets, $TicketID;
 
         # get ticket articles
-        my @ArticleIDs = $ArticleObject->ArticleIndex(
-            TicketID => $TicketID,
+        my @Articles = $ArticleObject->ArticleList(
+            TicketID  => $TicketID,
+            OnlyFirst => 1,
         );
 
         # use the first result (it should be only 1)
-        my %RawArticle = $ArticleObject->ArticleGet(
-            ArticleID     => $ArticleIDs[0],
-            DynamicFields => 0,
-            UserID        => 1,
-        );
+        my %RawArticle;
+        if ( scalar @Articles ) {
+            %RawArticle = %{ $Articles[0] };
+        }
 
         # use ArticleCheck::PGP to decrypt the article
         my $CheckObject = Kernel::Output::HTML::ArticleCheck::PGP->new(
-            ArticleID => $ArticleIDs[0],
+            ArticleID => $Articles[0]->{ArticleID},
             UserID    => 1,
         );
-        my @CheckResult = $CheckObject->Check( Article => \%RawArticle );
+
+        my %Article = $ArticleBackendObject->ArticleGet(
+            TicketID  => $RawArticle{TicketID},
+            ArticleID => $RawArticle{ArticleID},
+        );
+
+        my @CheckResult = $CheckObject->Check( Article => \%Article );
 
         # sanity destroy object
         $CheckObject = undef;
@@ -297,10 +343,9 @@ for my $Test (@Tests) {
         }
 
         # check actual contents (subject and body)
-        my %Article = $ArticleObject->ArticleGet(
-            ArticleID     => $ArticleIDs[0],
-            DynamicFields => 0,
-            UserID        => 1,
+        %Article = $ArticleBackendObject->ArticleGet(
+            TicketID  => $RawArticle{TicketID},
+            ArticleID => $RawArticle{ArticleID},
         );
 
         $Self->Is(
@@ -316,11 +361,11 @@ for my $Test (@Tests) {
         );
 
         # get the list of attachments
-        my %AtmIndex = $ArticleObject->ArticleAttachmentIndex(
-            ArticleID                  => $ArticleIDs[0],
-            Article                    => \%Article,
-            StripPlainBodyAsAttachment => 1,
-            UserID                     => 1,
+        my %AtmIndex = $ArticleBackendObject->ArticleAttachmentIndex(
+            ArticleID        => $Articles[0]->{ArticleID},
+            ExcludePlainText => 1,
+            ExcludeHTMLBody  => 1,
+            ExcludeInline    => 1,
         );
 
         FILEID:
@@ -330,10 +375,9 @@ for my $Test (@Tests) {
             next FILEID if $AtmIndex{$FileID}->{Filename} =~ m{\A file-\d+ \z}msx;
 
             # get the attachment from the article (it should be already decrypted)
-            my %Attachment = $ArticleObject->ArticleAttachment(
-                ArticleID => $ArticleIDs[0],
+            my %Attachment = $ArticleBackendObject->ArticleAttachment(
+                ArticleID => $Articles[0]->{ArticleID},
                 FileID    => $FileID,
-                UserID    => 1,
             );
 
             # read the original file (from file system)
@@ -649,20 +693,24 @@ $Self->True(
     'TicketCreate()',
 );
 
+my $TicketNumber = $TicketObject->TicketNumberLookup(
+    TicketID => $TicketID,
+);
+
 push @AddedTickets, $TicketID;
 
 for my $Test (@TestVariations) {
 
-    my $ArticleID = $ArticleObject->ArticleSend(
+    my $ArticleID = $ArticleBackendObject->ArticleSend(
         %{ $Test->{ArticleData} },
-        TicketID       => $TicketID,
-        ArticleType    => 'email-external',
-        SenderType     => 'customer',
-        HistoryType    => 'AddNote',
-        HistoryComment => 'note',
-        Subject        => 'Unittest data',
-        Charset        => 'utf-8',
-        UserID         => 1,
+        TicketID             => $TicketID,
+        SenderType           => 'customer',
+        IsVisibleForCustomer => 1,
+        HistoryType          => 'AddNote',
+        HistoryComment       => 'note',
+        Subject              => 'Unittest data',
+        Charset              => 'utf-8',
+        UserID               => 1,
     );
 
     $Self->True(
@@ -670,13 +718,59 @@ for my $Test (@TestVariations) {
         "$Test->{Name} - ArticleSend()",
     );
 
-    my %Article = $ArticleObject->ArticleGet(
-        TicketID  => $TicketID,
+    # Read generated email and use it to create yet another article.
+    # This is necessary because otherwise reading the existing article will result in using the internal body
+    #   which doesn't contain signatures etc.
+    my $Email = $ArticleBackendObject->ArticlePlain(
         ArticleID => $ArticleID,
+        UserID    => 1,
+    );
+
+    # Add ticket number to subject (to ensure mail will be attached to original ticket)
+    my @FollowUp;
+    for my $Line ( split "\n", $Email ) {
+        if ( $Line =~ /^Subject:/ ) {
+            $Line = 'Subject: ' . $TicketObject->TicketSubjectBuild(
+                TicketNumber => $TicketNumber,
+                Subject      => $Line,
+            );
+        }
+        push @FollowUp, $Line;
+    }
+    my $NewEmail = join "\n", @FollowUp;
+
+    my $CommunicationLogObject = $Kernel::OM->Create(
+        'Kernel::System::CommunicationLog',
+        ObjectParams => {
+            Transport => 'Email',
+            Direction => 'Incoming',
+        },
+    );
+    $CommunicationLogObject->ObjectLogStart( ObjectLogType => 'Message' );
+
+    my $PostMasterObject = Kernel::System::PostMaster->new(
+        Email                  => \$NewEmail,
+        CommunicationLogObject => $CommunicationLogObject,
+    );
+
+    my @Return = $PostMasterObject->Run();
+    $Self->IsDeeply(
+        \@Return,
+        [ 2, $TicketID ],
+        "$Test->{Name} - PostMaster()",
+    );
+
+    my @Articles = $ArticleObject->ArticleList(
+        TicketID => $TicketID,
+        OnlyLast => 1,
+    );
+    my %Article = $ArticleBackendObject->ArticleGet(
+        TicketID  => $TicketID,
+        ArticleID => $Articles[0]->{ArticleID},
     );
 
     my $CheckObject = Kernel::Output::HTML::ArticleCheck::PGP->new(
-        ArticleID => $ArticleID,
+        ArticleID => $Article{ArticleID},
         UserID    => 1,
     );
 
@@ -704,9 +798,9 @@ for my $Test (@TestVariations) {
         );
     }
 
-    my %FinalArticleData = $ArticleObject->ArticleGet(
+    my %FinalArticleData = $ArticleBackendObject->ArticleGet(
         TicketID  => $TicketID,
-        ArticleID => $ArticleID,
+        ArticleID => $Article{ArticleID},
     );
 
     my $TestBody = $Test->{ArticleData}->{Body};
@@ -726,11 +820,8 @@ for my $Test (@TestVariations) {
 
     if ( defined $Test->{ArticleData}->{Attachment} ) {
         my $Found;
-        my %Index = $ArticleObject->ArticleAttachmentIndex(
-            ArticleID                  => $ArticleID,
-            UserID                     => 1,
-            Article                    => \%FinalArticleData,
-            StripPlainBodyAsAttachment => 0,
+        my %Index = $ArticleBackendObject->ArticleAttachmentIndex(
+            ArticleID => $Article{ArticleID},
         );
 
         TESTATTACHMENT:

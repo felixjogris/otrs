@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -7,7 +7,7 @@
 # --
 
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
-    <h1>[% Translate("ACL Management") | html %]</h1>
+    <h1 class="InvisibleText">[% Translate("ACL Management") | html %]</h1>
 
     [% BreadcrumbPath = [
             {
@@ -120,7 +120,7 @@
 [% RenderBlockEnd("ACLRow") %]
 [% RenderBlockStart("ACLNoDataRow") %]
                         <tr>
-                            <td colspan="4">
+                            <td colspan="5">
                                 [% Translate("No data found.") | html %]
                             </td>
                         </tr>

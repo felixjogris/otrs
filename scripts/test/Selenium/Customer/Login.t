@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -71,7 +71,7 @@ $Selenium->RunTest(
         $Element->send_keys($TestCustomerUserLogin);
 
         # login
-        $Element->VerifiedSubmit();
+        $Selenium->find_element("//button[\@type='submit']")->VerifiedClick();
 
         # check if login is successful
         $Element = $Selenium->find_element( 'a#LogoutButton', 'css' );

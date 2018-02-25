@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -724,5 +724,64 @@ $Self->Is(
     undef,
     'Test output for hex chars in 1000 generated random strings with hex dictionary',
 );
+
+#
+# ShellQuote()
+#
+@Tests = (
+    {
+        Name    => 'ShellQuote - Regular filename',
+        Param   => 'filename-a.txt',
+        Success => 1,
+        Result  => 'filename-a.txt',
+    },
+    {
+        Name    => 'ShellQuote - Filename with single quotes',
+        Param   => q(filename-'quote'.txt),
+        Success => 1,
+        Result  => q('filename-'\''quote'\''.txt'),
+    },
+    {
+        Name    => 'ShellQuote - Filename with double quotes',
+        Param   => q(filename-"quote".txt),
+        Success => 1,
+        Result  => q('filename-"quote".txt'),
+    },
+    {
+        Name    => 'ShellQuote - Code injection',
+        Param   => q(';touch /tmp/THIS_IS_A_TEST__123;),
+        Success => 1,
+        Result  => q(\'';touch /tmp/THIS_IS_A_TEST__123;'),
+    },
+    {
+        Name    => 'ShellQuote - Null-byte character',
+        Param   => "\x{0}",
+        Success => 0,
+    },
+    {
+        Name    => 'ShellQuote - Sample from POD',
+        Param   => q(Safe string for 'shell arguments'.),
+        Success => 1,
+        Result  => q('Safe string for '\''shell arguments'\''.'),
+    },
+);
+
+for my $Test (@Tests) {
+    my $Result = $MainObject->ShellQuote( $Test->{Param} );
+
+    if ( $Test->{Success} ) {
+        $Self->IsDeeply(
+            $Result,
+            $Test->{Result},
+            "$Test->{Name} - Result"
+        );
+    }
+    else {
+        $Self->False(
+            $Result // '',
+            "$Test->{Name} - No success"
+        );
+    }
+}
 
 1;

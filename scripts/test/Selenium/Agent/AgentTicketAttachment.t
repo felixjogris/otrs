@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -16,16 +16,28 @@ my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 $Selenium->RunTest(
     sub {
 
-        my $Helper        = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
-        my $ConfigObject  = $Kernel::OM->Get('Kernel::Config');
-        my $TicketObject  = $Kernel::OM->Get('Kernel::System::Ticket');
-        my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+        my $Helper               = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+        my $ConfigObject         = $Kernel::OM->Get('Kernel::Config');
+        my $TicketObject         = $Kernel::OM->Get('Kernel::System::Ticket');
+        my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article::Backend::Internal');
 
         # set download type to inline
         $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'AttachmentDownloadType',
             Value => 'inline'
+        );
+
+        # Disable rich text and zoom article forcing, in order to get inline HTML attachment (file-1.html) to show up.
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'Frontend::RichText',
+            Value => 0,
+        );
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'Ticket::Frontend::ZoomRichTextForce',
+            Value => 0,
         );
 
         # create test user and login
@@ -81,17 +93,17 @@ $Selenium->RunTest(
             );
             my $Content = ${$ContentRef};
 
-            my $ArticleID = $ArticleObject->ArticleCreate(
-                TicketID       => $TicketID,
-                ArticleType    => 'note-internal',
-                SenderType     => 'agent',
-                Subject        => 'Selenium subject test',
-                Body           => 'Selenium body test',
-                ContentType    => 'text/plain; charset=ISO-8859-15',
-                HistoryType    => 'OwnerUpdate',
-                HistoryComment => 'Some free text!',
-                UserID         => 1,
-                Attachment     => [
+            my $ArticleID = $ArticleBackendObject->ArticleCreate(
+                TicketID             => $TicketID,
+                IsVisibleForCustomer => 0,
+                SenderType           => 'agent',
+                Subject              => 'Selenium subject test',
+                Body                 => 'Selenium body test',
+                ContentType          => 'text/plain; charset=ISO-8859-15',
+                HistoryType          => 'OwnerUpdate',
+                HistoryComment       => 'Some free text!',
+                UserID               => 1,
+                Attachment           => [
                     {
                         Content     => $Content,
                         ContentType => 'text/plain; charset=ISO-8859-15',
@@ -111,14 +123,14 @@ $Selenium->RunTest(
             # check if attachment exists
             $Self->True(
                 $Selenium->execute_script(
-                    "return \$('.ArticleMailHeader a[href*=\"Action=AgentTicketAttachment;ArticleID=$ArticleID\"]:contains($TestAttachment->{Name})').length;"
+                    "return \$('.ArticleAttachments a[href*=\"Action=AgentTicketAttachment;TicketID=$TicketID;ArticleID=$ArticleID;FileID=1\"][title*=\"$TestAttachment->{Name}\"]').length;"
                 ),
-                "'$TestAttachment->{Name}' is found on page",
+                "'$TestAttachment->{Name}' is found on page"
             );
 
             # check ticket attachment
             $Selenium->get(
-                "${ScriptAlias}index.pl?Action=AgentTicketAttachment;ArticleID=$ArticleID;FileID=1",
+                "${ScriptAlias}index.pl?Action=AgentTicketAttachment;TicketID=$TicketID;ArticleID=$ArticleID;FileID=1",
                 {
                     NoVerify => 1,
                 }
@@ -135,6 +147,15 @@ $Selenium->RunTest(
                 TicketID => $TicketID,
                 UserID   => 1,
             );
+
+            # Ticket deletion could fail if apache still writes to ticket history. Try again in this case.
+            if ( !$Success ) {
+                sleep 3;
+                $Success = $TicketObject->TicketDelete(
+                    TicketID => $TicketID,
+                    UserID   => 1,
+                );
+            }
             $Self->True(
                 $Success,
                 "Ticket with ticket ID $TicketID is deleted"

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -25,9 +25,9 @@
                 <h2>[% Translate("Preferences") | html %]</h2>
             </div>
             <div class="Content">
-                [% IF Data.CurrentUserIDNotice %]
+                [% IF Data.EditingAnotherAgent %]
                 <div class="WidgetMessage Top Warning">
-                    <p>[% Translate("Warning! You're currently not editing your own preferences, but those of %s.", Data.CurrentUserFullname) | html %]</p>
+                    <p>[% Translate("Please note: you're currently editing the preferences of %s.", Data.CurrentUserFullname) | html %]</p>
                 </div>
                 <ul class="ActionList">
                     <li>
@@ -41,30 +41,36 @@
                 [% END %]
             </div>
         </div>
+
+        [% IF !Data.EditingAnotherAgent && Config("Frontend::AvatarEngine") == 'Gravatar' %]
+        <div class="WidgetSimple">
+            <div class="Content">
+                <p class="FieldExplanation">
+                    [% SET GravatarLink = '<a href="https://www.gravatar.com" target="_blank"><i class="fa fa-external-link"></i> gravatar.com</a>'; %]
+                    <p class="FieldExplanation">
+                        <strong>[% Translate("Did you know?") | html %]</strong> [% Translate("You can change your avatar by registering with your email address %s on %s") | html | ReplacePlaceholders(Env("UserEmail"), GravatarLink) %]
+                    </p>
+                </p>
+            </div>
+        </div>
+        [% END %]
     </div>
+
+
 
     <div class="ContentColumn">
 
         <div class="WidgetSimple">
             <div class="Header">
                 <h2>[% Translate("Preferences") | html %]</h2>
-                <div class="ActionMenu Visible">
-                    <div class="WidgetAction">
-                        <a title="[% Translate("Switch view") | html %]" id="ToggleView" class="[% IF Data.View == 'Grid' %]Grid[% ELSE %]List[% END %]" href="#">
-                            <i class="fa fa-list-ul"></i>
-                            <i class="fa fa-th"></i>
-                        </a>
-                    </div>
-                    <div class="Clear"></div>
-                </div>
             </div>
             <div class="Content">
 
-                <div class="GridView" [% IF Data.View != 'Grid' %]style="display: none;"[% END %]>
+                <div class="GridView">
                     <ul class="ItemListGrid WithIcons Filterable">
                     [% FOREACH Item IN Data.Items %]
                         <li>
-                            <a class="AsBlock" href="[% Env("Baselink") %]Action=AgentPreferences;Subaction=Group;Group=[% Item.Key | uri %][% IF Data.CurrentUserIDNotice %];EditUserID=[% Data.CurrentUserID | uri %][% END %]" title="[% Translate(Item.Name) | html %]
+                            <a class="AsBlock" href="[% Env("Baselink") %]Action=AgentPreferences;Subaction=Group;Group=[% Item.Key | uri %][% IF Data.EditingAnotherAgent %];EditUserID=[% Data.CurrentUserID | uri %][% END %]" title="[% Translate(Item.Name) | html %]
 [% Translate(Item.Description) | html %]">
                                 <span class="Icons">
                                 [% IF Item.Icon %]
@@ -81,28 +87,6 @@
                         </li>
                     [% END %]
                     </ul>
-                </div>
-
-                <div class="ListView" [% IF Data.View != 'List' %]style="display: none;"[% END %]>
-                    <table class="DataTable Filterable">
-                        <thead>
-                            <tr>
-                                <th class="W20pc">[% Translate("Name") %]</th>
-                                <th>[% Translate("Description") %]</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        [% FOREACH Item IN Data.Items %]
-                            <tr>
-                                <td class="W20pc"><a class="AsBlock ModuleLink" href="[% Env("Baselink") %]Action=AgentPreferences;Subaction=Group;Group=[% Item.Key | uri %]">[% Translate(Item.Name) | html %]</a></td>
-                                <td>[% Translate(Item.Description) | html %]</td>
-                            </tr>
-                        [% END %]
-                            <tr class="FilterMessage Hidden">
-                                <td colspan="3">[% Translate("No matches found.") | html %]</td>
-                            </tr>
-                        </tbody>
-                    </table>
                 </div>
             </div>
         </div>

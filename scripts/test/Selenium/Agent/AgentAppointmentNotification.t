@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -25,7 +25,7 @@ $Selenium->RunTest(
 
         my $RandomID = $Helper->GetRandomID();
 
-        # create test group
+        # Create test group.
         my $GroupName = "test-calendar-group-$RandomID";
         my $GroupID   = $GroupObject->GroupAdd(
             Name    => $GroupName,
@@ -33,7 +33,6 @@ $Selenium->RunTest(
             UserID  => 1,
         );
 
-        # get script alias
         my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
 
         my $NextMonthObject = $Kernel::OM->Create('Kernel::System::DateTime');
@@ -42,29 +41,41 @@ $Selenium->RunTest(
         );
         my $NextMonthSettings = $NextMonthObject->Get();
 
-        # change resolution (desktop mode)
+        my $LastYearDateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+        $LastYearDateTimeObject->Subtract(
+            Years => 1,
+        );
+        my $LastYearSettings = $LastYearDateTimeObject->Get();
+
+        my $YearBeforeLastDateTimeObject = $LastYearDateTimeObject->Clone();
+        $YearBeforeLastDateTimeObject->Subtract(
+            Years => 1,
+        );
+        my $YearBeforeLastSettings = $YearBeforeLastDateTimeObject->Get();
+
+        # Change resolution (desktop mode).
         $Selenium->set_window_size( 768, 1050 );
 
-        # create test user
+        # Create test user.
         my $Language      = 'en';
         my $TestUserLogin = $Helper->TestUserCreate(
             Groups   => [ 'users', $GroupName ],
             Language => $Language,
         ) || die "Did not get test user";
 
-        # get UserID
+        # Get UserID.
         my $UserID = $UserObject->UserLookup(
             UserLogin => $TestUserLogin,
         );
 
-        # start test
+        # Login as test user.
         $Selenium->Login(
             Type     => 'Agent',
             User     => $TestUserLogin,
             Password => $TestUserLogin,
         );
 
-        # create a few test calendars
+        # Create test calendars.
         my %Calendar1 = $CalendarObject->CalendarCreate(
             CalendarName => "My Calendar $RandomID",
             Color        => '#3A87AD',
@@ -73,34 +84,32 @@ $Selenium->RunTest(
             ValidID      => 1,
         );
 
-        # go to calendar overview page
+        # Go to calendar overview page.
         $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentAppointmentCalendarOverview");
 
-        # wait for AJAX to finish
+        # Wait for AJAX to finish.
         $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && !$(".CalendarWidget.Loading").length' );
 
-        # click on the month view
-        $Selenium->find_element( '.fc-month-button', 'css' )->VerifiedClick();
+        # Click on the month view.
+        $Selenium->find_element( '.fc-month-button', 'css' )->click();
 
-        # wait for AJAX to finish
+        # Wait for AJAX to finish.
         $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && !$(".CalendarWidget.Loading").length' );
 
-        # go to next month
-        $Selenium->find_element( '.fc-toolbar .fc-next-button', 'css' )->VerifiedClick();
+        # Go to next month.
+        $Selenium->find_element( '.fc-toolbar .fc-next-button', 'css' )->click();
 
-        # wait for AJAX to finish
+        # Wait for AJAX to finish.
         $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && !$(".CalendarWidget.Loading").length' );
 
         my $DataDate = sprintf( "%04d-%02d-01", $NextMonthSettings->{Year}, $NextMonthSettings->{Month} );
 
-        #
-        # Pre-Defined Templates
-        #
+        # Pre-Defined Templates.
 
-        # define appointment test with pre-defined notification templates
+        # Define appointment test with pre-defined notification templates.
         my @TemplateCreateTests = (
 
-            # no active notification template
+            # No active notification template.
             {
                 Data => {
                     Description          => 'No notification',
@@ -117,7 +126,7 @@ $Selenium->RunTest(
                 },
             },
 
-            # notification template start (appointment start time)
+            # Notification template start (appointment start time).
             {
                 Data => {
                     Description          => 'Appointment start',
@@ -133,7 +142,7 @@ $Selenium->RunTest(
                 },
             },
 
-            # notification template 5 minutes before
+            # Notification template 5 minutes before.
             {
                 Data => {
                     Description          => '5 minutes before',
@@ -149,7 +158,7 @@ $Selenium->RunTest(
                 },
             },
 
-            # notification template 15 minutes before
+            # Notification template 15 minutes before.
             {
                 Data => {
                     Description          => '15 minutes before',
@@ -165,7 +174,7 @@ $Selenium->RunTest(
                 },
             },
 
-            # notification template 30 minutes before
+            # Notification template 30 minutes before.
             {
                 Data => {
                     Description          => '30 minutes before',
@@ -181,7 +190,7 @@ $Selenium->RunTest(
                 },
             },
 
-            # notification template 1 hour before
+            # Notification template 1 hour before.
             {
                 Data => {
                     Description          => '1 hour before',
@@ -197,7 +206,7 @@ $Selenium->RunTest(
                 },
             },
 
-            # notification template 2 hours before
+            # Notification template 2 hours before.
             {
                 Data => {
                     Description          => '2 hours before',
@@ -213,7 +222,7 @@ $Selenium->RunTest(
                 },
             },
 
-            # notification template 12 hours before
+            # Notification template 12 hours before.
             {
                 Data => {
                     Description          => '12 hours before',
@@ -229,7 +238,7 @@ $Selenium->RunTest(
                 },
             },
 
-            # notification template 1 day before
+            # Notification template 1 day before.
             {
                 Data => {
                     Description          => '1 day before',
@@ -245,7 +254,7 @@ $Selenium->RunTest(
                 },
             },
 
-            # notification template 2 days before
+            # Notification template 2 days before.
             {
                 Data => {
                     Description          => '2 days before',
@@ -261,7 +270,7 @@ $Selenium->RunTest(
                 },
             },
 
-            # notification template 1 week before
+            # Notification template 1 week before.
             {
                 Data => {
                     Description          => '1 week before',
@@ -278,31 +287,31 @@ $Selenium->RunTest(
             },
         );
 
-        # notification pre-defined template test execution
+        # Notification pre-defined template test execution.
         for my $Test (@TemplateCreateTests) {
 
-            # create appointment
-            $Selenium->find_element( ".fc-widget-content td[data-date=\"$DataDate\"]", 'css' )->VerifiedClick();
+            # Create appointment.
+            $Selenium->find_element( ".fc-widget-content td[data-date=\"$DataDate\"]", 'css' )->click();
 
-            # wait until form and overlay has loaded, if neccessary
+            # Wait until form and overlay has loaded, if neccessary.
             $Selenium->WaitFor( JavaScript => "return typeof(\$) === 'function' && \$('#Title').length" );
 
-            # enter some data
+            # Enter some data.
             $Selenium->find_element( 'Title', 'name' )->send_keys("$Test->{Data}->{Description}");
             $Selenium->execute_script(
-                "return \$('#CalendarID').val("
+                "\$('#CalendarID').val("
                     . $Calendar1{CalendarID}
                     . ").trigger('redraw.InputField').trigger('change');"
             );
 
             $Selenium->execute_script(
-                "return \$('#NotificationTemplate').val('$Test->{Data}->{NotificationTemplate}').trigger('redraw.InputField').trigger('change');"
+                "\$('#NotificationTemplate').val('$Test->{Data}->{NotificationTemplate}').trigger('redraw.InputField').trigger('change');"
             );
 
-            # click on Save
-            $Selenium->find_element( '#EditFormSubmit', 'css' )->VerifiedClick();
+            # Click on Save.
+            $Selenium->find_element( '#EditFormSubmit', 'css' )->click();
 
-            # wait for dialog to close and AJAX to finish
+            # Wait for dialog to close and AJAX to finish.
             $Selenium->WaitFor(
                 JavaScript =>
                     'return typeof($) === "function" && !$(".Dialog:visible").length && !$(".CalendarWidget.Loading").length'
@@ -313,7 +322,7 @@ $Selenium->RunTest(
                 Result     => 'HASH',
             );
 
-            # make sure there is an appointment
+            # Make sure there is an appointment.
             $Self->Is(
                 scalar @AppointmentList,
                 1,
@@ -339,7 +348,7 @@ $Selenium->RunTest(
                 );
             }
 
-            # verify results
+            # Verify results.
             for my $ResultKey ( sort keys %{ $Test->{Result} } ) {
 
                 $Self->Is(
@@ -354,21 +363,19 @@ $Selenium->RunTest(
                 UserID        => $UserID,
             );
 
-            # delete appointment
+            # Delete appointment.
             $Self->True(
                 $Delete,
                 "Delete appointment verification - $Test->{Data}->{Description} .",
             );
         }
 
-        #
-        # Custom Relative Templates
-        #
+        # Custom Relative Templates.
 
-        # define appointment test with custom notification templates
+        # Define appointment test with custom notification templates.
         my @TemplateCustomRelativeCreateTests = (
 
-            # custom relative notification 0 minutes before start
+            # Custom relative notification 0 minutes before start.
             {
                 Data => {
                     Description                           => 'Custom relative 0 minutes before start',
@@ -389,7 +396,7 @@ $Selenium->RunTest(
                 },
             },
 
-            # custom relative notification -2 minutes before start
+            # Custom relative notification -2 minutes before start.
             {
                 Data => {
                     Description                           => 'Custom relative -2 minutes before start',
@@ -410,7 +417,7 @@ $Selenium->RunTest(
                 },
             },
 
-            # custom relative notification 2 minutes before start
+            # Custom relative notification 2 minutes before start.
             {
                 Data => {
                     Description                           => 'Custom relative 2 minutes before start',
@@ -431,7 +438,7 @@ $Selenium->RunTest(
                 },
             },
 
-            # custom relative notification 0 minutes after start
+            # Custom relative notification 0 minutes after start.
             {
                 Data => {
                     Description                           => 'Custom relative 0 minutes after start',
@@ -452,7 +459,7 @@ $Selenium->RunTest(
                 },
             },
 
-            # custom relative notification 0 minutes before end
+            # Custom relative notification 0 minutes before end.
             {
                 Data => {
                     Description                           => 'Custom relative 0 minutes before end',
@@ -473,7 +480,7 @@ $Selenium->RunTest(
                 },
             },
 
-            # custom relative notification 0 minutes after end
+            # Custom relative notification 0 minutes after end.
             {
                 Data => {
                     Description                           => 'Custom relative 0 minutes after end',
@@ -495,50 +502,50 @@ $Selenium->RunTest(
             },
         );
 
-        # notification custom relative template test execution
+        # Notification custom relative template test execution.
         for my $Test (@TemplateCustomRelativeCreateTests) {
 
-            # create appointment
-            $Selenium->find_element( ".fc-widget-content td[data-date=\"$DataDate\"]", 'css' )->VerifiedClick();
+            # Create appointment.
+            $Selenium->find_element( ".fc-widget-content td[data-date=\"$DataDate\"]", 'css' )->click();
 
-            # wait until form and overlay has loaded, if neccessary
+            # Wait until form and overlay has loaded, if neccessary.
             $Selenium->WaitFor( JavaScript => "return typeof(\$) === 'function' && \$('#Title').length" );
 
-            # enter some data
+            # Enter some data.
             $Selenium->find_element( 'Title', 'name' )->send_keys("$Test->{Data}->{Description}");
             $Selenium->execute_script(
-                "return \$('#CalendarID').val("
+                "\$('#CalendarID').val("
                     . $Calendar1{CalendarID}
                     . ").trigger('redraw.InputField').trigger('change');"
             );
 
-            # select custom template
+            # Select custom template.
             $Selenium->execute_script(
-                "return \$('#NotificationTemplate').val('$Test->{Data}->{NotificationTemplate}').trigger('redraw.InputField').trigger('change');"
+                "\$('#NotificationTemplate').val('$Test->{Data}->{NotificationTemplate}').trigger('redraw.InputField').trigger('change');"
             );
 
-            # activate the relative notifications
-            $Selenium->find_element( "#NotificationCustomRelativeInput", 'css' )->VerifiedClick();
+            # Activate the relative notifications.
+            $Selenium->find_element( "#NotificationCustomRelativeInput", 'css' )->click();
 
-            # fill out the custom unit count field
+            # Fill out the custom unit count field.
             $Selenium->execute_script(
                 "return \$('#NotificationCustomRelativeUnitCount').val('$Test->{Data}->{NotificationCustomRelativeUnitCount}');"
             );
 
-            # fill out the custom unit field
+            # Fill out the custom unit field.
             $Selenium->execute_script(
-                "return \$('#NotificationCustomRelativeUnit').val('$Test->{Data}->{NotificationCustomRelativeUnit}').trigger('redraw.InputField').trigger('change');"
+                "\$('#NotificationCustomRelativeUnit').val('$Test->{Data}->{NotificationCustomRelativeUnit}').trigger('redraw.InputField').trigger('change');"
             );
 
-            # fill out the custom unit point of time field
+            # Fill out the custom unit point of time field.
             $Selenium->execute_script(
-                "return \$('#NotificationCustomRelativePointOfTime').val('$Test->{Data}->{NotificationCustomRelativePointOfTime}').trigger('redraw.InputField').trigger('change');"
+                "\$('#NotificationCustomRelativePointOfTime').val('$Test->{Data}->{NotificationCustomRelativePointOfTime}').trigger('redraw.InputField').trigger('change');"
             );
 
-            # click on Save
-            $Selenium->find_element( '#EditFormSubmit', 'css' )->VerifiedClick();
+            # Click on Save.
+            $Selenium->find_element( '#EditFormSubmit', 'css' )->click();
 
-            # wait for dialog to close and AJAX to finish
+            # Wait for dialog to close and AJAX to finish.
             $Selenium->WaitFor(
                 JavaScript =>
                     'return typeof($) === "function" && !$(".Dialog:visible").length && !$(".CalendarWidget.Loading").length'
@@ -549,17 +556,17 @@ $Selenium->RunTest(
                 Result     => 'HASH',
             );
 
-            # make sure there is an appointment
+            # Make sure there is an appointment.
             $Self->Is(
                 scalar @AppointmentList,
                 1,
                 "Appointment list verification - $Test->{Data}->{Description} ."
             );
 
-            # get the needed notification params
+            # Get the needed notification params.
             my $CustomUnitCount = $Test->{Data}->{NotificationCustomRelativeUnitCount};
 
-            # the backend treats negative values as 0
+            # The backend treats negative values as 0.
             if ( $CustomUnitCount < 0 ) {
                 $CustomUnitCount = 0;
             }
@@ -567,7 +574,7 @@ $Selenium->RunTest(
             my $CustomUnit      = $Test->{Data}->{NotificationCustomRelativeUnit};
             my $CustomUnitPoint = $Test->{Data}->{NotificationCustomRelativePointOfTime};
 
-            # setup the count to compute for the offset
+            # Setup the count to compute for the offset.
             my %UnitOffsetCompute = (
                 minutes => 60,
                 hours   => 3600,
@@ -576,7 +583,7 @@ $Selenium->RunTest(
 
             my $NotificationLocalTimeObject;
 
-            # compute from start time
+            # Compute from start time.
             if ( $CustomUnitPoint eq 'beforestart' || $CustomUnitPoint eq 'afterstart' ) {
                 $NotificationLocalTimeObject = $Kernel::OM->Create(
                     'Kernel::System::DateTime',
@@ -586,7 +593,7 @@ $Selenium->RunTest(
                 );
             }
 
-            # compute from end time
+            # Compute from end time.
             elsif ( $CustomUnitPoint eq 'beforeend' || $CustomUnitPoint eq 'afterend' ) {
                 $NotificationLocalTimeObject = $Kernel::OM->Create(
                     'Kernel::System::DateTime',
@@ -621,187 +628,186 @@ $Selenium->RunTest(
                 UserID        => $UserID,
             );
 
-            # delete appointment
+            # Delete appointment.
             $Self->True(
                 $Delete,
                 "Delete appointment verification - $Test->{Data}->{Description}",
             );
         }
 
-        #
-        # Custom DateTime Templates
-        #
+        # Custom DateTime Templates.
 
-        # define appointment test with custom notification templates
+        # Define appointment test with custom notification templates.
         my @TemplateCustomDateTimeCreateTests = (
 
-            # custom datetime notification 2016-09-01 10:10:00
+            # Custom datetime notification $YearBeforeLast-09-01 10:10:00.
             {
                 Data => {
-                    Description                           => 'Custom datetime 2016-09-01 10:10:00',
-                    NotificationTemplate                  => 'Custom',
-                    NotificationCustomRelativeInput       => 0,
-                    NotificationCustomDateTimeInput       => 1,
+                    Description                     => "Custom datetime $YearBeforeLastSettings->{Year}-09-01 10:10:00",
+                    NotificationTemplate            => 'Custom',
+                    NotificationCustomRelativeInput => 0,
+                    NotificationCustomDateTimeInput => 1,
                     NotificationCustomRelativeUnitCount   => 0,
                     NotificationCustomRelativeUnit        => 'minutes',
                     NotificationCustomRelativePointOfTime => 'beforestart',
                     DateTimeDay                           => '1',
                     DateTimeMonth                         => '9',
-                    DateTimeYear                          => '2016',
+                    DateTimeYear                          => $YearBeforeLastSettings->{Year},
                     DateTimeHour                          => '10',
                     DateTimeMinute                        => '10',
                     UserID                                => $UserID,
                 },
                 Result => {
-                    NotificationDate                      => '2016-09-01 10:10:00',
+                    NotificationDate                      => "$YearBeforeLastSettings->{Year}-09-01 10:10:00",
                     NotificationTemplate                  => 'Custom',
                     NotificationCustom                    => 'datetime',
                     NotificationCustomRelativeUnitCount   => 0,
                     NotificationCustomRelativeUnit        => 'minutes',
                     NotificationCustomRelativePointOfTime => 'beforestart',
-                    NotificationCustomDateTime            => '2016-09-01 10:10:00'
+                    NotificationCustomDateTime            => "$YearBeforeLastSettings->{Year}-09-01 10:10:00",
                 },
             },
 
-            # custom datetime notification 2016-10-18 00:03:00
+            # Custom datetime notification $YearBeforeLast-10-18 00:03:00.
             {
                 Data => {
-                    Description                           => 'Custom datetime 2016-10-18 01:03:00',
+                    Description                     => "Custom datetime $YearBeforeLastSettings->{Year}-10-18 01:03:00",
+                    NotificationTemplate            => 'Custom',
+                    NotificationCustomRelativeInput => 0,
+                    NotificationCustomDateTimeInput => 1,
+                    NotificationCustomRelativeUnitCount   => 0,
+                    NotificationCustomRelativeUnit        => 'minutes',
+                    NotificationCustomRelativePointOfTime => 'beforestart',
+                    DateTimeDay                           => '18',
+                    DateTimeMonth                         => '10',
+                    DateTimeYear                          => $YearBeforeLastSettings->{Year},
+                    DateTimeHour                          => '1',
+                    DateTimeMinute                        => '3',
+                    UserID                                => $UserID,
+                },
+                Result => {
+                    NotificationDate                      => "$YearBeforeLastSettings->{Year}-10-18 01:03:00",
+                    NotificationTemplate                  => 'Custom',
+                    NotificationCustom                    => 'datetime',
+                    NotificationCustomRelativeUnitCount   => 0,
+                    NotificationCustomRelativeUnit        => 'minutes',
+                    NotificationCustomRelativePointOfTime => 'beforestart',
+                    NotificationCustomDateTime            => "$YearBeforeLastSettings->{Year}-10-18 01:03:00",
+                },
+            },
+
+            # Custom datetime notification $LastYear-10-18 00:03:00.
+            {
+                Data => {
+                    Description                           => "Custom datetime $LastYearSettings->{Year}-10-18 03:03:00",
                     NotificationTemplate                  => 'Custom',
                     NotificationCustomRelativeInput       => 0,
                     NotificationCustomDateTimeInput       => 1,
+                    NotificationCustomRelativeUnitCount   => 0,
+                    NotificationCustomRelativeUnit        => 'minutes',
+                    NotificationCustomRelativePointOfTime => 'beforestart',
+                    DateTimeDay                           => '18',
+                    DateTimeMonth                         => '10',
+                    DateTimeYear                          => $LastYearSettings->{Year},
+                    DateTimeHour                          => '3',
+                    DateTimeMinute                        => '3',
+                    UserID                                => $UserID,
+                },
+                Result => {
+                    NotificationDate                      => "$LastYearSettings->{Year}-10-18 03:03:00",
+                    NotificationTemplate                  => 'Custom',
+                    NotificationCustom                    => 'datetime',
+                    NotificationCustomRelativeUnitCount   => 0,
+                    NotificationCustomRelativeUnit        => 'minutes',
+                    NotificationCustomRelativePointOfTime => 'beforestart',
+                    NotificationCustomDateTime            => "$LastYearSettings->{Year}-10-18 03:03:00",
+                },
+            },
+
+            # Custom datetime notification $YearBeforeLast-10-18 02:03:00.
+            {
+                Data => {
+                    Description                     => "Custom datetime $YearBeforeLastSettings->{Year}-10-18 02:03:00",
+                    NotificationTemplate            => 'Custom',
+                    NotificationCustomRelativeInput => 0,
+                    NotificationCustomDateTimeInput => 1,
                     NotificationCustomRelativeUnitCount   => 0,
                     NotificationCustomRelativeUnit        => 'minutes',
                     NotificationCustomRelativePointOfTime => 'beforestart',
                     DateTimeDay                           => '18',
                     DateTimeMonth                         => '10',
                     DateTimeYear                          => '2016',
-                    DateTimeHour                          => '1',
-                    DateTimeMinute                        => '3',
-                    UserID                                => $UserID,
-                },
-                Result => {
-                    NotificationDate                      => '2016-10-18 01:03:00',
-                    NotificationTemplate                  => 'Custom',
-                    NotificationCustom                    => 'datetime',
-                    NotificationCustomRelativeUnitCount   => 0,
-                    NotificationCustomRelativeUnit        => 'minutes',
-                    NotificationCustomRelativePointOfTime => 'beforestart',
-                    NotificationCustomDateTime            => '2016-10-18 01:03:00'
-                },
-            },
-
-            # custom datetime notification 2017-10-18 00:03:00
-            {
-                Data => {
-                    Description                           => 'Custom datetime 2017-10-18 03:03:00',
-                    NotificationTemplate                  => 'Custom',
-                    NotificationCustomRelativeInput       => 0,
-                    NotificationCustomDateTimeInput       => 1,
-                    NotificationCustomRelativeUnitCount   => 0,
-                    NotificationCustomRelativeUnit        => 'minutes',
-                    NotificationCustomRelativePointOfTime => 'beforestart',
-                    DateTimeDay                           => '18',
-                    DateTimeMonth                         => '10',
-                    DateTimeYear                          => '2017',
-                    DateTimeHour                          => '3',
-                    DateTimeMinute                        => '3',
-                    UserID                                => $UserID,
-                },
-                Result => {
-                    NotificationDate                      => '2017-10-18 03:03:00',
-                    NotificationTemplate                  => 'Custom',
-                    NotificationCustom                    => 'datetime',
-                    NotificationCustomRelativeUnitCount   => 0,
-                    NotificationCustomRelativeUnit        => 'minutes',
-                    NotificationCustomRelativePointOfTime => 'beforestart',
-                    NotificationCustomDateTime            => '2017-10-18 03:03:00'
-                },
-            },
-
-            # custom datetime notification 2012-10-18 00:03:00
-            {
-                Data => {
-                    Description                           => 'Custom datetime 2012-10-18 02:03:00',
-                    NotificationTemplate                  => 'Custom',
-                    NotificationCustomRelativeInput       => 0,
-                    NotificationCustomDateTimeInput       => 1,
-                    NotificationCustomRelativeUnitCount   => 0,
-                    NotificationCustomRelativeUnit        => 'minutes',
-                    NotificationCustomRelativePointOfTime => 'beforestart',
-                    DateTimeDay                           => '18',
-                    DateTimeMonth                         => '10',
-                    DateTimeYear                          => '2012',
                     DateTimeHour                          => '2',
                     DateTimeMinute                        => '3',
                     UserID                                => $UserID,
                 },
                 Result => {
-                    NotificationDate                      => '2012-10-18 02:03:00',
+                    NotificationDate                      => "$YearBeforeLastSettings->{Year}-10-18 02:03:00",
                     NotificationTemplate                  => 'Custom',
                     NotificationCustom                    => 'datetime',
                     NotificationCustomRelativeUnitCount   => 0,
                     NotificationCustomRelativeUnit        => 'minutes',
                     NotificationCustomRelativePointOfTime => 'beforestart',
-                    NotificationCustomDateTime            => '2012-10-18 02:03:00'
+                    NotificationCustomDateTime            => "$YearBeforeLastSettings->{Year}-10-18 02:03:00",
                 },
             },
         );
 
-        # notification datetime template test execution
+        # Notification datetime template test execution.
         for my $Test (@TemplateCustomDateTimeCreateTests) {
 
-            # create appointment
-            $Selenium->find_element( ".fc-widget-content td[data-date=\"$DataDate\"]", 'css' )->VerifiedClick();
+            # Create appointment.
+            $Selenium->find_element( ".fc-widget-content td[data-date=\"$DataDate\"]", 'css' )->click();
 
-            # wait until form and overlay has loaded, if neccessary
+            # Wait until form and overlay has loaded, if neccessary.
             $Selenium->WaitFor( JavaScript => "return typeof(\$) === 'function' && \$('#Title').length" );
 
-            # enter some data
+            # Enter some data.
             $Selenium->find_element( 'Title', 'name' )->send_keys("$Test->{Data}->{Description}");
             $Selenium->execute_script(
-                "return \$('#CalendarID').val("
+                "\$('#CalendarID').val("
                     . $Calendar1{CalendarID}
                     . ").trigger('redraw.InputField').trigger('change');"
             );
 
-            # select custom template
+            # Select custom template.
             $Selenium->execute_script(
-                "return \$('#NotificationTemplate').val('$Test->{Data}->{NotificationTemplate}').trigger('redraw.InputField').trigger('change');"
+                "\$('#NotificationTemplate').val('$Test->{Data}->{NotificationTemplate}').trigger('redraw.InputField').trigger('change');"
             );
 
-            # activate the relative notifications
-            $Selenium->find_element( "#NotificationCustomDateTimeInput", 'css' )->VerifiedClick();
+            # Activate the relative notifications.
+            $Selenium->find_element( "#NotificationCustomDateTimeInput", 'css' )->click();
+            $Selenium->WaitFor( JavaScript => "return \$('#NotificationCustomDateTimeInput:checked').length" );
 
-            # select day
+            # Select day.
             $Selenium->execute_script(
-                "return \$('#NotificationCustomDateTimeDay').val('$Test->{Data}->{DateTimeDay}').trigger('redraw.InputField').trigger('change');"
+                "\$('#NotificationCustomDateTimeDay').val('$Test->{Data}->{DateTimeDay}').trigger('redraw.InputField').trigger('change');"
             );
 
-            # select month
+            # Select month.
             $Selenium->execute_script(
-                "return \$('#NotificationCustomDateTimeMonth').val('$Test->{Data}->{DateTimeMonth}').trigger('redraw.InputField').trigger('change');"
+                "\$('#NotificationCustomDateTimeMonth').val('$Test->{Data}->{DateTimeMonth}').trigger('redraw.InputField').trigger('change');"
             );
 
-            # select year
+            # Select year.
             $Selenium->execute_script(
-                "return \$('#NotificationCustomDateTimeYear').val('$Test->{Data}->{DateTimeYear}').trigger('redraw.InputField').trigger('change');"
+                "\$('#NotificationCustomDateTimeYear').val('$Test->{Data}->{DateTimeYear}').trigger('redraw.InputField').trigger('change');"
             );
 
-            # select hour
+            # Select hour.
             $Selenium->execute_script(
-                "return \$('#NotificationCustomDateTimeHour').val('$Test->{Data}->{DateTimeHour}').trigger('redraw.InputField').trigger('change');"
+                "\$('#NotificationCustomDateTimeHour').val('$Test->{Data}->{DateTimeHour}').trigger('redraw.InputField').trigger('change');"
             );
 
-            # select minute
+            # Select minute.
             $Selenium->execute_script(
-                "return \$('#NotificationCustomDateTimeMinute').val('$Test->{Data}->{DateTimeMinute}').trigger('redraw.InputField').trigger('change');"
+                "\$('#NotificationCustomDateTimeMinute').val('$Test->{Data}->{DateTimeMinute}').trigger('redraw.InputField').trigger('change');"
             );
 
-            # click on Save
-            $Selenium->find_element( '#EditFormSubmit', 'css' )->VerifiedClick();
+            # Click on Save.
+            $Selenium->find_element( '#EditFormSubmit', 'css' )->click();
 
-            # wait for dialog to close and AJAX to finish
+            # Wait for dialog to close and AJAX to finish.
             $Selenium->WaitFor(
                 JavaScript =>
                     'return typeof($) === "function" && !$(".Dialog:visible").length && !$(".CalendarWidget.Loading").length'
@@ -812,14 +818,14 @@ $Selenium->RunTest(
                 Result     => 'HASH',
             );
 
-            # make sure there is an appointment
+            # Make sure there is an appointment.
             $Self->Is(
                 scalar @AppointmentList,
                 1,
                 "Appointment list verification - $Test->{Data}->{Description} ."
             );
 
-            # verify results
+            # Verify results.
             for my $ResultKey ( sort keys %{ $Test->{Result} } ) {
 
                 $Self->Is(
@@ -829,7 +835,7 @@ $Selenium->RunTest(
                 );
             }
 
-            # delete appointment
+            # Delete appointment.
             my $Delete = $AppointmentObject->AppointmentDelete(
                 AppointmentID => $AppointmentList[0]->{AppointmentID},
                 UserID        => $UserID,

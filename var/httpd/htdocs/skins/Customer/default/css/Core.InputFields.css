@@ -66,12 +66,16 @@ div.InputField_InputContainer {
 
 .ActionRow .InputField_Search,
 .ActionRow .InputField_Autocomplete {
-    min-width: 100px;
+    min-width: 200px;
     box-shadow: none;
 }
 
 .InputField_Search[disabled="disabled"] {
     color: #aaa;
+}
+
+.InputField_Search[readonly=readonly]:focus {
+    box-shadow: none;
 }
 
 a.InputField_Action {
@@ -206,13 +210,6 @@ div.InputField_ToolbarContainer ul li a {
 div.InputField_ToolbarContainer ul li a:hover {
     border-bottom: 2px solid #f92;
     margin-bottom: 0;
-}
-
-.InputField_Loading {
-    background-image: url('../img/loader.gif');
-    background-position: 99.5% center;
-    background-position: right 3px center;
-    background-repeat: no-repeat;
 }
 
 .InputField_Confirm,
@@ -468,10 +465,6 @@ div.InputField_ToolbarContainer ul li a:hover {
     background-color: transparent;
     background-image: none;
     background-position: 0 0;
-}
-
-.jstree-InputField > .jstree-container-ul .jstree-loading > .jstree-ocl {
-    background: url('../img/loader.gif') center center no-repeat;
 }
 
 .jstree-InputField.jstree-rtl .jstree-node {

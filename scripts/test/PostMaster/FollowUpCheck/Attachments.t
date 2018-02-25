@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -269,22 +269,52 @@ EOF
 for my $Test (@Tests) {
     my @Return;
     {
+        my $CommunicationLogObject = $Kernel::OM->Create(
+            'Kernel::System::CommunicationLog',
+            ObjectParams => {
+                Transport => 'Email',
+                Direction => 'Incoming',
+            },
+        );
+        $CommunicationLogObject->ObjectLogStart( ObjectLogType => 'Message' );
+
         my $PostMasterObject = Kernel::System::PostMaster->new(
-            Email => \$Test->{Email},
-            Debug => 2,
+            CommunicationLogObject => $CommunicationLogObject,
+            Email                  => \$Test->{Email},
+            Debug                  => 2,
         );
 
         @Return = $PostMasterObject->Run();
+
+        $CommunicationLogObject->ObjectLogStop(
+            ObjectLogType => 'Message',
+            Status        => 'Successful',
+        );
+        $CommunicationLogObject->CommunicationStop(
+            Status => 'Successful',
+        );
     }
     $Self->Is(
         $Return[0] || 0,
         $Test->{NewTicket},
         "$Test->{Name} - article created",
     );
-    $Self->True(
-        $Return[1] || 0,
-        "$Test->{Name} - article created",
-    );
+
+    if ( $Test->{NewTicket} == 1 ) {
+        $Self->IsNot(
+            $Return[1] || 0,
+            $Ticket{TicketID},
+            "$Test->{Name} - new ticket created",
+        );
+    }
+    else {
+        $Self->Is(
+            $Return[1] || 0,
+            $Ticket{TicketID},
+            "$Test->{Name} - follow-up created",
+        );
+
+    }
 }
 
 # cleanup is done by RestoreDatabase.

@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -24,6 +24,26 @@ Core.Form = (function (TargetNS) {
      */
     if (!Core.Debug.CheckDependency('Core.Form', 'Core.Data', 'Core.Data')) {
         return false;
+    }
+
+    /*
+     * Find checked rw inputs and disable their row, and add class 'Disabled'.
+     */
+    $('input[type="checkbox"][name="rw"]').each(function () {
+        if($(this).attr('checked') === 'checked'){
+            $(this).parent().siblings().children().prop('checked', true).prop('disabled', true);
+            $(this).addClass('Disabled');
+        }
+    });
+
+    /*
+     * Disable top row if all rw elements are checked.
+     */
+    if($('input[type="checkbox"][name="rw"]').length !== 0 &&
+        $('input[type="checkbox"][name="rw"]').not('#SelectAllrw').filter(':checked').length ===
+        $('input[type="checkbox"][name="rw"]').not('#SelectAllrw').length){
+        $('table th input:not([name="rw"]:visible)').prop('disabled', true);
+        $('#SelectAllrw').addClass('Disabled');
     }
 
     /**
@@ -125,22 +145,73 @@ Core.Form = (function (TargetNS) {
      */
     TargetNS.SelectAllCheckboxes = function ($ClickedBox, $SelectAllCheckbox) {
         var ElementName, SelectAllID, $Elements,
-            Status, CountCheckboxes, CountSelectedCheckboxes;
+            Status, CountCheckboxes, CountSelectedCheckboxes,RWMasterSwitch, RowInputs, HeadElements, CheckAll;
 
         if (isJQueryObject($ClickedBox, $SelectAllCheckbox)) {
             ElementName = $ClickedBox.attr('name');
             SelectAllID = $SelectAllCheckbox.attr('id');
-            $Elements = $('input[type="checkbox"][name=' + ElementName + ']').filter('[id!=' + SelectAllID + ']:visible');
+            $Elements = $('input[type="checkbox"][name="' + Core.App.EscapeSelector(ElementName) + '"]').filter('[id!="' + Core.App.EscapeSelector(SelectAllID) + '"]:visible');
             Status = $ClickedBox.prop('checked');
+            RWMasterSwitch = $('#SelectAllrw');
+            HeadElements = $('table th input:not([name="rw"]:visible)');
+            CheckAll = $('input[type="checkbox"]:visible');
+
+            if(ElementName === 'rw'){
+
+                if($ClickedBox.attr('id') === 'SelectAllrw'){
+
+                    if(RWMasterSwitch.hasClass('Disabled')){
+                        CheckAll.prop('disabled', false);
+                        RWMasterSwitch.removeClass('Disabled');
+                        $Elements.prop('checked', false).removeClass('Disabled');
+                        return;
+                    } else {
+                        CheckAll.prop('checked', true);
+                        $('input[type="checkbox"]:visible:not([name="rw"])').not(RWMasterSwitch).prop('disabled', true);
+                        $Elements.addClass('Disabled');
+                        RWMasterSwitch.addClass('Disabled');
+                        return;
+                    }
+
+                } else {
+                    RWMasterSwitch.removeClass('Disabled');
+                    HeadElements.prop('disabled', false);
+
+                    if($ClickedBox.hasClass('Disabled')){
+                        $ClickedBox.parent().siblings().children().prop('disabled', false);
+                        $ClickedBox.removeClass('Disabled');
+                    }else{
+                        RowInputs = $ClickedBox.parent().siblings().children('input');
+                        RowInputs.each(function(){
+                            if(!$(this)[0].checked){
+                                $(this).trigger('click');
+                            }
+                            $(this).prop('checked', true).prop('disabled', true);
+                        })
+                        $ClickedBox.addClass('Disabled');
+                    }
+                }
+            }
 
             if ($ClickedBox.attr('id') && $ClickedBox.attr('id') === SelectAllID) {
-                $Elements.prop('checked', Status).triggerHandler('click');
+
+                // If $Elements are disabled don't remove check.
+                if (!$Elements.filter(':enabled').length) {
+                    $ClickedBox.prop('checked', true);
+                    return;
+                }
+                $Elements.not(":disabled").prop('checked', Status).triggerHandler('click');
             }
             else {
                 CountCheckboxes = $Elements.length;
                 CountSelectedCheckboxes = $Elements.filter(':checked').length;
                 if (CountCheckboxes === CountSelectedCheckboxes) {
                     $SelectAllCheckbox.prop('checked', true);
+                    if(ElementName === 'rw'){
+                        CheckAll.prop('checked', true).not(RWMasterSwitch);
+                        RWMasterSwitch.addClass('Disabled');
+                        HeadElements.prop('disabled', true);
+                    }
                 }
                 else {
                     $SelectAllCheckbox.prop('checked', false);
@@ -162,14 +233,14 @@ Core.Form = (function (TargetNS) {
     TargetNS.InitSelectAllCheckboxes = function ($Checkboxes, $SelectAllCheckbox) {
         if (isJQueryObject($Checkboxes, $SelectAllCheckbox)) {
             // Mark SelectAll checkbox if all depending checkboxes are already marked on initialization
-            if ($Checkboxes.filter(':checked').length && ($Checkboxes.filter('[id!=' + $SelectAllCheckbox.attr('id') + ']').length === $Checkboxes.filter(':checked').length)) {
+            if ($Checkboxes.filter(':checked').length && ($Checkboxes.filter('[id!="' + Core.App.EscapeSelector($SelectAllCheckbox.attr('id')) + '"]').length === $Checkboxes.filter(':checked').length)) {
                 $SelectAllCheckbox.prop('checked', true);
             }
 
             // Adjust  checkbox selection, if filter is used/changed
             Core.App.Subscribe('Event.UI.Table.InitTableFilter.Change', function ($FilterInput, $Container) {
 
-                var CountCheckboxesVisible = $Checkboxes.filter('[id!=' + $SelectAllCheckbox.attr('id') + ']:visible');
+                var CountCheckboxesVisible = $Checkboxes.filter('[id!="' + Core.App.EscapeSelector($SelectAllCheckbox.attr('id')) + '"]:visible');
 
                 // Only continue, if the filter event is associated with the container we are working in
                 if (!$.contains($Container[0], $SelectAllCheckbox[0])) {
@@ -185,6 +256,19 @@ Core.Form = (function (TargetNS) {
             });
         }
     };
+
+    /**
+     * This makes all forms submittable by using Ctrl+Enter inside textareas.
+     * On macOS you can use Command+Enter instead.
+     * Does NOT work if Frontend::RichText is enabled!
+     */
+    $('body').on('keydown', 'textarea', function (Event) {
+        if ((Event.ctrlKey || Event.metaKey) && Event.keyCode == 13) {
+            // We need to click() instead of submit(), since click() has
+            // a few useful event handlers tied to it, like validation.
+            $(this.form).find(':submit').first().click();
+        }
+    });
 
     return TargetNS;
 }(Core.Form || {}));

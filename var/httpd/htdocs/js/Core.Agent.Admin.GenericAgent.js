@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -99,16 +99,23 @@ Core.Agent.Admin.GenericAgent = (function (TargetNS) {
             return false;
         });
 
-        $('#AddEvent').on('click', function (){
+        $('#TicketEvent').on('change', function (){
             if ($('#EventType').val() !== null) {
                 TargetNS.AddEvent($('#EventType').val());
-                return;
+            }
+        });
+
+        $('#ArticleEvent').on('change', function (){
+            if ($('#EventType').val() !== null) {
+                TargetNS.AddEvent($('#EventType').val());
             }
         });
 
         $('#EventType').on('change', function (){
             TargetNS.ToggleEventSelect($(this).val());
+            Core.UI.InputFields.Activate($('.EventTypeName'));
         });
+        TargetNS.ToggleEventSelect($('#EventType').val());
 
         Core.UI.Table.InitTableFilter($("#FilterGenericAgentJobs"), $("#GenericAgentJobs"));
 
@@ -125,8 +132,8 @@ Core.Agent.Admin.GenericAgent = (function (TargetNS) {
      *      Toggles the event selection.
      */
     TargetNS.ToggleEventSelect = function (SelectedEventType) {
-        $('.EventList').addClass('Hidden');
-        $('#' + SelectedEventType + 'Event').removeClass('Hidden');
+        $('.EventList').parent().hide();
+        $('#' + SelectedEventType + 'Event').parent().show();
     };
 
 

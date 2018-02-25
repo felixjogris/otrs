@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -65,6 +65,32 @@ $Self->Is(
     $ExitCode,
     0,
     "Existing parent ( service is added - $ChildServiceName )",
+);
+
+# Same again (should fail because already exists).
+$ExitCode = $CommandObject->Execute( '--name', $ChildServiceName, '--parent-name', $ParentServiceName );
+$Self->Is(
+    $ExitCode,
+    1,
+    "Existing parent ( service ${ParentServiceName}::$ChildServiceName already exists )",
+);
+
+# Parent and child service same name.
+$ExitCode = $CommandObject->Execute( '--name', $ParentServiceName, '--parent-name', $ParentServiceName );
+my $ServiceName = $ParentServiceName . '::' . $ParentServiceName;
+$Self->Is(
+    $ExitCode,
+    0,
+    "Parent and child service same name - $ServiceName - is created",
+);
+
+# Parent (two levels) and child same name.
+$ExitCode = $CommandObject->Execute( '--name', $ParentServiceName, '--parent-name', $ServiceName );
+$ServiceName = $ServiceName . '::' . $ParentServiceName;
+$Self->Is(
+    $ExitCode,
+    0,
+    "Parent (two levels) and child service same name - $ServiceName - is created",
 );
 
 # cleanup is done by RestoreDatabase

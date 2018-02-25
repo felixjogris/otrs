@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,7 +11,7 @@ package Kernel::System::Console::Command::Dev::UnitTest::Run;
 use strict;
 use warnings;
 
-use base qw(Kernel::System::Console::BaseCommand);
+use parent qw(Kernel::System::Console::BaseCommand);
 
 our @ObjectDependencies = (
     'Kernel::Config',
@@ -21,7 +21,7 @@ our @ObjectDependencies = (
 sub Configure {
     my ( $Self, %Param ) = @_;
 
-    $Self->Description('Executes unit tests.');
+    $Self->Description('Execute unit tests.');
     $Self->AddOption(
         Name => 'test',
         Description =>
@@ -46,7 +46,7 @@ sub Configure {
     );
     $Self->AddOption(
         Name        => 'submit-url',
-        Description => "Send unit test results to a server (url).",
+        Description => "Send unit test results to a server (URL).",
         Required    => 0,
         HasValue    => 1,
         ValueRegex  => qr/.*/smx,
@@ -88,6 +88,25 @@ sub Configure {
         ValueRegex => qr/.*/smx,
         Multiple   => 1
     );
+    $Self->AddOption(
+        Name => 'post-test-script',
+        Description =>
+            'Script(s) to execute after a test has been run. You can specify %File%, %TestOk% and %TestNotOk% as dynamic arguments.',
+        Required   => 0,
+        HasValue   => 1,
+        ValueRegex => qr/.*/smx,
+        Multiple   => 1
+    );
+    $Self->AddOption(
+        Name => 'pre-submit-script',
+        Description =>
+            'Script(s) to execute after all tests have been executed and the results are about to be sent to the server.',
+        Required   => 0,
+        HasValue   => 1,
+        ValueRegex => qr/.*/smx,
+        Multiple   => 1
+    );
+    return;
 }
 
 sub PreRun {
@@ -108,9 +127,12 @@ sub Run {
         },
     );
 
+    # Allow specification of a default directory to limit test execution.
+    my $DefaultDirectory = $Kernel::OM->Get('Kernel::Config')->Get('UnitTest::DefaultDirectory');
+
     my $FunctionResult = $Kernel::OM->Get('Kernel::System::UnitTest')->Run(
         Tests                  => $Self->GetOption('test'),
-        Directory              => $Self->GetOption('directory'),
+        Directory              => $Self->GetOption('directory') || $DefaultDirectory,
         JobID                  => $Self->GetOption('job-id'),
         Scenario               => $Self->GetOption('scenario'),
         SubmitURL              => $Self->GetOption('submit-url'),
@@ -118,6 +140,8 @@ sub Run {
         SubmitResultAsExitCode => $Self->GetOption('submit-result-as-exit-code') || '',
         Verbose                => $Self->GetOption('verbose'),
         AttachmentPath         => $Self->GetOption('attachment-path'),
+        PostTestScripts        => $Self->GetOption('post-test-script'),
+        PreSubmitScripts       => $Self->GetOption('pre-submit-script'),
     );
 
     if ($FunctionResult) {

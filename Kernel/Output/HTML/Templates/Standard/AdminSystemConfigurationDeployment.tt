@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -35,7 +35,7 @@
                         <a href="[% Env("Baselink") %]Action=AdminSystemConfiguration" class="GoBackButton CallForAction Fullsize Center"><span><i class="fa fa-caret-left"></i>[% Translate("Go back") | html %]</span></a>
                     </li>
                     <li>
-                        <a href="[% Env("Baselink") %]Action=AdminSystemConfigurationDeploymentHistory;Subaction=DeploymentHistory" class="CallForAction Fullsize Center OTRSBusinessRequired"><span><i class="fa fa-history"></i>[% Translate("View deployment history") | html %]</span></a>
+                        <a href="[% Env("Baselink") %]Action=AdminSystemConfigurationDeploymentHistory;Subaction=DeploymentHistory" class="CallForAction Fullsize Center OTRSBusinessRequired"><span><i class="fa fa-history"></i>[% Translate("History") | html %][% IF !Data.OTRSBusinessIsInstalled %] (OTRS Business Solution™)[% END %]</span></a>
                     </li>
                 </ul>
             </div>
@@ -46,9 +46,9 @@
                 <h2>[% Translate("Help") | html %]</h2>
             </div>
             <div class="Content">
-                <p class="FieldExplanation">This is an overview of all settings which will be part of the deployment if you start it now. You can compare each setting to its former state by clicking the icon on the top right.</p>
-                <p class="FieldExplanation">To exclude certain settings from a deployment, click the checkbox on the header bar of a setting.</p>
-                <p class="FieldExplanation">By default, you will only deploy settings which you changed on your own. If you'd like to deploy settings changed by other users, too, please click the link on top of the screen to enter the advanced deployment mode.</p>
+                <p class="FieldExplanation">[% Translate("This is an overview of all settings which will be part of the deployment if you start it now. You can compare each setting to its former state by clicking the icon on the top right.") | html %]</p>
+                <p class="FieldExplanation">[% Translate("To exclude certain settings from a deployment, click the checkbox on the header bar of a setting.") | html %]</p>
+                <p class="FieldExplanation">[% Translate("By default, you will only deploy settings which you changed on your own. If you'd like to deploy settings changed by other users, too, please click the link on top of the screen to enter the advanced deployment mode.") | html %]</p>
             </div>
         </div>
 

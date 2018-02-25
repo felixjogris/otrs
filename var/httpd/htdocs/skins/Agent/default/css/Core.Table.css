@@ -37,7 +37,8 @@
 .DataTable tbody tr:hover td,
 .TableSmall tbody tr:hover td,
 .DataTable tbody tr:active td.Clickable,
-.TableSmall tbody tr:active td.Clickable {
+.TableSmall tbody tr:active td.Clickable,
+.DataTable tr:nth-child(even):hover td.Highlight {
     background: #FCB24B;
 }
 
@@ -208,6 +209,14 @@ table tr.MasterAction {
 
 .DataTable tr:nth-child(even) td.Highlight {
     background-color: #E5E5E5;
+}
+
+.DataTable tr td.Highlight {
+    border-right: 1px solid #CCC;
+}
+
+.DataTable tr td.Highlight:last-child {
+    border-right: none;
 }
 
 .DataTable tr:hover td a {
@@ -411,8 +420,6 @@ thead .headerSortDown a {
 .TableSmall tbody tr.Active td,
 .DataTable tbody tr.Active td {
     color: #1A1A1A;
-    border-top: 1px solid #000;
-    border-bottom: 1px solid #000;
 }
 
 .DataTable tbody tr.Active td {
@@ -486,20 +493,9 @@ thead .headerSortDown a {
 }
 
 .TableSmall tbody td span.Direction.Incoming .fa-long-arrow-left,
-.DataTable tbody td span.Direction.Incoming .fa-long-arrow-left {
-    position: absolute;
-    left: auto;
-    right: 4px;
-    top: 4px;
-    color: #000;
-    font-size: 12px;
-}
-
+.DataTable tbody td span.Direction.Incoming .fa-long-arrow-left,
 .TableSmall tbody td span.Direction.Outgoing .fa-long-arrow-right,
 .DataTable tbody td span.Direction.Outgoing .fa-long-arrow-right {
-    position: absolute;
-    right: 2px;
-    top: 4px;
     color: #000;
     font-size: 12px;
 }
@@ -571,7 +567,8 @@ thead .headerSortDown a {
 }
 
 .TicketList .No {
-    width: 42px;
+    width: 30px;
+    text-align: center;
 }
 
 .TicketList .Attachments {
@@ -586,6 +583,13 @@ thead .headerSortDown a {
     background: -o-linear-gradient(top,  #f0f0f0 0%,#eaeaea 100%);
     background: -ms-linear-gradient(top,  #f0f0f0 0%,#eaeaea 100%);
     background: linear-gradient(to bottom,  #f0f0f0 0%,#eaeaea 100%);
+}
+
+#OverviewBody.Overview.TicketList {
+    overflow: visible;
+}
+#OverviewBody.Overview.TicketList table {
+    overflow: visible;
 }
 
 /**
@@ -638,6 +642,7 @@ thead .headerSortDown a {
     background-color: #eee;
     position: relative;
     z-index: 99;
+    text-align: center;
 }
 
 select.ColumnFilter {

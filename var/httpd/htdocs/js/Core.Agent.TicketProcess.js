@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -32,7 +32,7 @@ Core.Agent.TicketProcess = (function (TargetNS) {
         var ProcessID = Core.Config.Get('ProcessID');
 
         if (typeof ProcessID !== 'undefined') {
-            $('#ProcessEntityID').val(ProcessID).trigger('change');
+            $('#ProcessEntityID').val(ProcessID);
         }
 
         if (typeof Core.Config.Get('ParentReload') !== 'undefined' && parseInt(Core.Config.Get('ParentReload'), 10) === 1){
@@ -48,6 +48,8 @@ Core.Agent.TicketProcess = (function (TargetNS) {
                 Action: 'AgentTicketProcess',
                 Subaction: 'DisplayActivityDialogAJAX',
                 ProcessEntityID: $('#ProcessEntityID').val(),
+                LinkTicketID: $('#LinkTicketID').val(),
+                ArticleID: $('#ArticleID').val(),
                 FormID: $(this).closest('form').find('input:hidden[name=FormID]').val(),
                 IsAjaxRequest: 1,
                 IsMainWindow: 1
@@ -132,6 +134,9 @@ Core.Agent.TicketProcess = (function (TargetNS) {
                         // Register event for tree selection dialog
                         Core.UI.TreeSelection.InitTreeSelection();
 
+                        // initialize ajax dnd upload
+                        Core.UI.InitAjaxDnDUpload();
+
                         // move help triggers into field rows for dynamic fields
                         $('.Row > .FieldHelpContainer').each(function () {
                             if (!$(this).next('label').find('.Marker').length) {
@@ -160,6 +165,8 @@ Core.Agent.TicketProcess = (function (TargetNS) {
 
                         Core.TicketProcess.Init();
 
+                        // Publish event when first activity dialog has loaded, so other code can know to execute again.
+                        Core.App.Publish('TicketProcess.Init.FirstActivityDialog.Load', [$ElementToUpdate]);
                     }
                     else {
 
@@ -176,6 +183,11 @@ Core.Agent.TicketProcess = (function (TargetNS) {
             }
             return false;
         });
+
+        // If process is pre-selected trigger change event on ProcessEntityID field.
+        if ($('#ProcessEntityID').val() !== "") {
+            $('#ProcessEntityID').trigger('change');
+        }
     };
 
     Core.Init.RegisterNamespace(TargetNS, 'APP_MODULE');

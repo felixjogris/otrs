@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -70,7 +70,6 @@ sub Load {
     # insert your own config settings "here"               #
     # config settings taken from Kernel/Config/Defaults.pm #
     # ---------------------------------------------------- #
-    # $Self->{SessionUseCookie} = 0;
     # $Self->{CheckMXRecord} = 0;
 
     # ---------------------------------------------------- #
@@ -87,6 +86,8 @@ sub Load {
     #                                                      #
     # ---------------------------------------------------- #
     # ---------------------------------------------------- #
+
+    return 1;
 }
 
 # ---------------------------------------------------- #
@@ -94,7 +95,7 @@ sub Load {
 # ---------------------------------------------------- #
 
 use Kernel::Config::Defaults; # import Translatable()
-use base qw(Kernel::Config::Defaults);
+use parent qw(Kernel::Config::Defaults);
 
 # -----------------------------------------------------#
 

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -22,7 +22,8 @@ our @ObjectDependencies = (
     'Kernel::System::Encode',
     'Kernel::System::Log',
     'Kernel::System::Main',
-    'Kernel::System::Time',
+    'Kernel::System::DateTime',
+    'Kernel::System::Storable',
 );
 
 our $UseSlaveDB = 0;
@@ -71,13 +72,18 @@ sub new {
     # 0=off; 1=updates; 2=+selects; 3=+Connects;
     $Self->{Debug} = $Param{Debug} || 0;
 
-    # get config object
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
-    # get config data
-    $Self->{DSN}  = $Param{DatabaseDSN}  || $ConfigObject->Get('DatabaseDSN');
-    $Self->{USER} = $Param{DatabaseUser} || $ConfigObject->Get('DatabaseUser');
-    $Self->{PW}   = $Param{DatabasePw}   || $ConfigObject->Get('DatabasePw');
+    # Get config data in following order of significance:
+    #   1 - Parameters passed to constructor
+    #   2 - Test database configuration
+    #   3 - Main database configuration
+    $Self->{DSN} =
+        $Param{DatabaseDSN} || $ConfigObject->Get('TestDatabaseDSN') || $ConfigObject->Get('DatabaseDSN');
+    $Self->{USER} =
+        $Param{DatabaseUser} || $ConfigObject->Get('TestDatabaseUser') || $ConfigObject->Get('DatabaseUser');
+    $Self->{PW} =
+        $Param{DatabasePw} || $ConfigObject->Get('TestDatabasePw') || $ConfigObject->Get('DatabasePw');
 
     $Self->{IsSlaveDB} = $Param{IsSlaveDB};
 
@@ -431,15 +437,22 @@ sub Do {
     # - This avoids time inconsistencies of app and db server
     # - This avoids timestamp problems in Postgresql servers where
     #   the timestamp is sometimes 1 second off the perl timestamp.
-    my $Timestamp = $Kernel::OM->Get('Kernel::System::Time')->CurrentTimestamp();
+
     $Param{SQL} =~ s{
         (?<= \s | \( | , )  # lookahead
         current_timestamp   # replace current_timestamp by 'yyyy-mm-dd hh:mm:ss'
         (?=  \s | \) | , )  # lookbehind
     }
     {
-        '$Timestamp'
-    }xmsg;
+        # Only calculate timestamp if it is really needed (on first invocation or if the system time changed)
+        #   for performance reasons.
+        my $Epoch = time;
+        if (!$Self->{TimestampEpoch} || $Self->{TimestampEpoch} != $Epoch) {
+            $Self->{TimestampEpoch} = $Epoch;
+            $Self->{Timestamp}      = $Kernel::OM->Create('Kernel::System::DateTime')->ToString();
+        }
+        "'$Self->{Timestamp}'";
+    }exmsg;
 
     # debug
     if ( $Self->{Debug} > 0 ) {
@@ -935,8 +948,17 @@ sub SQLProcessor {
     my @SQL;
     if ( $Param{Database} && ref $Param{Database} eq 'ARRAY' ) {
 
+        # make a deep copy in order to prevent modyfing the input data
+        # see also Bug#12764 - Database function SQLProcessor() modifies given parameter data
+        # https://bugs.otrs.org/show_bug.cgi?id=12764
+        my @Database = @{
+            $Kernel::OM->Get('Kernel::System::Storable')->Clone(
+                Data => $Param{Database},
+                )
+        };
+
         my @Table;
-        for my $Tag ( @{ $Param{Database} } ) {
+        for my $Tag (@Database) {
 
             # create table
             if ( $Tag->{Tag} eq 'Table' || $Tag->{Tag} eq 'TableCreate' ) {
@@ -1133,7 +1155,7 @@ sub QueryCondition {
 
     # check needed stuff
     for (qw(Key Value)) {
-        if ( !$Param{$_} ) {
+        if ( !defined $Param{$_} ) {
             $Kernel::OM->Get('Kernel::System::Log')->Log(
                 Priority => 'error',
                 Message  => "Need $_!"
@@ -1538,6 +1560,161 @@ sub QueryCondition {
         );
     }
 
+    return $SQL;
+}
+
+=head2 QueryInCondition()
+
+Generate a SQL IN condition query based on the given table key and values.
+
+    my $SQL = $DBObject->QueryInCondition(
+        Key       => 'table.column',
+        Values    => [ 1, 2, 3, 4, 5, 6 ],
+        QuoteType => '(undef|Integer|Number)',
+        BindMode  => (0|1),
+        Negate    => (0|1),
+    );
+
+Returns the SQL string:
+
+    my $SQL = "ticket_id IN (1, 2, 3, 4, 5, 6)"
+
+Return a separated IN condition for more then C<MaxParamCountForInCondition> values:
+
+    my $SQL = "( ticket_id IN ( 1, 2, 3, 4, 5, 6 ... ) OR ticket_id IN ( ... ) )"
+
+Return the SQL String with ?-values and a array with values references in bind mode:
+
+    $BindModeResult = (
+        'SQL'    => 'ticket_id IN (?, ?, ?, ?, ?, ?)',
+        'Values' => [1, 2, 3, 4, 5, 6],
+    );
+
+    or
+
+    $BindModeResult = (
+        'SQL'    => '( ticket_id IN (?, ?, ?, ?, ?, ?) OR ticket_id IN ( ?, ... ) )',
+        'Values' => [1, 2, 3, 4, 5, 6, ... ],
+    );
+
+Returns the SQL string for a negated in condition:
+
+    my $SQL = "ticket_id NOT IN (1, 2, 3, 4, 5, 6)"
+
+    or
+
+    my $SQL = "( ticket_id NOT IN ( 1, 2, 3, 4, 5, 6 ... ) AND ticket_id NOT IN ( ... ) )"
+
+=cut
+
+sub QueryInCondition {
+    my ( $Self, %Param ) = @_;
+
+    if ( !$Param{Key} ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "Need Key!",
+        );
+        return;
+    }
+
+    if ( !IsArrayRefWithData( $Param{Values} ) ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "Need Values!",
+        );
+        return;
+    }
+
+    if ( $Param{QuoteType} && $Param{QuoteType} eq 'Like' ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "QuoteType 'Like' is not allowed for 'IN' conditions!",
+        );
+        return;
+    }
+
+    $Param{Negate}   //= 0;
+    $Param{BindMode} //= 0;
+
+    # Set the flag for string because of the other handling in the sql statement with strings.
+    my $IsString;
+    if ( !$Param{QuoteType} ) {
+        $IsString = 1;
+    }
+
+    my @Values = @{ $Param{Values} };
+
+    # Perform quoting depending on given quote type (only if not in bind mode)
+    if ( !$Param{BindMode} ) {
+
+        # Sort the values to cache the SQL query.
+        if ($IsString) {
+            @Values = sort { $a cmp $b } @Values;
+        }
+        else {
+            @Values = sort { $a <=> $b } @Values;
+        }
+
+        @Values = map { $Self->Quote( $_, $Param{QuoteType} ) } @Values;
+
+        # Something went wrong during the quoting, if the count is not equal.
+        return if scalar @Values != scalar @{ $Param{Values} };
+    }
+
+    # Set the correct operator and connector (only needed for splitted conditions).
+    my $Operator  = 'IN';
+    my $Connector = 'OR';
+
+    if ( $Param{Negate} ) {
+        $Operator  = 'NOT IN';
+        $Connector = 'AND';
+    }
+
+    my @SQLStrings;
+    my @BindValues;
+
+    # Split IN statement with more than the defined 'MaxParamCountForInCondition' elements in more
+    # then one statements combined with OR, because some databases e.g. oracle doesn't support more
+    # than 1000 elements for one IN statement.
+    while ( scalar @Values ) {
+
+        my @ValuesPart;
+        if ( $Self->GetDatabaseFunction('MaxParamCountForInCondition') ) {
+            @ValuesPart = splice @Values, 0, $Self->GetDatabaseFunction('MaxParamCountForInCondition');
+        }
+        else {
+            @ValuesPart = splice @Values;
+        }
+
+        my $ValueString;
+        if ( $Param{BindMode} ) {
+            $ValueString = join ', ', ('?') x scalar @ValuesPart;
+            push @BindValues, @ValuesPart;
+        }
+        elsif ($IsString) {
+            $ValueString = join ', ', map {"'$_'"} @ValuesPart;
+        }
+        else {
+            $ValueString = join ', ', @ValuesPart;
+        }
+
+        push @SQLStrings, "$Param{Key} $Operator ($ValueString)";
+    }
+
+    my $SQL = join " $Connector ", @SQLStrings;
+
+    if ( scalar @SQLStrings > 1 ) {
+        $SQL = '( ' . $SQL . ' )';
+    }
+
+    if ( $Param{BindMode} ) {
+        my $BindRefList = [ map { \$_ } @BindValues ];
+        return (
+            'SQL'    => $SQL,
+            'Values' => $BindRefList,
+        );
+    }
     return $SQL;
 }
 

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -90,7 +90,7 @@ sub PrepareRequest {
 
     # check request for system time
     if ( IsStringWithData( $Param{Data}->{GetSystemTime} ) && $Param{Data}->{GetSystemTime} ) {
-        $ReturnData{SystemTime} = $Kernel::OM->Get('Kernel::System::Time')->SystemTime();
+        $ReturnData{SystemTime} = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
     }
 
     return {
@@ -104,8 +104,8 @@ sub PrepareRequest {
 handle response data of the configured remote web service.
 
     my $Result = $InvokerObject->HandleResponse(
-        ResponseSuccess      => 1,              # success status of the remote webservice
-        ResponseErrorMessage => '',             # in case of webservice error
+        ResponseSuccess      => 1,              # success status of the remote web service
+        ResponseErrorMessage => '',             # in case of web service error
         Data => {                               # data payload
             ...
         },

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,13 +13,14 @@ use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
 
-use base qw(Kernel::System::DynamicField::Driver::BaseText);
+use parent qw(Kernel::System::DynamicField::Driver::BaseText);
 
 our @ObjectDependencies = (
     'Kernel::Config',
     'Kernel::System::DynamicFieldValue',
     'Kernel::System::Main',
     'Kernel::System::ProcessManagement::Activity',
+    'Kernel::System::ProcessManagement::DB::Activity',
     'Kernel::System::Ticket::ColumnFilter',
 );
 
@@ -108,15 +109,15 @@ sub DisplayValueRender {
     }
 
     # get raw Title and Value strings from field value
-    my $Value = defined $Param{Value} ? $Param{Value} : '';
-
     # convert the ActivityEntityID to the Activity name
-    my $Activity = $Kernel::OM->Get('Kernel::System::ProcessManagement::Activity')->ActivityGet(
-        ActivityEntityID => $Value,
-        Interface        => 'all',
-    );
-    $Value = $Activity->{Name} // $Value;
-
+    my $Activity;
+    if ( $Param{Value} ) {
+        $Activity = $Kernel::OM->Get('Kernel::System::ProcessManagement::Activity')->ActivityGet(
+            ActivityEntityID => $Param{Value},
+            Interface        => 'all',
+        );
+    }
+    my $Value = $Activity->{Name} // '';
     my $Title = $Value;
 
     # HTMLOutput transformations
@@ -177,6 +178,90 @@ sub ColumnFilterValuesGet {
     }
 
     return $ColumnFilterValues;
+}
+
+sub SearchFieldParameterBuild {
+    my ( $Self, %Param ) = @_;
+
+    # Get field value.
+    my $Value = $Self->SearchFieldValueGet(%Param);
+
+    # Set operator.
+    my $Operator = 'Equals';
+
+    # Search for a wild card in the value.
+    if ( $Value && ( $Value =~ m{\*} || $Value =~ m{\|\|} ) ) {
+
+        # Change operator.
+        $Operator = 'Like';
+    }
+
+    if ( $Param{DynamicFieldConfig}->{Name} eq 'ProcessManagementActivityID' && $Value ) {
+
+        my $ActivityEntityIDs = $Kernel::OM->Get('Kernel::System::ProcessManagement::DB::Activity')->ActivitySearch(
+            ActivityName => $Value,
+        );
+
+        if ( IsArrayRefWithData($ActivityEntityIDs) ) {
+
+            # Add search term from input field.
+            push @{$ActivityEntityIDs}, $Value;
+
+            # Return search parameter structure.
+            return {
+                Parameter => {
+                    $Operator => $ActivityEntityIDs,
+                },
+                Display => $Value,
+            };
+        }
+    }
+
+    # Return search parameter structure.
+    return {
+        Parameter => {
+            $Operator => $Value,
+        },
+        Display => $Value,
+    };
+}
+
+sub StatsSearchFieldParameterBuild {
+    my ( $Self, %Param ) = @_;
+
+    my $Value = $Param{Value};
+
+    # set operator
+    my $Operator = 'Equals';
+
+    # search for a wild card in the value
+    if ( $Value && $Value =~ m{\*} ) {
+
+        # change operator
+        $Operator = 'Like';
+    }
+
+    if ( $Param{DynamicFieldConfig}->{Name} eq 'ProcessManagementActivityID' && $Value ) {
+
+        my $ActivityEntityIDs = $Kernel::OM->Get('Kernel::System::ProcessManagement::DB::Activity')->ActivitySearch(
+            ActivityName => $Value,
+        );
+
+        if ( IsArrayRefWithData($ActivityEntityIDs) ) {
+
+            # Add search term from input field.
+            push @{$ActivityEntityIDs}, $Value;
+
+            # Return search parameter structure.
+            return {
+                $Operator => $ActivityEntityIDs,
+                }
+        }
+    }
+
+    return {
+        $Operator => $Value,
+    };
 }
 
 1;

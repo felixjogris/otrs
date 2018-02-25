@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,7 +11,7 @@ package Kernel::System::SupportDataCollector::Plugin::Database::mysql::MaxAllowe
 use strict;
 use warnings;
 
-use base qw(Kernel::System::SupportDataCollector::PluginBase);
+use parent qw(Kernel::System::SupportDataCollector::PluginBase);
 
 use Kernel::Language qw(Translatable);
 
@@ -38,14 +38,14 @@ sub Run {
 
         if (
             !$Row[1]
-            || $Row[1] < 1024 * 1024 * 20
+            || $Row[1] < 1024 * 1024 * 64
             )
         {
             $Self->AddResultProblem(
                 Label => Translatable('Maximum Query Size'),
                 Value => $Row[1] / 1024 / 1024 . ' MB',
                 Message =>
-                    Translatable("The setting 'max_allowed_packet' must be higher than 20 MB."),
+                    Translatable("The setting 'max_allowed_packet' must be higher than 64 MB."),
             );
         }
         else {

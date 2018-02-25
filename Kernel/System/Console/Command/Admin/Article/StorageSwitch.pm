@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,13 +11,13 @@ package Kernel::System::Console::Command::Admin::Article::StorageSwitch;
 use strict;
 use warnings;
 
-use base qw(Kernel::System::Console::BaseCommand);
+use parent qw(Kernel::System::Console::BaseCommand);
 
 our @ObjectDependencies = (
     'Kernel::Config',
+    'Kernel::System::DateTime',
     'Kernel::System::PID',
     'Kernel::System::Ticket',
-    'Kernel::System::Time',
 );
 
 sub Configure {
@@ -70,13 +70,13 @@ sub Configure {
     $Self->AdditionalHelp(<<"EOF");
 The <green>$Name</green> command migrates article data from one storage backend to another on the fly, for example from DB to FS:
 
- <green>otrs.console.pl $Self->{Name} --target ArticleStorageFS</green>
+ <green>otrs.Console.pl $Self->{Name} --target ArticleStorageFS</green>
 
 You can specify limits for the tickets migrated with <yellow>--tickets-closed-before-date</yellow> and <yellow>--tickets-closed-before-days</yellow>.
 
 To reduce load on the database for a running system, you can use the <yellow>--micro-sleep</yellow> parameter. The command will pause for the specified amount of microseconds after each ticket.
 
- <green>otrs.console.pl $Self->{Name} --target ArticleStorageFS --micro-sleep 1000</green>
+ <green>otrs.Console.pl $Self->{Name} --target ArticleStorageFS --micro-sleep 1000</green>
 EOF
     return;
 }
@@ -116,14 +116,12 @@ sub Run {
     elsif ( $Self->GetOption('tickets-closed-before-days') ) {
         my $Seconds = $Self->GetOption('tickets-closed-before-days') * 60 * 60 * 24;
 
-        my $TimeStamp = $Kernel::OM->Get('Kernel::System::Time')->SystemTime() - $Seconds;
-        $TimeStamp = $Kernel::OM->Get('Kernel::System::Time')->SystemTime2TimeStamp(
-            SystemTime => $TimeStamp,
-        );
+        my $OlderDTObject = $Kernel::OM->Create('Kernel::System::DateTime');
+        $OlderDTObject->Subtract( Seconds => $Seconds );
 
         %SearchParams = (
             StateType                => 'Closed',
-            TicketCloseTimeOlderDate => $TimeStamp,
+            TicketCloseTimeOlderDate => $OlderDTObject->ToString(),
         );
     }
 

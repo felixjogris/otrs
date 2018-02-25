@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU AFFERO General Public License as published by
@@ -61,9 +61,12 @@ my $UpdateControllerAndRequest = '/Webservice/GenericTicketConnectorREST/Ticket/
 # This is the base URL for Ticket Search
 my $SearchControllerAndRequest = '/Webservice/GenericTicketConnectorREST/Ticket';
 
+# This is the base URL for Ticket history with the TicketID = 1 (<REQUEST_VALUE>)
+my $HistoryControllerAndRequest = '/Webservice/GenericTicketConnectorREST/TicketHistory/1';
+
 # TicketGet Example
 # See the documentation of OTRSGenericInterfaceREST on how to setup
-#   - webservice
+#   - web service
 #   - transport
 #   - operations
 my $GetParams = {
@@ -98,7 +101,7 @@ else {
 
 # TicketSearch Example
 # See the documentation of OTRSGenericInterfaceREST on how to setup
-#   - webservice
+#   - web service
 #   - transport
 #   - operations
 my $SearchParams = {
@@ -135,7 +138,7 @@ else {
 
 # TicketCreate Example
 # See the documentation of OTRSGenericInterfaceREST on how to setup
-# - webservice
+# - web service
 # - transport
 # - operations
 my $CreateOrUpdateParams = {
@@ -191,7 +194,7 @@ else {
 
 # TicketUpdate Example
 # See the documentation of OTRSGenericInterfaceREST on how to setup
-#   - webservice
+#   - web service
 #   - transport
 #   - operations
 my $UpdateJSONParams = encode_json $CreateOrUpdateParams;
@@ -220,6 +223,43 @@ else {
     # Just to print out the returned Data structure:
     use Data::Dumper;
     print "Update response was:\n";
+    print Dumper($Data);
+
+}
+
+# TicketHistoryGet Example
+# See the documentation of OTRSGenericInterfaceREST on how to setup
+#   - web service
+#   - transport
+#   - operations
+my $HistoryParams = {
+    UserLogin => "some agent user login",       # to be filled with valid agent login
+    Password  => "some agent user password",    # to be filled with valid agent password
+    TicketID  => [1],
+};
+
+# Build SearchParams as part of the URL for REST-GET requests
+$QueryParams = $RestClient->buildQuery( %{$HistoryParams} );
+$HistoryControllerAndRequest .= $QueryParams;
+
+$RestClient->GET($HistoryControllerAndRequest);
+
+# If the host isn't reachable, wrong configured or couldn't serve the requested page:
+my $HistoryResponseCode = $RestClient->responseCode();
+
+if ( $HistoryResponseCode ne '200' ) {
+    print "History request failed, response code was: $HistoryResponseCode\n";
+}
+else {
+
+    # If the request was answered correctly, we receive a JSON string here.
+    my $ResponseContent = $RestClient->responseContent();
+
+    my $Data = decode_json $ResponseContent;
+
+    # Just to print out the returned Data structure:
+    use Data::Dumper;
+    print "History Response was:\n";
     print Dumper($Data);
 
 }

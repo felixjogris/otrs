@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -7,7 +7,7 @@
 # --
 
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
-    <h1>[% Translate("Performance Log") | html %]</h1>
+    <h1 class="InvisibleText">[% Translate("Performance Log") | html %]</h1>
 
     [% BreadcrumbPath = [
             {
@@ -55,16 +55,14 @@
             <div class="Content">
 [% RenderBlockStart("Enabled") %]
                 <form action="[% Env("CGIHandle") %]" method="post" enctype="multipart/form-data">
-                    <input type="hidden" name="Action" value="AdminSystemConfiguration"/>
-                    <input type="hidden" name="Subaction" value="Edit"/>
-                    <input type="hidden" name="SysConfigGroup" value="Framework"/>
-                    <input type="hidden" name="SysConfigSubGroup" value="Core::PerformanceLog"/>
+                    <input type="hidden" name="Action" value="AdminSystemConfigurationGroup"/>
+                    <input type="hidden" name="RootNavigation" value="Core::PerformanceLog"/>
                     <h3>[% Translate("This feature is enabled!") | html %]</h3>
                     <fieldset>
                         <p class="FieldExplanation">
                             [% Translate("Just use this feature if you want to log each request.") | html %]
                         </p>
-                        <p class="Error">
+                        <p class="FieldExplanation">
                             [% Translate("Activating this feature might affect your system performance!") | html %]
                         </p>
                         <div class="Field SpacingTop">
@@ -79,16 +77,14 @@
 [% RenderBlockEnd("Enabled") %]
 [% RenderBlockStart("Disabled") %]
                 <form action="[% Env("CGIHandle") %]" method="post" enctype="multipart/form-data">
-                    <input type="hidden" name="Action" value="AdminSystemConfiguration"/>
-                    <input type="hidden" name="Subaction" value="Edit"/>
-                    <input type="hidden" name="SysConfigGroup" value="Framework"/>
-                    <input type="hidden" name="SysConfigSubGroup" value="Core::PerformanceLog"/>
+                    <input type="hidden" name="Action" value="AdminSystemConfigurationGroup"/>
+                    <input type="hidden" name="RootNavigation" value="Core::PerformanceLog"/>
                     <h3>[% Translate("This feature is disabled!") | html %]</h3>
                     <fieldset>
                         <p class="FieldExplanation">
                             [% Translate("Just use this feature if you want to log each request.") | html %]
                         </p>
-                        <p class="Error">
+                        <p class="FieldExplanation">
                             [% Translate("Activating this feature might affect your system performance!") | html %]
                         </p>
                         <div class="Field SpacingTop">

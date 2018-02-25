@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -38,7 +38,7 @@ DynamicFields backend interface
 
 create a DynamicField backend object. Do not use it directly, instead use:
 
-    my $DynamicFieldObject = $Kernel::OM->Get('Kernel::System::DynamicField::Backend');
+    my $BackendObject = $Kernel::OM->Get('Kernel::System::DynamicField::Backend');
 
 =cut
 
@@ -890,7 +890,7 @@ sub ValueGet {
         );
         if ( !IsHashRefWithData($ObjectIDs) || !$ObjectIDs->{ $Param{ObjectName} } ) {
             $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'notice',
+                Priority => 'debug',
                 Message =>
                     "Unable to fetch object mapping for object name $Param{ObjectName} and type $Param{DynamicFieldConfig}->{ObjectType}!"
             );

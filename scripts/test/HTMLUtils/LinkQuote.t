@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -14,7 +14,6 @@ use vars (qw($Self));
 
 # get needed objects
 my $HTMLUtilsObject = $Kernel::OM->Get('Kernel::System::HTMLUtils');
-my $TimeObject      = $Kernel::OM->Get('Kernel::System::Time');
 
 # LinkQuote tests
 my @Tests = (
@@ -393,13 +392,13 @@ my $XML = $Kernel::OM->Get('Kernel::System::Main')->FileRead(
 );
 $XML = ${$XML};
 
-my $StartSeconds = $TimeObject->SystemTime();
+my $StartSeconds = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
 
 my $HTML = $HTMLUtilsObject->LinkQuote(
     String => $XML,
 );
 
-my $EndSeconds = $TimeObject->SystemTime();
+my $EndSeconds = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
 $Self->True(
     ( $EndSeconds - $StartSeconds ) < 10,
     'LinkQuote - Performance on large data set',

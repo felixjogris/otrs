@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -214,7 +214,7 @@ sub Run {
                 Data     => $LayoutObject->{LanguageObject}->Translate( "Please activate %s first!", "Service" ),
                 Link =>
                     $LayoutObject->{Baselink}
-                    . 'Action=AdminSystemConfiguration;Subaction=Edit;SysConfigGroup=Ticket;SysConfigSubGroup=Core::Ticket#Ticket::Service',
+                    . 'Action=AdminSystemConfiguration;Subaction=View;Setting=Ticket%3A%3AService;',
             );
         }
 
@@ -405,6 +405,7 @@ sub _MaskNew {
         SelectedID   => $Param{FirstResponseNotify} || $SLAData{FirstResponseNotify},
         Translation  => 0,
         PossibleNone => 1,
+        Class        => 'Modernize',
     );
     $SLAData{UpdateNotifyOptionStrg} = $LayoutObject->BuildSelection(
         Data         => \%NotifyLevelList,
@@ -412,6 +413,7 @@ sub _MaskNew {
         SelectedID   => $Param{UpdateNotify} || $SLAData{UpdateNotify},
         Translation  => 0,
         PossibleNone => 1,
+        Class        => 'Modernize',
     );
     $SLAData{SolutionNotifyOptionStrg} = $LayoutObject->BuildSelection(
         Data         => \%NotifyLevelList,
@@ -419,6 +421,7 @@ sub _MaskNew {
         SelectedID   => $Param{SolutionNotify} || $SLAData{SolutionNotify},
         Translation  => 0,
         PossibleNone => 1,
+        Class        => 'Modernize',
     );
 
     # get valid list

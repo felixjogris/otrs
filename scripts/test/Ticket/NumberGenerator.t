@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -16,7 +16,7 @@ use vars (qw($Self));
 my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
 # check all number generators
-for my $Backend (qw(AutoIncrement Date DateChecksum Random)) {
+for my $Backend (qw(AutoIncrement Date DateChecksum)) {
 
     # check subject formats
     for my $TicketSubjectFormat (qw(Left Right)) {
@@ -42,7 +42,7 @@ for my $Backend (qw(AutoIncrement Date DateChecksum Random)) {
                 Value => $TicketHook,
             );
 
-            for my $Count ( 1 .. 100 ) {
+            for my $Count ( 1 .. 5 ) {
 
                 # Produce a ticket number for a foreign system
                 $ConfigObject->Set(

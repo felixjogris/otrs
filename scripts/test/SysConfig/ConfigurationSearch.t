@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -42,7 +42,9 @@ return if !$DBObject->Prepare(
             sd.xml_filename IN (
                 'Calendar.xml' ,'CloudServices.xml', 'Daemon.xml', 'Framework.xml', 'GenericInterface.xml',
                 'ProcessManagement.xml', 'Ticket.xml'
-            )",
+            )
+            AND is_invisible != '1'
+        ",
 );
 
 my $OTRSFreeSettings;
@@ -135,12 +137,16 @@ for my $Test (@Tests) {
         );
         next TEST;
     }
-    $Self->IsDeeply(
-        \@Result,
-        $Test->{ExpectedResult},
-        "$Test->{Name} correct",
-    );
 
+    my %LookupResult = map { $_ => 1 } @Result;
+
+    for my $ExpectedItem ( @{ $Test->{ExpectedResult} } ) {
+
+        $Self->True(
+            $LookupResult{$ExpectedItem},
+            "$Test->{Name} correct - Found '$ExpectedItem'",
+        );
+    }
 }
 
 1;

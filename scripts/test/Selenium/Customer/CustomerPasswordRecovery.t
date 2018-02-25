@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,18 +12,53 @@ use utf8;
 
 use vars (qw($Self));
 
-# get selenium object
 my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 
 $Selenium->RunTest(
     sub {
 
-        # get needed objects
         my $Helper          = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
-        my $ConfigObject    = $Kernel::OM->Get('Kernel::Config');
         my $TestEmailObject = $Kernel::OM->Get('Kernel::System::Email::Test');
+        my $MailQueueObject = $Kernel::OM->Get('Kernel::System::MailQueue');
 
-        # use test email backend
+        my %MailQueueCurrentItems = map { $_->{ID} => $_ } @{ $MailQueueObject->List() || [] };
+
+        my $MailQueueClean = sub {
+            my $Items = $MailQueueObject->List();
+            MAIL_QUEUE_ITEM:
+            for my $Item ( @{$Items} ) {
+                next MAIL_QUEUE_ITEM if $MailQueueCurrentItems{ $Item->{ID} };
+                $MailQueueObject->Delete(
+                    ID => $Item->{ID},
+                );
+            }
+
+            return;
+        };
+
+        my $MailQueueProcess = sub {
+            my %Param = @_;
+
+            my $EmailObject = $Kernel::OM->Get('Kernel::System::Email');
+
+            # Process all items except the ones already present before the tests.
+            my $Items = $MailQueueObject->List();
+            MAIL_QUEUE_ITEM:
+            for my $Item ( @{$Items} ) {
+                next MAIL_QUEUE_ITEM if $MailQueueCurrentItems{ $Item->{ID} };
+                $MailQueueObject->Send( %{$Item} );
+            }
+
+            # Clean any garbage.
+            $MailQueueClean->();
+
+            return;
+        };
+
+        # Make sure we start with a clean mail queue.
+        $MailQueueClean->();
+
+        # Use test email backend.
         $Helper->ConfigSettingChange(
             Valid => 1,
             Key   => 'SendmailModule',
@@ -35,7 +70,7 @@ $Selenium->RunTest(
             Value => 0,
         );
 
-        # clean up test email
+        # Clean up test email.
         my $Success = $TestEmailObject->CleanUp();
         $Self->True(
             $Success,
@@ -48,32 +83,36 @@ $Selenium->RunTest(
             'Test email empty after initial cleanup',
         );
 
-        # create test customer user
+        # Create test customer user.
         my $TestCustomerUser = $Helper->TestCustomerUserCreate(
         ) || die "Did not get test customer user";
 
-        # get script alias
-        my $ScriptAlias = $ConfigObject->Get('ScriptAlias');
+        my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
 
-        # navigate to customer login screen
+        # Navigate to customer login screen.
         $Selenium->VerifiedGet("${ScriptAlias}customer.pl?");
         $Selenium->delete_all_cookies();
 
-        # click on 'Forgot password?'
+        # Click on 'Forgot password'.
         $Selenium->VerifiedGet("${ScriptAlias}customer.pl?");
-        $Selenium->find_element( "#ForgotPassword", 'css' )->VerifiedClick();
+        $Selenium->find_element( "#ForgotPassword", 'css' )->click();
 
-        # request new password
+        $Selenium->WaitFor( JavaScript => "return \$('#ResetUser').length" );
+
+        # Request new password.
         $Selenium->find_element( "#ResetUser",                   'css' )->send_keys($TestCustomerUser);
         $Selenium->find_element( "#Reset button[type='submit']", 'css' )->VerifiedClick();
 
-        # check for password recovery message
+        # Check for password recovery message.
         $Self->True(
             $Selenium->find_element( ".SuccessBox span", 'css' ),
             "Password recovery message found on screen for valid customer",
         );
 
-        # check if password recovery email is sent
+        # Process mail queue items.
+        $MailQueueProcess->();
+
+        # Check if password recovery email is sent.
         my $Emails = $TestEmailObject->EmailsGet();
         $Self->Is(
             scalar @{$Emails},
@@ -81,7 +120,7 @@ $Selenium->RunTest(
             "Password recovery email sent for valid customer user $TestCustomerUser",
         );
 
-        # clean up test email again
+        # Clean up test email again.
         $Success = $TestEmailObject->CleanUp();
         $Self->True(
             $Success,
@@ -94,7 +133,7 @@ $Selenium->RunTest(
             'Test email empty after second cleanup',
         );
 
-        # update test customer to invalid status
+        # Update test customer to invalid status.
         $Success = $Kernel::OM->Get('Kernel::System::CustomerUser')->CustomerUserUpdate(
             Source         => 'CustomerUser',
             ID             => $TestCustomerUser,
@@ -112,21 +151,26 @@ $Selenium->RunTest(
             "$TestCustomerUser set to invalid",
         );
 
-        # click on 'Forgot password?' again
-        $Selenium->find_element( "#ForgotPassword", 'css' )->VerifiedClick();
+        # Click on 'Forgot password' again.
+        $Selenium->find_element( "#ForgotPassword", 'css' )->click();
 
-        # request new password
+        $Selenium->WaitFor( JavaScript => "return \$('#ResetUser').length" );
+
+        # Request new password.
         $Selenium->find_element( "#ResetUser",                   'css' )->send_keys($TestCustomerUser);
         $Selenium->find_element( "#Reset button[type='submit']", 'css' )->VerifiedClick();
 
-        # check for password recovery message for invalid customer user, for security measures it
-        # should be visible
+        # Check for password recovery message for invalid customer user, for security measures it
+        # should be visible.
         $Self->True(
             $Selenium->find_element( ".SuccessBox span", 'css' ),
             "Password recovery message found on screen for invalid customer",
         );
 
-        # check if password recovery email is sent to invalid customer user
+        # Process mail queue items.
+        $MailQueueProcess->();
+
+        # Check if password recovery email is sent to invalid customer user.
         $Emails = $TestEmailObject->EmailsGet();
         $Self->Is(
             scalar @{$Emails},

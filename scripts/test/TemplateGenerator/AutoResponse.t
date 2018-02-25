@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -23,6 +23,11 @@ $Kernel::OM->ObjectParamAdd(
     },
 );
 my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+$ConfigObject->Set(
+    Key   => 'CheckEmailAddresses',
+    Value => '0',
+);
 
 # force rich text editor
 my $Success = $ConfigObject->Set(
@@ -119,8 +124,10 @@ $Self->True(
     "AutoResponseQueue() - assigned auto response - $AutoResonseName to queue - $QueueName",
 );
 
-my $TicketObject  = $Kernel::OM->Get('Kernel::System::Ticket');
-my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+my $TicketObject         = $Kernel::OM->Get('Kernel::System::Ticket');
+my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForChannel(
+    ChannelName => 'Email',
+);
 
 # create a new ticket
 my $TicketID = $TicketObject->TicketCreate(
@@ -190,13 +197,14 @@ for my $Test (@Tests) {
     );
 
     # create auto response article (bug#12097)
-    my $ArticleID = $ArticleObject->SendAutoResponse(
+    my $ArticleID = $ArticleBackendObject->SendAutoResponse(
         TicketID         => $TicketID,
         AutoResponseType => 'auto reply/new ticket',
         OrigHeader       => {
             From => $Test->{CustomerUser},
         },
-        UserID => 1,
+        IsVisibleForCustomer => 1,
+        UserID               => 1,
     );
     $Self->IsNot(
         $ArticleID,

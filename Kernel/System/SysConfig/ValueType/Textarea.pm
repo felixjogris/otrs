@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,7 +13,7 @@ use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
 
-use base qw(Kernel::System::SysConfig::BaseValueType);
+use parent qw(Kernel::System::SysConfig::BaseValueType);
 
 our @ObjectDependencies = (
     'Kernel::Language',
@@ -53,8 +53,7 @@ Extracts the effective value from a XML parsed setting.
 
     my $SettingHTML = $ValueTypeObject->SettingRender(
         Name           => 'SettingName',
-        DefaultID      =>  123,               # (required)
-        EffectiveValue => 'Textarea content',
+        EffectiveValue => 'Textarea content', # (optional)
         DefaultValue   => 'Textarea content', # (optional)
         Class          => 'My class'          # (optional)
         Item           => [                   # (optional) XML parsed item
@@ -80,14 +79,12 @@ Returns:
 sub SettingRender {
     my ( $Self, %Param ) = @_;
 
-    for my $Needed (qw(Name EffectiveValue)) {
-        if ( !defined $Param{$Needed} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "Need $Needed",
-            );
-            return;
-        }
+    if ( !defined $Param{Name} ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "Need Name",
+        );
+        return;
     }
 
     $Param{Class}        //= '';
@@ -100,7 +97,7 @@ sub SettingRender {
 
     my $EffectiveValue = $Param{EffectiveValue};
     if (
-        !$EffectiveValue
+        !defined $EffectiveValue
         && $Param{Item}
         && $Param{Item}->[0]->{Content}
         )
@@ -127,7 +124,7 @@ sub SettingRender {
 
     my $HTML = "<div class='SettingContent'>\n";
     $HTML
-        .= "<textarea rows='15' cols='100' class=\"$Param{Class}\" type=\"text\" name=\"$Name\"" .
+        .= "<textarea rows='15' cols='50' class=\"$Param{Class}\" type=\"text\" name=\"$Name\"" .
         " id=\"$Param{Name}$Param{IDSuffix}\"";
 
     if ( !$Param{RW} ) {
@@ -179,7 +176,7 @@ Generate HTML for new array/hash item.
 
 Returns:
 
-    $HTML = '<textarea rows=\'15\' cols=\'100\' class="" type="text" name="SettingName">
+    $HTML = '<textarea rows=\'15\' cols=\'50\' class="" type="text" name="SettingName">
         ...
         </textarea>';
 

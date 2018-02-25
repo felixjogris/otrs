@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -32,9 +32,10 @@ our @ObjectDependencies = (
     'Kernel::System::Stats',
     'Kernel::System::Ticket',
     'Kernel::System::Ticket::Article',
-    'Kernel::System::Time',
+    'Kernel::System::DateTime',
     'Kernel::System::Type',
     'Kernel::System::User',
+    'Kernel::Output::HTML::Layout',
 );
 
 sub new {
@@ -171,7 +172,6 @@ sub GetObjectAttributes {
             Values           => \%TicketAttributes,
             Sort             => 'IndividualKey',
             SortIndividual   => $Self->_SortedAttributes(),
-
         },
         {
             Name             => Translatable('Order by'),
@@ -314,7 +314,7 @@ sub GetObjectAttributes {
             UseAsXvalue      => 0,
             UseAsValueSeries => 0,
             UseAsRestriction => 1,
-            Element          => 'From',
+            Element          => 'MIMEBase_From',
             Block            => 'InputField',
         },
         {
@@ -322,7 +322,7 @@ sub GetObjectAttributes {
             UseAsXvalue      => 0,
             UseAsValueSeries => 0,
             UseAsRestriction => 1,
-            Element          => 'To',
+            Element          => 'MIMEBase_To',
             Block            => 'InputField',
         },
         {
@@ -330,7 +330,7 @@ sub GetObjectAttributes {
             UseAsXvalue      => 0,
             UseAsValueSeries => 0,
             UseAsRestriction => 1,
-            Element          => 'Cc',
+            Element          => 'MIMEBase_Cc',
             Block            => 'InputField',
         },
         {
@@ -338,7 +338,7 @@ sub GetObjectAttributes {
             UseAsXvalue      => 0,
             UseAsValueSeries => 0,
             UseAsRestriction => 1,
-            Element          => 'Subject',
+            Element          => 'MIMEBase_Subject',
             Block            => 'InputField',
         },
         {
@@ -346,7 +346,7 @@ sub GetObjectAttributes {
             UseAsXvalue      => 0,
             UseAsValueSeries => 0,
             UseAsRestriction => 1,
-            Element          => 'Body',
+            Element          => 'MIMEBase_Body',
             Block            => 'InputField',
         },
         {
@@ -599,7 +599,7 @@ sub GetObjectAttributes {
         }
 
         my %ObjectAttribute = (
-            Name             => Translatable('CustomerID'),
+            Name             => Translatable('Customer ID'),
             UseAsXvalue      => 0,
             UseAsValueSeries => 0,
             UseAsRestriction => 1,
@@ -650,7 +650,7 @@ sub GetObjectAttributes {
         }
 
         my %ObjectAttribute = (
-            Name             => Translatable('CustomerUserLogin'),
+            Name             => Translatable('Assigned to Customer User Login'),
             UseAsXvalue      => 0,
             UseAsValueSeries => 0,
             UseAsRestriction => 1,
@@ -663,9 +663,9 @@ sub GetObjectAttributes {
     }
     else {
 
-        my @CustomerIDAttributes = (
+        my @CustomerUserAttributes = (
             {
-                Name             => Translatable('CustomerUserLogin (complex search)'),
+                Name             => Translatable('Assigned to Customer User Login (complex search)'),
                 UseAsXvalue      => 0,
                 UseAsValueSeries => 0,
                 UseAsRestriction => 1,
@@ -673,17 +673,36 @@ sub GetObjectAttributes {
                 Block            => 'InputField',
             },
             {
-                Name             => Translatable('CustomerUserLogin (exact match)'),
-                UseAsXvalue      => 0,
-                UseAsValueSeries => 0,
-                UseAsRestriction => 1,
-                Element          => 'CustomerUserLoginRaw',
-                Block            => 'InputField',
+                Name               => Translatable('Assigned to Customer User Login (exact match)'),
+                UseAsXvalue        => 0,
+                UseAsValueSeries   => 0,
+                UseAsRestriction   => 1,
+                Element            => 'CustomerUserLoginRaw',
+                Block              => 'InputField',
+                CSSClass           => 'CustomerAutoCompleteSimple',
+                HTMLDataAttributes => {
+                    'customer-search-type' => 'CustomerUser',
+                },
             },
         );
 
-        push @ObjectAttributes, @CustomerIDAttributes;
+        push @ObjectAttributes, @CustomerUserAttributes;
     }
+
+    # Add always the field for the customer user login accessible tickets as auto complete field.
+    my %ObjectAttribute = (
+        Name               => Translatable('Accessible to Customer User Login (exact match)'),
+        UseAsXvalue        => 0,
+        UseAsValueSeries   => 0,
+        UseAsRestriction   => 1,
+        Element            => 'CustomerUserID',
+        Block              => 'InputField',
+        CSSClass           => 'CustomerAutoCompleteSimple',
+        HTMLDataAttributes => {
+            'customer-search-type' => 'CustomerUser',
+        },
+    );
+    push @ObjectAttributes, \%ObjectAttribute;
 
     if ( $ConfigObject->Get('Ticket::ArchiveSystem') ) {
 
@@ -979,14 +998,14 @@ sub GetStatTable {
     my %StateList = $StateObject->StateList( UserID => 1 );
 
     # get time object
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+    my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
 
     # UnixTimeStart & End:
     # The Time periode the historic search is executed
     # if no time periode has been selected we take
     # Unixtime 0 as StartTime and SystemTime as EndTime
     my $UnixTimeStart = 0;
-    my $UnixTimeEnd   = $TimeObject->SystemTime();
+    my $UnixTimeEnd   = $DateTimeObject->ToEpoch();
 
     if ( $Kernel::OM->Get('Kernel::Config')->Get('Ticket::ArchiveSystem') ) {
         $Param{Restrictions}->{SearchInArchive} ||= '';
@@ -1019,9 +1038,9 @@ sub GetStatTable {
             Limit                    => 100_000_000,
         );
         %OlderTicketsExclude = map { $_ => 1 } @OldToExclude;
-        $UnixTimeStart = $TimeObject->TimeStamp2SystemTime(
-            String => $Param{Restrictions}->{HistoricTimeRangeTimeNewerDate}
-        );
+
+        $DateTimeObject->Set( String => $Param{Restrictions}->{HistoricTimeRangeTimeNewerDate} );
+        $UnixTimeStart = $DateTimeObject->ToEpoch();
     }
     if ( !$Preview && $Param{Restrictions}->{HistoricTimeRangeTimeOlderDate} ) {
 
@@ -1038,9 +1057,9 @@ sub GetStatTable {
             Limit                     => 100_000_000,
         );
         %NewerTicketsExclude = map { $_ => 1 } @NewToExclude;
-        $UnixTimeEnd = $TimeObject->TimeStamp2SystemTime(
-            String => $Param{Restrictions}->{HistoricTimeRangeTimeOlderDate}
-        );
+
+        $DateTimeObject->Set( String => $Param{Restrictions}->{HistoricTimeRangeTimeOlderDate} );
+        $UnixTimeEnd = $DateTimeObject->ToEpoch();
     }
 
     # get the involved tickets
@@ -1093,14 +1112,18 @@ sub GetStatTable {
         )
     {
 
+        my $SQLTicketIDInCondition = $DBObject->QueryInCondition(
+            Key       => 'ticket_id',
+            Values    => \@TicketIDs,
+            QuoteType => 'Integer',
+            BindMode  => 0,
+        );
+
         # start building the SQL query from back to front
         # what's fixed is the history_type_id we have to search for
         # 1 is ticketcreate
         # 27 is state update
-        my $SQL = 'history_type_id IN (1,27) ORDER BY ticket_id ASC';
-
-        $SQL = 'ticket_id IN ('
-            . ( join ', ', @TicketIDs ) . ') AND ' . $SQL;
+        my $SQL = $SQLTicketIDInCondition . ' AND history_type_id IN (1,27) ORDER BY ticket_id ASC';
 
         my %StateIDs;
 
@@ -1180,12 +1203,10 @@ sub GetStatTable {
         # fetch the result
         while ( my @Row = $DBObject->FetchrowArray() ) {
             if ( $Row[0] ) {
-                my $TicketID    = $Row[0];
-                my $StateID     = $Row[1];
-                my $RowTime     = $Row[2];
-                my $RowTimeUnix = $TimeObject->TimeStamp2SystemTime(
-                    String => $Row[2],
-                );
+                my $TicketID = $Row[0];
+                my $StateID  = $Row[1];
+                $DateTimeObject->Set( String => $Row[2] );
+                my $RowTimeUnix = $DateTimeObject->ToEpoch();
 
                 # Entries before StartTime
                 if ( $RowTimeUnix < $UnixTimeStart ) {
@@ -1277,8 +1298,7 @@ sub GetStatTable {
 
         # Format Ticket 'Age' param into human readable format.
         $Ticket{Age} = $StatsObject->_HumanReadableAgeGet(
-            Age   => $Ticket{Age},
-            Space => ' ',
+            Age => $Ticket{Age},
         );
 
         # add the accounted time if needed
@@ -1288,8 +1308,10 @@ sub GetStatTable {
 
         # add the number of articles if needed
         if ( $TicketAttributes{NumberOfArticles} ) {
-            $Ticket{NumberOfArticles}
-                = $Kernel::OM->Get('Kernel::System::Ticket::Article')->ArticleCount( TicketID => $TicketID );
+            $Ticket{NumberOfArticles} = $Kernel::OM->Get('Kernel::System::Ticket::Article')->ArticleList(
+                TicketID => $TicketID,
+                UserID   => 1
+            );
         }
 
         $Ticket{Closed}                      ||= '';
@@ -1348,6 +1370,18 @@ sub GetStatTable {
 
                         # change raw value from ticket to a plain text value
                         $Ticket{$ParameterName} = $ValueStrg->{Value};
+
+                        if ( $DynamicFieldConfig->{Name} =~ /ProcessManagementProcessID|ProcessManagementActivityID/ ) {
+                            my $DisplayValue = $DynamicFieldBackendObject->DisplayValueRender(
+                                DynamicFieldConfig => $DynamicFieldConfig,
+                                Value              => $ValueStrg->{Value},
+                                ValueMaxChars      => 20,
+                                LayoutObject       => $Kernel::OM->Get('Kernel::Output::HTML::Layout'),
+                                HTMLOutput         => 0,
+                            );
+                            $Ticket{$ParameterName} = $DisplayValue->{Value};
+                        }
+
                     }
                 }
             }
@@ -1372,9 +1406,10 @@ sub GetStatTable {
                 $Ticket{$Attribute} .= " ($Param{TimeZone})";
             }
 
-            if ( $Attribute =~ /Owner|Responsible/ ) {
+            if ( $Attribute eq 'Owner' || $Attribute eq 'Responsible' ) {
                 $Ticket{$Attribute} = $Kernel::OM->Get('Kernel::System::User')->UserName(
-                    User => $Ticket{$Attribute},
+                    User          => $Ticket{$Attribute},
+                    NoOutOfOffice => 1,
                 );
             }
 
@@ -1597,7 +1632,7 @@ sub _TicketAttributes {
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
     my %TicketAttributes = (
-        Number       => 'Number',                             # only a counter for a better readability
+        Number       => Translatable('Number'),               # only a counter for a better readability
         TicketNumber => $ConfigObject->Get('Ticket::Hook'),
 
         #TicketID       => 'TicketID',
@@ -1612,11 +1647,10 @@ sub _TicketAttributes {
         Priority => 'Priority',
 
         #PriorityID     => 'PriorityID',
-        CustomerID => 'CustomerID',
+        CustomerID => 'Customer ID',
         Changed    => Translatable('Last Changed'),
         Created    => 'Created',
 
-        #CreateTimeUnix => 'CreateTimeUnix',
         CustomerUserID => 'Customer User',
         Lock           => 'Lock',
 
@@ -1632,43 +1666,43 @@ sub _TicketAttributes {
         Closed    => 'Close Time',
         FirstLock => 'First Lock',
 
-        EscalationResponseTime => Translatable('EscalationResponseTime'),
-        EscalationUpdateTime   => Translatable('EscalationUpdateTime'),
-        EscalationSolutionTime => Translatable('EscalationSolutionTime'),
+        EscalationResponseTime => 'EscalationResponseTime',
+        EscalationUpdateTime   => 'EscalationUpdateTime',
+        EscalationSolutionTime => 'EscalationSolutionTime',
 
-        EscalationDestinationIn => Translatable('EscalationDestinationIn'),
+        EscalationDestinationIn => 'EscalationDestinationIn',
 
-        # EscalationDestinationTime => 'EscalationDestinationTime'),
-        EscalationDestinationDate => Translatable('EscalationDestinationDate'),
-        EscalationTimeWorkingTime => Translatable('EscalationTimeWorkingTime'),
-        EscalationTime            => Translatable('EscalationTime'),
+        # EscalationDestinationTime => 'EscalationDestinationTime',
+        EscalationDestinationDate => 'EscalationDestinationDate',
+        EscalationTimeWorkingTime => 'EscalationTimeWorkingTime',
+        EscalationTime            => 'EscalationTime',
 
-        FirstResponse                    => Translatable('FirstResponse'),
-        FirstResponseInMin               => Translatable('FirstResponseInMin'),
-        FirstResponseDiffInMin           => Translatable('FirstResponseDiffInMin'),
-        FirstResponseTimeWorkingTime     => Translatable('FirstResponseTimeWorkingTime'),
-        FirstResponseTimeEscalation      => Translatable('FirstResponseTimeEscalation'),
-        FirstResponseTimeNotification    => Translatable('FirstResponseTimeNotification'),
-        FirstResponseTimeDestinationTime => Translatable('FirstResponseTimeDestinationTime'),
-        FirstResponseTimeDestinationDate => Translatable('FirstResponseTimeDestinationDate'),
-        FirstResponseTime                => Translatable('FirstResponseTime'),
+        FirstResponse                    => 'FirstResponse',
+        FirstResponseInMin               => 'FirstResponseInMin',
+        FirstResponseDiffInMin           => 'FirstResponseDiffInMin',
+        FirstResponseTimeWorkingTime     => 'FirstResponseTimeWorkingTime',
+        FirstResponseTimeEscalation      => 'FirstResponseTimeEscalation',
+        FirstResponseTimeNotification    => 'FirstResponseTimeNotification',
+        FirstResponseTimeDestinationTime => 'FirstResponseTimeDestinationTime',
+        FirstResponseTimeDestinationDate => 'FirstResponseTimeDestinationDate',
+        FirstResponseTime                => 'FirstResponseTime',
 
-        UpdateTimeEscalation      => Translatable('UpdateTimeEscalation'),
-        UpdateTimeNotification    => Translatable('UpdateTimeNotification'),
-        UpdateTimeDestinationTime => Translatable('UpdateTimeDestinationTime'),
-        UpdateTimeDestinationDate => Translatable('UpdateTimeDestinationDate'),
-        UpdateTimeWorkingTime     => Translatable('UpdateTimeWorkingTime'),
-        UpdateTime                => Translatable('UpdateTime'),
+        UpdateTimeEscalation      => 'UpdateTimeEscalation',
+        UpdateTimeNotification    => 'UpdateTimeNotification',
+        UpdateTimeDestinationTime => 'UpdateTimeDestinationTime',
+        UpdateTimeDestinationDate => 'UpdateTimeDestinationDate',
+        UpdateTimeWorkingTime     => 'UpdateTimeWorkingTime',
+        UpdateTime                => 'UpdateTime',
 
-        SolutionTime                => Translatable('SolutionTime'),
-        SolutionInMin               => Translatable('SolutionInMin'),
-        SolutionDiffInMin           => Translatable('SolutionDiffInMin'),
-        SolutionTimeWorkingTime     => Translatable('SolutionTimeWorkingTime'),
-        SolutionTimeEscalation      => Translatable('SolutionTimeEscalation'),
-        SolutionTimeNotification    => Translatable('SolutionTimeNotification'),
-        SolutionTimeDestinationTime => Translatable('SolutionTimeDestinationTime'),
-        SolutionTimeDestinationDate => Translatable('SolutionTimeDestinationDate'),
-        SolutionTimeWorkingTime     => Translatable('SolutionTimeWorkingTime'),
+        SolutionTime                => 'SolutionTime',
+        SolutionInMin               => 'SolutionInMin',
+        SolutionDiffInMin           => 'SolutionDiffInMin',
+        SolutionTimeWorkingTime     => 'SolutionTimeWorkingTime',
+        SolutionTimeEscalation      => 'SolutionTimeEscalation',
+        SolutionTimeNotification    => 'SolutionTimeNotification',
+        SolutionTimeDestinationTime => 'SolutionTimeDestinationTime',
+        SolutionTimeDestinationDate => 'SolutionTimeDestinationDate',
+        SolutionTimeWorkingTime     => 'SolutionTimeWorkingTime',
     );
 
     if ( $ConfigObject->Get('Ticket::Service') ) {

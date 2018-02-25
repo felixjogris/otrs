@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -7,6 +7,7 @@
 # --
 
 package Kernel::System::ObjectManager;
+
 ## nofilter(TidyAll::Plugin::OTRS::Perl::PodSpelling)
 ## nofilter(TidyAll::Plugin::OTRS::Perl::Require)
 ## nofilter(TidyAll::Plugin::OTRS::Perl::SyntaxCheck)
@@ -25,12 +26,12 @@ use Kernel::Output::HTML::Layout;
 use Kernel::System::Auth;
 use Kernel::System::AuthSession;
 use Kernel::System::Cache;
+use Kernel::System::DateTime;
 use Kernel::System::DB;
 use Kernel::System::Encode;
 use Kernel::System::Group;
 use Kernel::System::Log;
 use Kernel::System::Main;
-use Kernel::System::Time;
 use Kernel::System::Web::Request;
 use Kernel::System::User;
 
@@ -183,7 +184,7 @@ Retrieves a singleton object, and if it not yet exists, implicitly creates one f
 
 =cut
 
-sub Get {
+sub Get {    ## no critic
 
     # No param unpacking for increased performance
     if ( $_[1] && $_[0]->{Objects}->{ $_[1] } ) {
@@ -641,6 +642,8 @@ sub DESTROY {
     # Make sure $Kernel::OM is still available in the destructor
     local $Kernel::OM = $Self;
     $Self->ObjectsDiscard();
+
+    return;
 }
 
 =head1 TERMS AND CONDITIONS

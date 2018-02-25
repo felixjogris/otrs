@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,7 +13,7 @@ use warnings;
 
 use Kernel::System::VariableCheck qw(IsArrayRefWithData);
 
-use base qw(Kernel::System::Console::BaseCommand);
+use parent qw(Kernel::System::Console::BaseCommand);
 
 our @ObjectDependencies = (
     'Kernel::Config',
@@ -22,7 +22,7 @@ our @ObjectDependencies = (
 sub Configure {
     my ( $Self, %Param ) = @_;
 
-    $Self->Description('Shows a summary of one or all daemon modules.');
+    $Self->Description('Show a summary of one or all daemon modules.');
 
     $Self->AddArgument(
         Name        => 'daemon-name',
@@ -84,10 +84,10 @@ sub Run {
     my $DaemonName = $Self->GetArgument('daemon-name');
 
     if ($DaemonName) {
-        $Self->Print("<yellow>Gathering '$DaemonName' daemon summary...</yellow>\n\n");
+        $Self->Print("\n<yellow>Gathering summary for '$DaemonName'...</yellow>\n\n");
     }
     else {
-        $Self->Print("<yellow>Gathering all daemons summary...</yellow>\n\n");
+        $Self->Print("\n<yellow>Gathering summary for all daemons...</yellow>\n\n");
     }
 
     # get daemon modules from SysConfig
@@ -161,42 +161,57 @@ sub _FormatOutput {
     for my $Summary (@DaemonSummary) {
 
         # set header message
-        $Output .= '  ' . $Summary->{Header} . "\n";
+        $Output .= '  <yellow>' . $Summary->{Header} . "</yellow>\n";
 
         # if there is no data to display, show empty message
         if ( !IsArrayRefWithData( $Summary->{Data} ) ) {
-            $Output .= '    ' . ( $Summary->{NoDataMesssage} || '' ) . "\n\n";
+            $Output .= '    ' . ( $Summary->{NoDataMessage} || '' ) . "\n\n";
 
             next SUMMARY;
         }
 
-        # output the table header
-        $Output .= '    ';
+        my @TableHeader;
+        my @TableBody;
+
+        # generate table header
         for my $Column ( @{ $Summary->{Column} } ) {
-
-            my $Size  = $Column->{Size};
-            my $Value = $Column->{DisplayName};
-
-            $Output .= ' ' . sprintf '%-*s', $Size, uc $Value;
+            push @TableHeader, $Column->{DisplayName};
         }
-        $Output .= "\n";
 
-        # output the table body
+        # generate table body
         for my $DataRow ( @{ $Summary->{Data} } ) {
-            $Output .= '    ';
+
+            my @BodyRow;
+
             for my $Column ( @{ $Summary->{Column} } ) {
 
-                my $Size = $Column->{Size};
                 my $Value = $DataRow->{ $Column->{Name} } // '';
 
-                if ( length $Value >= $Size ) {
-                    $Value = substr( $Value, 0, $Size - 4 ) . '...';
+                if ( $Value eq 'Success' ) {
+                    $Value = "<green>$Value</green>";
                 }
-                $Output .= ' ' . sprintf '%-*s', $Size, $Value;
+                elsif ( $Value eq 'N/A' ) {
+                    $Value = "<yellow>$Value</yellow>";
+                }
+                elsif ( $Value eq 'Fail' ) {
+                    $Value = "<red>$Value</red>";
+                }
+
+                push @BodyRow, $Value;
             }
-            $Output .= "\n";
+
+            push @TableBody, \@BodyRow;
         }
-        $Output .= "\n";
+
+        my $TableOutput = $Self->TableOutput(
+            TableData => {
+                Header => \@TableHeader,
+                Body   => \@TableBody,
+            },
+            Indention => 2,
+        );
+
+        $Output .= "$TableOutput\n";
     }
 
     return $Output // '';
@@ -230,4 +245,5 @@ sub _DaemonSort {
     # otherwise do a numerical comparison with the framework daemons
     return $DefaultDaemons{$a} <=> $DefaultDaemons{$b};
 }
+
 1;

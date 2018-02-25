@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -69,7 +69,8 @@ Core.UI.RichTextEditor = (function (TargetNS) {
         var EditorID = '',
             Editor,
             UserLanguage,
-            UploadURL = '';
+            UploadURL = '',
+            EditorConfig;
 
         if (typeof CKEDITOR === 'undefined') {
             return false;
@@ -98,22 +99,38 @@ Core.UI.RichTextEditor = (function (TargetNS) {
                 window.clearTimeout(TimeOutRTEOnChange);
                 TimeOutRTEOnChange = window.setTimeout(function () {
                     Core.Form.Validate.ValidateElement($(Editor.editor.element.$));
+                    Core.App.Publish('Event.UI.RichTextEditor.ChangeValidationComplete', [Editor]);
                 }, 250);
-            });
-
-            // if spell checker is used on paste new content should spell check again
-            Editor.editor.on('paste', function() {
-                Core.Config.Set('TextIsSpellChecked', false);
-            });
-            // if spell checker is used on any key new content should spell check again
-            Editor.editor.on('key', function() {
-                Core.Config.Set('TextIsSpellChecked', false);
             });
 
             Core.App.Publish('Event.UI.RichTextEditor.InstanceCreated', [Editor]);
         });
 
         CKEDITOR.on('instanceReady', function (Editor) {
+
+            // specific config for CodeMirror instances (e.g. XSLT editor)
+            if (Core.Config.Get('RichText.Type') == 'CodeMirror') {
+
+                // The width of a tab character. Defaults to 4.
+                window[ 'codemirror_' + Editor.editor.id ].setOption("tabSize", 4);
+
+                // How many spaces a block (whatever that means in the edited language) should be indented. The default is 2.
+                window[ 'codemirror_' + Editor.editor.id ].setOption("indentUnit", 4);
+
+                // Whether to use the context-sensitive indentation that the mode provides (or just indent the same as the line before). Defaults to true.
+                window[ 'codemirror_' + Editor.editor.id ].setOption("tabMode", 'spaces');
+                window[ 'codemirror_' + Editor.editor.id ].setOption("smartIndent", true);
+
+                // convert tabs to spaces
+                window[ 'codemirror_' + Editor.editor.id ].setOption("extraKeys", {
+                    Tab: function(cm) {
+                        var spaces = Array(cm.getOption("indentUnit") + 1).join(" ");
+                        cm.replaceSelection(spaces);
+                    }
+                });
+
+            }
+
             Core.App.Publish('Event.UI.RichTextEditor.InstanceReady', [Editor]);
         });
 
@@ -128,15 +145,14 @@ Core.UI.RichTextEditor = (function (TargetNS) {
                     + 'Action='
                     + Core.Config.Get('RichText.PictureUploadAction', 'PictureUpload')
                     + '&FormID='
-                    + CheckFormID($EditorArea).val()
-                    + '&' + Core.Config.Get('SessionName')
-                    + '=' + Core.Config.Get('SessionID');
+                    + CheckFormID($EditorArea).val();
         }
 
+        // set default editor config, but allow custom config for other types for editors
         /*eslint-disable camelcase */
-        Editor = CKEDITOR.replace(EditorID,
-        {
+        EditorConfig = {
             customConfig: '', // avoid loading external config files
+            disableNativeSpellChecker: false,
             defaultLanguage: UserLanguage,
             language: UserLanguage,
             width: Core.Config.Get('RichText.Width', 620),
@@ -150,21 +166,52 @@ Core.UI.RichTextEditor = (function (TargetNS) {
             enterMode: CKEDITOR.ENTER_BR,
             shiftEnterMode: CKEDITOR.ENTER_BR,
             contentsLangDirection: Core.Config.Get('RichText.TextDir', 'ltr'),
-            disableNativeSpellChecker: false,
             toolbar: CheckFormID($EditorArea).length ? Core.Config.Get('RichText.Toolbar') : Core.Config.Get('RichText.ToolbarWithoutImage'),
             filebrowserBrowseUrl: '',
             filebrowserUploadUrl: UploadURL,
-            extraPlugins: Core.Config.Get('RichText.SpellChecker') ? 'aspell,splitquote,preventimagepaste' : 'splitquote,preventimagepaste',
+            extraPlugins: 'splitquote,preventimagepaste',
             entities: false,
             skin: 'moono-lisa'
-        });
+        };
         /*eslint-enable camelcase */
 
-        CKEDITOR.config.spellerPagesServerScript = Core.Config.Get('Baselink');
+        // specific config for CodeMirror instances (e.g. XSLT editor)
+        if (Core.Config.Get('RichText.Type') == 'CodeMirror') {
+            $.extend(EditorConfig, {
+
+                /*eslint-disable camelcase */
+                startupMode: 'source',
+                allowedContent: true,
+                extraPlugins: 'codemirror',
+                codemirror: {
+                    theme: 'default',
+                    lineNumbers: true,
+                    lineWrapping: true,
+                    matchBrackets: true,
+                    autoCloseTags: true,
+                    autoCloseBrackets: true,
+                    enableSearchTools: true,
+                    enableCodeFolding: true,
+                    enableCodeFormatting: true,
+                    autoFormatOnStart: false,
+                    autoFormatOnModeChange: false,
+                    autoFormatOnUncomment: false,
+                    mode: 'htmlmixed',
+                    showTrailingSpace: true,
+                    highlightMatches: true,
+                    styleActiveLine: true
+                }
+                /*eslint-disable camelcase */
+
+            });
+        }
+
+        Editor = CKEDITOR.replace(EditorID, EditorConfig);
 
         // check if creating CKEditor was successful
         // might be a problem on mobile devices e.g.
         if (typeof Editor !== 'undefined') {
+
             // Hack for updating the textarea with the RTE content (bug#5857)
             // Rename the original function to another name, than overwrite the original one
             CKEDITOR.instances[EditorID].updateElementOriginal = CKEDITOR.instances[EditorID].updateElement;
@@ -180,9 +227,12 @@ Core.UI.RichTextEditor = (function (TargetNS) {
                 //  like '<br/>' stored in the DB.
                 Data = this.element.getValue(); // get textarea content
 
-                // only if data contains no image tag,
+                // only if codemirror plugin is not used (for XSLT editor)
+                // or
+                // if data contains no image tag,
                 // this is important for inline images, we don't want to remove them!
-                if (!Data.match(/<img/)) {
+                if (typeof CKEDITOR.instances[EditorID].config.codemirror === 'undefined' && !Data.match(/<img/)) {
+
                     // remove tags and whitespace for checking
                     Data = Data.replace(/\s+|&nbsp;|<\/?\w+[^>]*\/?>/g, '');
                     if (!Data.length) {
@@ -190,6 +240,23 @@ Core.UI.RichTextEditor = (function (TargetNS) {
                     }
                 }
             };
+
+            // Redefine 'writeCssText' function because of unnecessary sorting of CSS properties (bug#12848).
+            /* eslint-disable no-unused-vars */
+            CKEDITOR.tools.writeCssText = function (styles, sort) {
+                var name,
+                stylesArr = [];
+
+                for (name in styles)
+                    stylesArr.push(name + ':' + styles[name]);
+
+                // This block sorts CSS properties which can make a wrong CSS style sent to CKEditor.
+                // if ( sort )
+                //     stylesArr.sort();
+
+                return stylesArr.join('; ');
+            };
+            /* eslint-enable no-unused-vars */
 
             // Needed for clientside validation of RTE
             CKEDITOR.instances[EditorID].on('blur', function () {
@@ -206,6 +273,7 @@ Core.UI.RichTextEditor = (function (TargetNS) {
                     window.setTimeout(function () {
                         CKEDITOR.instances[EditorID].updateElement();
                         Core.Form.Validate.ValidateElement($EditorArea);
+                        Core.App.Publish('Event.UI.RichTextEditor.FocusValidationComplete', [Editor]);
                     }, 0);
                 }
             });

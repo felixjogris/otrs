@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,7 +11,7 @@ package Kernel::System::Queue;
 use strict;
 use warnings;
 
-use base qw(Kernel::System::EventHandler);
+use parent qw(Kernel::System::EventHandler);
 
 our @ObjectDependencies = (
     'Kernel::Config',
@@ -816,7 +816,7 @@ sub QueueAdd {
     if ( $Self->NameExistsCheck( Name => $Param{Name} ) ) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => "A queue with name '$Param{Name}' already exists!"
+            Message  => "A queue with the name '$Param{Name}' already exists.",
         );
         return;
     }
@@ -1171,7 +1171,7 @@ sub QueueUpdate {
     {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => "A queue with name '$Param{Name}' already exists!"
+            Message  => "A queue with the name '$Param{Name}' already exists.",
         );
         return;
     }

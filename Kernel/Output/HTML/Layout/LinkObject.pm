@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -55,18 +55,20 @@ sub LinkObjectTableCreate {
     if ( $Param{ViewMode} =~ m{ \A Simple }xms ) {
 
         return $Self->LinkObjectTableCreateSimple(
-            LinkListWithData => $Param{LinkListWithData},
-            ViewMode         => $Param{ViewMode},
+            LinkListWithData               => $Param{LinkListWithData},
+            ViewMode                       => $Param{ViewMode},
+            AdditionalLinkListWithDataJSON => $Param{AdditionalLinkListWithDataJSON},
         );
     }
     else {
 
         return $Self->LinkObjectTableCreateComplex(
-            LinkListWithData => $Param{LinkListWithData},
-            ViewMode         => $Param{ViewMode},
-            AJAX             => $Param{AJAX},
-            SourceObject     => $Param{Object},
-            ObjectID         => $Param{Key},
+            LinkListWithData               => $Param{LinkListWithData},
+            ViewMode                       => $Param{ViewMode},
+            AJAX                           => $Param{AJAX},
+            SourceObject                   => $Param{Object},
+            ObjectID                       => $Param{Key},
+            AdditionalLinkListWithDataJSON => $Param{AdditionalLinkListWithDataJSON},
         );
     }
 }
@@ -87,6 +89,10 @@ sub LinkObjectTableCreateComplex {
 
     # get log object
     my $LogObject = $Kernel::OM->Get('Kernel::System::Log');
+
+    # create new instance of the layout object
+    my $LayoutObject  = Kernel::Output::HTML::Layout->new( %{$Self} );
+    my $LayoutObject2 = Kernel::Output::HTML::Layout->new( %{$Self} );
 
     # check needed stuff
     for my $Argument (qw(LinkListWithData ViewMode)) {
@@ -179,6 +185,9 @@ sub LinkObjectTableCreateComplex {
         }
     }
 
+    # get config option to show the link delete button
+    my $ShowDeleteButton = $Kernel::OM->Get('Kernel::Config')->Get('LinkObject::ShowDeleteButton');
+
     # add "linked as" column to the table
     for my $Block (@OutputData) {
 
@@ -190,7 +199,65 @@ sub LinkObjectTableCreateComplex {
         # add new column to the headline
         push @{ $Block->{Headline} }, $Column;
 
+        # permission check
+        my $SourcePermission;
+        if ( $Param{SourceObject} && $Param{ObjectID} && $ShowDeleteButton ) {
+
+            # get source permission
+            $SourcePermission = $Kernel::OM->Get('Kernel::System::LinkObject')->ObjectPermission(
+                Object => $Param{SourceObject},
+                Key    => $Param{ObjectID},
+                UserID => $Self->{UserID},
+            );
+
+            # we show the column headline if we got source permission
+            if ($SourcePermission) {
+                $Column = {
+                    Content  => $Kernel::OM->Get('Kernel::Language')->Translate('Delete'),
+                    CssClass => 'Center Last',
+                };
+
+                # add new column to the headline
+                push @{ $Block->{Headline} }, $Column;
+            }
+
+        }
         for my $Item ( @{ $Block->{ItemList} } ) {
+
+            my %LinkDeleteData;
+            my $TargetPermission;
+            if ( $Param{SourceObject} && $Param{ObjectID} && $Item->[0]->{Key} && $ShowDeleteButton ) {
+
+                for my $LinkType ( sort keys %{ $LinkList{ $Block->{Object} }->{ $Item->[0]->{Key} } } ) {
+
+                    # get target permission
+                    $TargetPermission = $Kernel::OM->Get('Kernel::System::LinkObject')->ObjectPermission(
+                        Object => $Block->{Object},
+                        Key    => $Item->[0]->{Key},
+                        UserID => $Self->{UserID},
+                    );
+
+                    # build the delete link only if we also got target permission
+                    if ($TargetPermission) {
+
+                        my %InstantLinkDeleteData;
+
+                        # depending on the link type direction source and target must be switched
+                        if ( $LinkList{ $Block->{Object} }->{ $Item->[0]->{Key} }->{$LinkType} eq 'Source' ) {
+                            $LinkDeleteData{SourceObject} = $Block->{Object};
+                            $LinkDeleteData{SourceKey}    = $Item->[0]->{Key};
+                            $LinkDeleteData{TargetIdentifier}
+                                = $Param{SourceObject} . '::' . $Param{ObjectID} . '::' . $LinkType;
+                        }
+                        else {
+                            $LinkDeleteData{SourceObject} = $Param{SourceObject};
+                            $LinkDeleteData{SourceKey}    = $Param{ObjectID};
+                            $LinkDeleteData{TargetIdentifier}
+                                = $Block->{Object} . '::' . $Item->[0]->{Key} . '::' . $LinkType;
+                        }
+                    }
+                }
+            }
 
             # search for key
             my ($ItemWithKey) = grep { $_->{Key} } @{$Item};
@@ -205,6 +272,30 @@ sub LinkObjectTableCreateComplex {
 
             # add check-box cell to item
             push @{$Item}, $CheckboxCell;
+
+            # check if delete icon should be shown
+            if ( $Param{SourceObject} && $Param{ObjectID} && $SourcePermission && $ShowDeleteButton ) {
+
+                if ($TargetPermission) {
+
+                    # build delete link
+                    push @{$Item}, {
+                        Type      => 'DeleteLinkIcon',
+                        CssClass  => 'Center Last',
+                        Translate => 1,
+                        %LinkDeleteData,
+                    };
+                }
+                else {
+                    # build no delete link, instead use empty values
+                    # to keep table formatting correct
+                    push @{$Item}, {
+                        Type     => 'Plain',
+                        CssClass => 'Center Last',
+                        Content  => '',
+                    };
+                }
+            }
         }
     }
 
@@ -215,9 +306,7 @@ sub LinkObjectTableCreateComplex {
         for my $Block (@OutputData) {
 
             # define the headline column
-            my $Column = {
-                Content => 'Select',
-            };
+            my $Column;
 
             # add new column to the headline
             unshift @{ $Block->{Headline} }, $Column;
@@ -273,9 +362,9 @@ sub LinkObjectTableCreateComplex {
         }
     }
 
-    # create new instance of the layout object
-    my $LayoutObject  = Kernel::Output::HTML::Layout->new( %{$Self} );
-    my $LayoutObject2 = Kernel::Output::HTML::Layout->new( %{$Self} );
+    # # create new instance of the layout object
+    # my $LayoutObject  = Kernel::Output::HTML::Layout->new( %{$Self} );
+    # my $LayoutObject2 = Kernel::Output::HTML::Layout->new( %{$Self} );
 
     # output the table complex block
     $LayoutObject->Block(
@@ -361,6 +450,14 @@ sub LinkObjectTableCreateComplex {
                 PrefKey => "LinkObject::ComplexTable-" . $Block->{Blockname},
             );
 
+            # Add translations for the allocation lists for regular columns.
+            for my $Column ( @{ $Block->{AllColumns} } ) {
+                $LayoutObject->AddJSData(
+                    Key   => 'Column' . $Column->{ColumnName},
+                    Value => $LayoutObject->{LanguageObject}->Translate( $Column->{ColumnTranslate} ),
+                );
+            }
+
             # send data to JS
             $LayoutObject->AddJSData(
                 Key   => 'LinkObjectPreferences',
@@ -379,13 +476,14 @@ sub LinkObjectTableCreateComplex {
                 Name => $Preferences{Name} . 'PreferencesItem' . $Preferences{Block},
                 Data => {
                     %Preferences,
-                    NameForm          => $Block->{Blockname},
-                    NamePref          => $Preferences{Name},
-                    Name              => $Block->{Blockname},
-                    SourceObject      => $Param{SourceObject},
-                    DestinationObject => $Block->{Blockname},
-                    OriginalAction    => $OriginalAction,
-                    SourceObjectData  => $SourceObjectData,
+                    NameForm                       => $Block->{Blockname},
+                    NamePref                       => $Preferences{Name},
+                    Name                           => $Block->{Blockname},
+                    SourceObject                   => $Param{SourceObject},
+                    DestinationObject              => $Block->{Blockname},
+                    OriginalAction                 => $OriginalAction,
+                    SourceObjectData               => $SourceObjectData,
+                    AdditionalLinkListWithDataJSON => $Param{AdditionalLinkListWithDataJSON},
                 },
             );
         }
@@ -508,7 +606,7 @@ sub LinkObjectTableCreateSimple {
     if ( !$Param{LinkListWithData} || ref $Param{LinkListWithData} ne 'HASH' ) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => 'Need LinkListWithData!'
+            Message  => 'Need LinkListWithData!',
         );
         return;
     }
@@ -816,42 +914,6 @@ sub ComplexTablePreferencesGet {
             @ColumnsEnabled
                 = sort { $Param{Config}->{Priority}->{$a} <=> $Param{Config}->{Priority}->{$b} } @ColumnsEnabled;
         }
-    }
-
-    # Translate all columns and send it to JS.
-    my $LayoutObject   = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
-    my $LanguageObject = $Kernel::OM->Get('Kernel::Language');
-
-    my @AllColumns = ( @ColumnsAvailable, @ColumnsEnabled );
-    for my $Column (@AllColumns) {
-        my $TranslatedWord = $Column;
-        if ( $Column eq 'EscalationTime' ) {
-            $TranslatedWord = Translatable('Service Time');
-        }
-        elsif ( $Column eq 'EscalationResponseTime' ) {
-            $TranslatedWord = Translatable('First Response Time');
-        }
-        elsif ( $Column eq 'EscalationSolutionTime' ) {
-            $TranslatedWord = Translatable('Solution Time');
-        }
-        elsif ( $Column eq 'EscalationUpdateTime' ) {
-            $TranslatedWord = Translatable('Update Time');
-        }
-        elsif ( $Column eq 'PendingTime' ) {
-            $TranslatedWord = Translatable('Pending till');
-        }
-        elsif ( $Column eq 'CustomerCompanyName' ) {
-            $TranslatedWord = Translatable('Customer Company Name');
-        }
-        elsif ( $Column eq 'CustomerUserID' ) {
-            $TranslatedWord = Translatable('Customer User ID');
-        }
-
-        # Send data to JS.
-        $LayoutObject->AddJSData(
-            Key   => 'Column' . $Column,
-            Value => $LanguageObject->Translate($TranslatedWord),
-        );
     }
 
     # check if the user has filter preferences for this widget

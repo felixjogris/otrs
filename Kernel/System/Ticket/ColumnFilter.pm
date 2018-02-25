@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -724,7 +724,7 @@ sub OwnerFilterValuesGet {
                 UserID => $UserID,
             );
             if (%User) {
-                $Data{$UserID} = $User{UserFirstname} . ' ' . $User{UserLastname};
+                $Data{$UserID} = $User{UserFullname};
             }
         }
     }
@@ -812,7 +812,7 @@ sub ResponsibleFilterValuesGet {
                 UserID => $UserID,
             );
             if (%User) {
-                $Data{$UserID} = $User{UserFirstname} . ' ' . $User{UserLastname};
+                $Data{$UserID} = $User{UserFullname};
             }
         }
     }
@@ -954,7 +954,7 @@ sub _GeneralDataGet {
         }
     }
 
-    my $FuctionName = $Param{FunctionName};
+    my $FunctionName = $Param{FunctionName};
 
     # set the backend file
     my $BackendModule = $Param{ModuleName};
@@ -988,7 +988,7 @@ sub _GeneralDataGet {
     }
 
     # get data list
-    my %DataList = $BackendObject->$FuctionName(
+    my %DataList = $BackendObject->$FunctionName(
         Valid  => 1,
         UserID => $Param{UserID},
     );

@@ -1,12 +1,12 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
 # did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 # --
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst AdminGenericInterfaceWebserviceHistory">
-    <h1>[% Translate("GenericInterface Web Service Management") | html %]</h1>
+    <h1 class="InvisibleText">[% Translate("GenericInterface Web Service Management") | html %]</h1>
 
     [% USE WebserviceLink = String('AdminGenericInterfaceWebservice;Subaction=Change;WebserviceID=') %]
 

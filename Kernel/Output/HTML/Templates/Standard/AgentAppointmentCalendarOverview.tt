@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -68,7 +68,10 @@
                                 </label>
                             </td>
                             <td class="Center">
-                                <span class="CopyToClipboard InlineButton" data-clipboard-text="[% Config("HttpType") %]://[% Config("FQDN") %]/[% Config("ScriptAlias") %]public.pl?Action=PublicCalendar;CalendarID=[% Data.CalendarID | uri %];User=[% Env("UserLogin") | uri %];Token=[% Data.AccessToken | uri %]" title="[% Translate("Copy public calendar URL") | html %]">
+# Use ampersands (&) instead of semicolons (;) for URL parameter delimiter. This has better compatibility with different
+#   calendar implementations and will prevent them from re-encoding the query string and essentially strip the data.
+#   Please see bug#12667 for more information.
+                                <span class="CopyToClipboard InlineButton" data-clipboard-text="[% Config("HttpType") %]://[% Config("FQDN") %]/[% Config("ScriptAlias") %]public.pl?Action=PublicCalendar&CalendarID=[% Data.CalendarID | uri %]&User=[% Env("UserLogin") | uri %]&Token=[% Data.AccessToken | uri %]" title="[% Translate("Copy public calendar URL") | html %]">
                                     <i class="fa fa-clipboard"></i>
                                     <span class="InvisibleText">[% Translate("Copy public calendar URL") | html %]</span>
                                 </span>
@@ -83,16 +86,6 @@
             </div>
         </div>
 [% RenderBlockEnd("CalendarWidget") %]
-        <div class="WidgetSimple">
-            <div class="Header">
-                <h2>[% Translate("Description") | html %]</h2>
-            </div>
-            <div class="Content">
-                <p class="FieldExplanation">
-                    [% Translate("This is an overview page for the Appointment Calendar.") | html %]
-                </p>
-            </div>
-        </div>
     </div>
 
     <div class="ContentColumn">

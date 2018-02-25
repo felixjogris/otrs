@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -95,6 +95,8 @@ sub _Add {
         %Param,
         %GetParam,
         Mode           => 'Add',
+        BreadcrumbText => $LayoutObject->{LanguageObject}
+            ->Translate( 'Add %s field', $LayoutObject->{LanguageObject}->Translate($FieldTypeName) ),
         ObjectTypeName => $ObjectTypeName,
         FieldTypeName  => $FieldTypeName,
     );
@@ -263,6 +265,8 @@ sub _Change {
         %Config,
         ID             => $FieldID,
         Mode           => 'Change',
+        BreadcrumbText => $LayoutObject->{LanguageObject}
+            ->Translate( 'Change %s field', $LayoutObject->{LanguageObject}->Translate($FieldTypeName) ),
         ObjectTypeName => $ObjectTypeName,
         FieldTypeName  => $FieldTypeName,
     );
@@ -607,7 +611,7 @@ sub _ShowScreen {
 
     my @IsDynamicFieldInSysConfig = $SysConfigObject->ConfigurationEntityCheck(
         EntityType => 'DynamicField',
-        EntityName => $DynamicFieldName,
+        EntityName => $DynamicFieldName // '',
     );
 
     if (@IsDynamicFieldInSysConfig) {
@@ -656,4 +660,5 @@ sub _ShowScreen {
 
     return $Output;
 }
+
 1;

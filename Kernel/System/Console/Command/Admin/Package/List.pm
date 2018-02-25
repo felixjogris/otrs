@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -9,9 +9,10 @@
 package Kernel::System::Console::Command::Admin::Package::List;
 
 use strict;
+use utf8;
 use warnings;
 
-use base qw(Kernel::System::Console::BaseCommand);
+use parent qw(Kernel::System::Console::BaseCommand);
 
 our @ObjectDependencies = (
     'Kernel::Config',
@@ -35,21 +36,21 @@ sub Configure {
 
     $Self->AddOption(
         Name        => 'show-deployment-info',
-        Description => 'Shows package and files status (package deployment info).',
+        Description => 'Show package and files status (package deployment info).',
         Required    => 0,
         HasValue    => 0,
     );
 
     $Self->AddOption(
         Name        => 'show-verification-info',
-        Description => 'Shows package OTRS Verify™ status.',
+        Description => 'Show package OTRS Verify™ status.',
         Required    => 0,
         HasValue    => 0,
     );
 
     $Self->AddOption(
         Name        => 'delete-verification-cache',
-        Description => 'Deletes OTRS Verify™ cache, so verification info is fetch again from OTRS group servers.',
+        Description => 'Delete OTRS Verify™ cache, so verification info is fetch again from OTRS group servers.',
         Required    => 0,
         HasValue    => 0,
     );

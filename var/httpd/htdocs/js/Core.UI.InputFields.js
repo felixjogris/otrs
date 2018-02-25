@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -342,14 +342,16 @@ Core.UI.InputFields = (function (TargetNS) {
      * @private
      * @name CloseOpenSelections
      * @memberof Core.UI.InputFields
+     * @param {jQueryObject} [$Context] - jQuery object for context (optional)
      * @description
      *      Triggers blur on all modern input fields in order to close them.
      */
-    function CloseOpenSelections() {
-        // step through all select fields on the page.
+    function CloseOpenSelections($Context) {
+
+        // Step through all select fields on the page or only those in supplied context.
         // If the dropdown of the field is opened, close it (by calling blur event)
         // TODO: nicer way to find opened select elements
-        $('select.Modernize').each(function () {
+        $('select.Modernize', $Context).each(function () {
             var Selector = Core.App.EscapeSelector($(this).data('modernized'));
             if (!Selector) {
                 return;
@@ -371,6 +373,7 @@ Core.UI.InputFields = (function (TargetNS) {
     function ShowSelectionBoxes($SelectObj, $InputContainerObj) {
         var Selection,
             SelectionLength,
+            $SelectionFilterObj,
             i = 0,
             OffsetLeft = 0,
             OffsetRight = Config.SelectionBoxOffsetRight,
@@ -389,6 +392,7 @@ Core.UI.InputFields = (function (TargetNS) {
 
         // Remove any existing boxes in supplied container
         $InputContainerObj.find('.InputField_Selection').remove();
+        $InputContainerObj.find('.InputField_SelectionFilter').remove();
         $InputContainerObj.find('.InputField_More').remove();
 
         // Check for empty values (allow field clearing).
@@ -409,7 +413,7 @@ Core.UI.InputFields = (function (TargetNS) {
         if ($SelectObj.val()) {
 
             // Maximum available width for boxes
-            MaxWidth = $SearchObj.width();
+            MaxWidth = $SearchObj.width() - Config.SelectionBoxOffsetRight - Config.InputFieldPadding;
 
             // Check which kind of selection we are dealing with
             if ($.isArray($SelectObj.val())) {
@@ -490,6 +494,9 @@ Core.UI.InputFields = (function (TargetNS) {
                                         $SelectObj.trigger('change');
                                         ValidateFormElement($SelectObj);
                                     }, 0);
+                                    if (Multiple) {
+                                        RefreshSelectionFilter($SelectObj, null);
+                                    }
                                     return false;
                                 })
                         );
@@ -569,8 +576,44 @@ Core.UI.InputFields = (function (TargetNS) {
                 i++;
             });
 
-        }
+            if (Multiple && MoreBox) {
+                $SelectionFilterObj = $('<a />').appendTo($InputContainerObj);
+                $SelectionFilterObj.addClass('InputField_Action InputField_SelectionFilter')
+                    .attr('href', '#')
+                    .attr('title', Core.Language.Translate('Show current selection'))
+                    .css(($('body').hasClass('RTL') ? 'left' : 'right'), Config.SelectionBoxOffsetRight + 'px')
+                    .append($('<i />').addClass('fa fa-eye'))
+                    .attr('role', 'button')
+                    .attr('tabindex', '-1')
+                    .attr('aria-label', Core.Language.Translate('Current selection'))
+                    .off('click.InputField').on('click.InputField', function () {
+                        if ($SelectObj.data('filters') !== '' && $SelectObj.data('filters') !== undefined) {
 
+                            // See if we already have a selection filter
+                            $.each($SelectObj.data('filters').Filters, function(Index, Filter) {
+                                if (Filter.Name === Core.Language.Translate('Current selection')) {
+                                    $SelectObj.data('filtered', Index + 1);
+                                    $SelectObj.data('expand-filters', true);
+                                    $SelectObj.data('selection-filter', true);
+                                    ApplyFilter($SelectObj, null);
+
+                                    // Refresh the field and get focus
+                                    $SearchObj = $('#' + Core.App.EscapeSelector($SelectObj.data('modernized')));
+                                    $SearchObj.width($SelectObj.outerWidth())
+                                        .trigger('blur');
+                                    CheckAvailability($SelectObj, $SearchObj, $InputContainerObj);
+                                    setTimeout(function () {
+                                        $SearchObj.focus();
+                                    }, 0);
+                                    return true;
+                                }
+                            });
+                        }
+
+                        return false;
+                });
+            }
+        }
     }
 
     /**
@@ -783,6 +826,7 @@ Core.UI.InputFields = (function (TargetNS) {
 
             // Restore original data
             $SelectObj.append($SelectObj.data('original'));
+            $SelectObj.data('expand-filters', false);
         }
 
         // Restore selection
@@ -834,7 +878,6 @@ Core.UI.InputFields = (function (TargetNS) {
             case 'Filter':
                 $FilterObj.off('click.InputField').on('click.InputField', function (Event) {
 
-
                     // Allow selection of only one filter
                     $FilterObj.siblings('input').each(function (Index, Filter) {
                         if ($(Filter).attr('id') !== $FilterObj.attr('id')) {
@@ -868,12 +911,8 @@ Core.UI.InputFields = (function (TargetNS) {
                     setTimeout(function () {
                         $SearchObj.focus();
                     }, 0);
-                })
-
-                // Prevent clicks on action to steal focus from search field
-                .on('mousedown.InputField', function () {
-                    return false;
                 });
+
                 break;
         }
     }
@@ -926,6 +965,135 @@ Core.UI.InputFields = (function (TargetNS) {
             $TabbableElements.eq($TabbableElements.index($Element) - 1)
                 .focus();
         }, 0);
+    }
+
+    /**
+     * @private
+     * @name BuildSelectionFilter
+     * @memberof Core.UI.InputFields
+     * @param {jQueryObject} $SelectObj - Original select field
+     * @description
+     *      Build current selection filter.
+     */
+    function BuildSelectionFilter($SelectObj) {
+        var Filters = new Object(),
+            SelectionFilterIndex,
+            SelectionFilter,
+            Elements;
+
+        if ($SelectObj.data('filters') !== '' && $SelectObj.data('filters') !== undefined) {
+            Filters.Filters = $SelectObj.data('filters').Filters;
+
+            // See if we already have a selection filter
+            $.each(Filters.Filters, function(Index, Filter) {
+                if (Filter.Name === Core.Language.Translate('Current selection')) {
+                    SelectionFilterIndex = Index;
+                    SelectionFilter = Filter;
+                    Filters.Filters.splice(SelectionFilterIndex, 1);
+                    SelectionFilter.Data = new Array();
+                    return true;
+                }
+            });
+        } else {
+            Filters.Filters = new Array();
+        }
+
+        if (Filters.Filters.length === 0 || !SelectionFilterIndex) {
+            SelectionFilter = new Object();
+            SelectionFilter.Name = Core.Language.Translate('Current selection');
+            SelectionFilter.Data = new Array();
+        }
+
+        // Generate JSON structure based on select field options
+        // Sort the list by default if tree view is active
+        Elements = Core.UI.TreeSelection.BuildElementsArray($SelectObj, $SelectObj.data('tree', true));
+
+        SelectionFilter.Data = GetSelectionFilterData(Elements);
+
+        function GetSelectionFilterData(Elements, Data) {
+            if (Data === undefined) {
+                Data = new Array();
+            }
+            $.each(Elements, function (Index, Element) {
+                if (typeof Element === 'object') {
+                    if (Element.state) {
+                        if (Element.state.selected) {
+                            Data.push({
+                                'Key': Element.ID,
+                                'Value': Element.Name
+                            });
+                        }
+                        if (Element.children.length > 0) {
+                            return GetSelectionFilterData(Element.children, Data);
+                        }
+                    }
+                }
+            });
+            return Data;
+        }
+
+        if (SelectionFilter.Data.length == 0) {
+            SelectionFilter.Data.push({
+                'Key': '',
+                'Value': ''
+            });
+        }
+
+        Filters.Filters.push(SelectionFilter);
+        $SelectObj.data('filters', Filters);
+    }
+
+    /**
+     * @private
+     * @name RefreshSelectionFilter
+     * @memberof Core.UI.InputFields
+     * @param {jQueryObject} $SelectObj - Original select field
+     * @param {jQueryObject} $ToolbarContainerObj - Container for toolbar actions
+     * @description
+     *      Refresh current selection filter.
+     */
+    function RefreshSelectionFilter($SelectObj, $ToolbarContainerObj) {
+        var Filters = new Object(),
+            SelectionFilterIndex,
+            $FilterObj;
+
+        // Rebuild the selection filter
+        BuildSelectionFilter($SelectObj);
+
+        // Get index
+        if ($SelectObj.data('filters') !== '' && $SelectObj.data('filters') !== undefined) {
+            Filters.Filters = $SelectObj.data('filters').Filters;
+            $.each(Filters.Filters, function(Index, Filter) {
+                if (Filter.Name === Core.Language.Translate('Current selection')) {
+                    SelectionFilterIndex = Index;
+                    if ($ToolbarContainerObj) {
+                        $FilterObj = $ToolbarContainerObj.find('input[type="checkbox"]').filter(function () {
+                            return $(this).data('index') === SelectionFilterIndex + 1;
+                        });
+                    }
+                    return true;
+                }
+            });
+        }
+
+        // Check if the selection is empty.
+        if ($SelectObj.val() !== null && $SelectObj.val().length === 0) {
+            $SelectObj.data('filtered', '0');
+            $SelectObj.data('selection', []);
+            ApplyFilter($SelectObj, $ToolbarContainerObj);
+            if ($FilterObj) {
+                $FilterObj.attr('disabled', true)
+                    .attr('checked', false);
+            }
+        } else {
+            if (SelectionFilterIndex === parseInt($SelectObj.data('filtered'), 10) - 1) {
+                ApplyFilter($SelectObj, $ToolbarContainerObj);
+            }
+            if ($FilterObj) {
+                $FilterObj.attr('disabled', false);
+            }
+        }
+
     }
 
     /**
@@ -1119,6 +1287,12 @@ Core.UI.InputFields = (function (TargetNS) {
                     $SearchObj.addClass(Config.ServerErrorClass);
                 }
 
+                // Add selection filter
+                if (Multiple) {
+                    Filterable = true;
+                    BuildSelectionFilter($SelectObj);
+                }
+
                 if (Filterable) {
 
                     // Preserve original data
@@ -1181,6 +1355,13 @@ Core.UI.InputFields = (function (TargetNS) {
                     CloseOpenSelections();
                 });
 
+                // Handle hiding of inline actions in ticket overviews.
+                Core.App.Subscribe('Event.Agent.TicketOverview.InlineActions.Hidden', function ($InlineActionsContainer) {
+                    setTimeout(function () {
+                        CloseOpenSelections($InlineActionsContainer);
+                    }, 0);
+                });
+
                 // Register handler for on focus event
                 $SearchObj.off('focus.InputField')
                     .on('focus.InputField', function () {
@@ -1222,7 +1403,7 @@ Core.UI.InputFields = (function (TargetNS) {
                                 left: $InputContainerObj.offset().left
                             });
 
-                        // decide wether list should be positioned on top or at the bottom of the input field
+                        // decide whether list should be positioned on top or at the bottom of the input field
                         if (AvailableHeightTop > AvailableHeightBottom) {
                             AvailableMaxHeight = AvailableHeightTop;
 
@@ -1311,6 +1492,7 @@ Core.UI.InputFields = (function (TargetNS) {
 
                     // Remove any existing selection boxes in container
                     $InputContainerObj.find('.InputField_Selection').remove();
+                    $InputContainerObj.find('.InputField_SelectionFilter').remove();
                     $InputContainerObj.find('.InputField_More').remove();
 
                     // Create list container
@@ -1526,6 +1708,9 @@ Core.UI.InputFields = (function (TargetNS) {
                             $TreeObj.blur();
                         }
 
+                        // Refresh selection filter
+                        RefreshSelectionFilter($SelectObj, $ToolbarContainerObj);
+
                         // Delay triggering change event on original field (see bug#11419)
                         $SelectObj.data('changed', true);
 
@@ -1553,7 +1738,7 @@ Core.UI.InputFields = (function (TargetNS) {
                             HoveredValue = $HoveredNode.closest('li').data('id');
 
                             // at this point, the jstree events have already selected the new value and processed the event
-                            // but we need to know, if the hovered element was selected before or not to decide wether to
+                            // but we need to know, if the hovered element was selected before or not to decide whether to
                             // select or deselect it now. therefor we check for OldSelectedID
                             if (!Multiple) {
                                 if (HoveredValue !== OldSelectedID) {
@@ -1603,6 +1788,9 @@ Core.UI.InputFields = (function (TargetNS) {
 
                             OldSelectedID = SelectedID;
                             SelectedID = $SelectObj.val();
+
+                            // Update selection filter
+                            RefreshSelectionFilter($SelectObj, $ToolbarContainerObj);
 
                             // Delay triggering change event on original field (see bug#11419)
                             $SelectObj.data('changed', true);
@@ -1839,6 +2027,7 @@ Core.UI.InputFields = (function (TargetNS) {
                                 $SpanObj = $('<span />').appendTo($FiltersListObj);
                             $FilterObj.attr('type', 'checkbox')
                                 .attr('tabindex', '-1')
+                                .addClass('InputField_FilterCheckbox')
                                 .data('index', FilterIndex + 1);
                             if (
                                 $SelectObj.data('filtered')
@@ -1958,6 +2147,7 @@ Core.UI.InputFields = (function (TargetNS) {
                         window.clearTimeout(SearchTimeout);
 
                         SearchTimeout = window.setTimeout(function () {
+
                             // Abandon search if empty string
                             if (SearchValue === '') {
                                 $TreeObj.jstree('delete_node', $TreeObj.find('.jstree-no-match'));

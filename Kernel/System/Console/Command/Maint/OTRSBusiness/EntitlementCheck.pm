@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,12 +12,12 @@ use strict;
 use warnings;
 use utf8;
 
-use base qw(Kernel::System::Console::BaseCommand);
+use parent qw(Kernel::System::Console::BaseCommand);
 
 our @ObjectDependencies = (
+    'Kernel::System::DateTime',
     'Kernel::System::OTRSBusiness',
     'Kernel::System::SystemData',
-    'Kernel::System::Time',
 );
 
 sub Configure {
@@ -63,22 +63,22 @@ sub Run {
         Key => 'OTRSBusiness::EntitlementCheck::NextUpdateTime',
     );
 
-    my $NextUpdateSystemTime = 0;
-
-    # get time object
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+    my $NextUpdateSystemTime;
 
     # if there is a defined NextUpdeTime convert it system time
     if ($AvailabilityCheckNextUpdateTime) {
-        $NextUpdateSystemTime = $TimeObject->TimeStamp2SystemTime(
-            String => $AvailabilityCheckNextUpdateTime,
+        $NextUpdateSystemTime = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                String => $AvailabilityCheckNextUpdateTime,
+            },
         );
     }
 
-    my $SystemTime = $TimeObject->SystemTime();
+    my $SystemTime = $Kernel::OM->Create('Kernel::System::DateTime');
 
     # do not update registration info before the next update (unless is forced)
-    if ( !$Force && $SystemTime < $NextUpdateSystemTime ) {
+    if ( !$Force && $NextUpdateSystemTime && $SystemTime < $NextUpdateSystemTime ) {
         $Self->Print("No need to execute the availability check at this moment, skipping...\n");
         $Self->Print("<green>Done.</green>\n");
         return $Self->ExitCodeOk();

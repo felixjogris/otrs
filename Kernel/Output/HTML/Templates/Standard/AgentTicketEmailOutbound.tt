@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,6 +12,9 @@
     <input type="hidden" name="TicketID" value="[% Data.TicketID | html %]"/>
     <input type="hidden" name="Email" value="[% Data.Email | html %]"/>
     <input type="hidden" name="FormID" value="[% Data.FormID | html %]"/>
+    <input type="hidden" name="FormDraftTitle" value="[% Data.FormDraftTitle | html %]"/>
+    <input type="hidden" name="FormDraftID" value="[% Data.FormDraftID | html %]"/>
+    <input type="hidden" name="FormDraftAction" id="FormDraftAction" />
 
     <div class="LayoutPopup ARIARoleMain">
         <div class="Header">
@@ -35,7 +38,7 @@
         </div>
 
         <div class="Content">
-
+            [% INCLUDE "FormElements/DraftNotifications.tt" %]
             <fieldset class="TableLike FixedLabel">
                 <label>[% Translate("From") | html %]:</label>
                 <div class="Field">
@@ -58,7 +61,7 @@
 [% RenderBlockEnd("ToIsLocalAddressServerErrorMsg") %]
                     </div>
                 [% IF Data.OptionCustomerUserAddressBook %]
-                    <a href="#" data-recipient-field-label="[% Translate("To") | html %]" data-recipient-field="To" id="OptionCustomerUserAddressBookToCustomer" class="OptionCustomerUserAddressBook AdditionlFieldIcon" title="[% Translate("Select one or more recipients from the customer user address book.") | html %]">
+                    <a href="#" data-recipient-field-label="[% Translate("To") | html %]" data-recipient-field="ToCustomer" data-recipient-type="Email" id="OptionCustomerUserAddressBookToCustomer" class="OptionCustomerUserAddressBook AdditionlFieldIcon" title="[% Translate("Select one or more recipients from the customer user address book.") | html %]">
                         <span>[% Translate("Customer user address book") | html %]</span>
                         <i class="fa fa-address-book-o"></i>
                     </a>
@@ -133,7 +136,7 @@
 [% RenderBlockEnd("CcIsLocalAddressServerErrorMsg") %]
                     </div>
                 [% IF Data.OptionCustomerUserAddressBook %]
-                    <a href="#" data-recipient-field-label="[% Translate("Cc") | html %]" data-recipient-field="Cc" id="OptionCustomerUserAddressBookCcCustomer" class="OptionCustomerUserAddressBook AdditionlFieldIcon" title="[% Translate("Select one or more recipients from the customer user address book.") | html %]">
+                    <a href="#" data-recipient-field-label="[% Translate("Cc") | html %]" data-recipient-field="CcCustomer" data-recipient-type="Email" id="OptionCustomerUserAddressBookCcCustomer" class="OptionCustomerUserAddressBook AdditionlFieldIcon" title="[% Translate("Select one or more recipients from the customer user address book.") | html %]">
                         <span>[% Translate("Customer user address book") | html %]</span>
                         <i class="fa fa-address-book-o"></i>
                     </a>
@@ -209,7 +212,7 @@
 [% RenderBlockEnd("BccIsLocalAddressServerErrorMsg") %]
                     </div>
                 [% IF Data.OptionCustomerUserAddressBook %]
-                    <a href="#" data-recipient-field-label="[% Translate("Bcc") | html %]" data-recipient-field="Bcc" id="OptionCustomerUserAddressBookBccCustomer" class="OptionCustomerUserAddressBook AdditionlFieldIcon" title="[% Translate("Select one or more recipients from the customer user address book.") | html %]">
+                    <a href="#" data-recipient-field-label="[% Translate("Bcc") | html %]" data-recipient-field="BccCustomer" data-recipient-type="Email" id="OptionCustomerUserAddressBookBccCustomer" class="OptionCustomerUserAddressBook AdditionlFieldIcon" title="[% Translate("Select one or more recipients from the customer user address book.") | html %]">
                         <span>[% Translate("Customer user address book") | html %]</span>
                         <i class="fa fa-address-book-o"></i>
                     </a>
@@ -300,11 +303,6 @@
                 <div class="Field">
 
 <!-- OutputFilterHook_TicketOptionsBegin -->
-
-[% RenderBlockStart("SpellCheck") %]
-                    <a href="#" id="OptionSpellCheck">[ [% Translate("Spell check") | html %] ]</a>
-[% RenderBlockEnd("SpellCheck") %]
-
 <!-- OutputFilterHook_TicketOptionsEnd -->
 
                 </div>
@@ -317,7 +315,7 @@
                 <label for="StandardTemplateID">[% Translate("Text Template") | html %]:</label>
                 <div class="Field">
                                 [% Data.StandardTemplateStrg %]
-                    <p class="FieldExplanation">[% Translate("Setting a template will overwrite any text or attachment.") %]</p>
+                    <p class="FieldExplanation">[% Translate("Setting a template will overwrite any text or attachment.") | html %]</p>
                 </div>
                 <div class="Clear"></div>
 [% RenderBlockEnd("StandardTemplate") %]
@@ -330,21 +328,9 @@
                 </div>
                 <div class="Clear"></div>
 
-                <label>[% Translate("Attachment") | html %]:</label>
+                <label>[% Translate("Attachments") | html %]:</label>
                 <div class="Field">
-                    <ul>
-[% RenderBlockStart("Attachment") %]
-                        <li>
-                            [% Data.Filename | html %] ([% Data.Filesize | html %])
-                            <button type="button" id="AttachmentDeleteButton[% Data.FileID | html %]" name="AttachmentDeleteButton[% Data.FileID | html %]" value="[% Translate("Delete") | html %]" class="SpacingLeft">[% Translate("Delete") | html %]</button>
-                            <input type="hidden" id="AttachmentDelete[% Data.FileID | html %]" name="AttachmentDelete[% Data.FileID | html %]" />
-                        </li>
-[% RenderBlockEnd("Attachment") %]
-                        <li>
-                            <input id="FileUpload" name="FileUpload" type="file" size="40" />
-                            <input type="hidden" id="AttachmentUpload" name="AttachmentUpload" value="0" />
-                        </li>
-                    </ul>
+[% INCLUDE "FormElements/AttachmentList.tt" %]
                 </div>
                 <div class="Clear"></div>
 
@@ -363,11 +349,11 @@
                 </div>
                 <div class="Clear"></div>
 
-                <label for="ArticleTypeID">[% Translate("Article type") | html %]:</label>
+                <label for="IsVisibleForCustomer">[% Translate("Visible for customer") | html %]:</label>
                 <div class="Field">
-                    [% Data.ArticleTypesStrg %]
+                    <input type="checkbox" id="IsVisibleForCustomer" name="IsVisibleForCustomer" value="1" [% IF Data.IsVisibleForCustomer %]checked="checked"[% END %]/>
+                    <input type="hidden" name="IsVisibleForCustomerPresent" value="1" />
                 </div>
-                <div class="Clear"></div>
 
 [% RenderBlockStart("DynamicField") %]
                 <div class="Row Row_DynamicField_[% Data.Name | html %]">
@@ -417,9 +403,13 @@
 [% RenderBlockEnd("TimeUnits") %]
 
             </fieldset>
+            <br />
         </div>
         <div class="Footer">
-            <button class="CallForAction Primary" id="submitRichText" accesskey="g" title="[% Translate("Send mail") | html %] (g)" type="submit" value="[% Translate("Send mail") | html %]" ><span><i class="fa fa-envelope-o"></i> [% Translate("Send mail") | html %]</span></button>
+            <button class="CallForAction Primary" id="submitRichText" accesskey="g" title="[% Translate("Send mail") | html %] (g)" type="submit" value="[% Translate("Send mail") | html %]" >
+                <span><i class="fa fa-envelope-o"></i> [% Translate("Send mail") | html %]</span>
+            </button>
+            [% INCLUDE "FormElements/DraftButtons.tt" %]
         </div>
     </div>
 </form>

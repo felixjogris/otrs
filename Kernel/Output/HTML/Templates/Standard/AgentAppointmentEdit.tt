@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -10,7 +10,7 @@
 
 [% RenderBlockStart("EditMask") %]
 <div class="InnerContent">
-    <form id="EditAppointmentForm" class="Validate">
+    <form id="EditAppointmentForm" class="Validate PreventMultipleSubmits">
         <input type="hidden" id="ChallengeToken" name="ChallengeToken" value="[% Env("UserChallengeToken") | html %]"/>
         <input type="hidden" id="Action" name="Action" value="[% Env("Action") | html %]"/>
         <input type="hidden" id="Subaction" name="Subaction" value="EditAppointment"/>
@@ -25,7 +25,7 @@
             <div class="Field">
 [% IF Data.TicketAppointmentRuleID %]
                 <p id="Title" class="ReadOnlyValue">
-                    <a target="_blank" href="[% Env("Baselink") %]Action=AgentTicketZoom;TicketID=[% Data.TicketID %]">[% Data.Title | html %]</a>
+                    <a href="[% Env("Baselink") %]Action=AgentTicketZoom;TicketID=[% Data.TicketID %]">[% Data.Title | html %]</a>
                 </p>
 [% ELSE %]
 [% IF Data.PermissionLevel < 2 %]
@@ -112,7 +112,7 @@
                 </p>
             </div>
             <div class="Field Info">
-                <a href="[% Env("Baselink") %]Action=AdminOTRSBusiness" class="Button"><i class="fa fa-angle-double-up"></i> [% Translate("Upgrade to %s", OTRSBusinessLabel) %]</a>
+                <a href="[% Env("Baselink") %]Action=AdminOTRSBusiness" class="Button"><i class="fa fa-angle-double-up"></i> [% Translate("Upgrade to %s") | html | ReplacePlaceholders(OTRSBusinessLabel) %]</a>
             </div>
 [% END %]
         </fieldset>
@@ -292,7 +292,7 @@
                             <tr>
                                 <td class="fc">
                                     <button class="fc-button fc-state-default" type="button" title="[% Translate("January") | html %]" value="1" >
-                                        [% Translate("Jan")| html %]
+                                        [% Translate("Jan") | html %]
                                     </button>
                                 </td>
                                 <td class="fc">
@@ -432,7 +432,7 @@
             <label>[% Translate(Data.PluginList.$Key.PluginName) | html %]:</label>
             <div class="Field">
 [% IF Data.PermissionLevel >= 2 %]
-                <input type="text" data-plugin-key="[% Key | html %]" data-plugin-url="[% Data.PluginList.$Key.PluginURL | html %]" class="PluginField W75pc" />
+                <input id="[% Key | html %]" type="text" data-plugin-key="[% Key | html %]" data-plugin-url="[% Data.PluginList.$Key.PluginURL | html %]" class="PluginField W90pc" />
                 <input type="hidden" id="Plugin_[% Key | html %]" name="Plugin_[% Key | html %]" value='[% Data.PluginList.$Key.LinkList || "[]" %]' />
 [% ELSE %]
 [% IF Data.PluginData.$Key.size == 0 %]
@@ -441,7 +441,7 @@
 [% END %]
 # keep following block on a single line, so :empty CSS selector would work!
                 <div id="PluginContainer_[% Key | html %]"[% IF Data.PermissionLevel >= 2 %] class="PluginContainer"[% END %]>[% FOREACH Link IN Data.PluginData.$Key %]<div class="Link_[% Link.LinkID | html %]">
-                    <a target="_blank" href="[% Link.LinkURL %]">[% Link.LinkName | html %]</a>[% IF Data.PermissionLevel >= 2 %]<a class="RemoveButton" href="#" data-plugin-key="[% Key | html %]" data-link-id="[% Link.LinkID | html %]" title="[% Translate("Remove entry") | html %]"><i class="fa fa-minus-square-o"></i><span class="InvisibleText">[% Translate("Remove") | html %]</span></a>[% END %]
+                    <a href="[% Link.LinkURL %]">[% Link.LinkName | html %]</a>[% IF Data.PermissionLevel >= 2 %]<a class="RemoveButton" href="#" data-plugin-key="[% Key | html %]" data-link-id="[% Link.LinkID | html %]" title="[% Translate("Remove entry") | html %]"><i class="fa fa-minus-square-o"></i><span class="InvisibleText">[% Translate("Remove") | html %]</span></a>[% END %]
                 </div>[% END %]</div>
             </div>
             <div class="Clear"></div>

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -7,7 +7,7 @@
 # --
 
 [% RenderBlockStart("BulkAction") %]
-<form action="[% Env("CGIHandle") %]" method="post" enctype="multipart/form-data" name="compose" class="Validate">
+<form action="[% Env("CGIHandle") %]" method="post" enctype="multipart/form-data" name="compose" class="Validate PreventMultipleSubmits">
     <input type="hidden" name="Action" value="[% Env("Action") %]"/>
     <input type="hidden" name="Subaction" value="Do"/>
 
@@ -44,6 +44,7 @@
                     <div class="Content">
 
                         <fieldset class="TableLike FixedLabel">
+
                             <label class="Mandatory" for="Subject"><span class="Marker">*</span> [% Translate("Subject") | html %]:</label>
                             <div class="Field">
                                 <input type="text" class="Validate_DependingRequiredAND Validate_Depending_Body [% Data.SubjectInvalid %] W75pc" id="Subject" name="Subject" value="[% Data.Subject | html %]" />
@@ -52,25 +53,17 @@
                             </div>
                             <div class="Clear"></div>
 
-[% RenderBlockStart("SpellCheck") %]
-                            <label>[% Translate("Options") | html %]:</label>
-                            <div class="Field">
-                                <a href="#" id="OptionSpellCheck">[ [% Translate("Spell check") | html %] ]</a>
-                            </div>
-                            <div class="Clear"></div>
-[% RenderBlockEnd("SpellCheck") %]
-
                             <label class="Mandatory" for="Body"><span class="Marker">*</span> [% Translate("Text") | html %]:</label>
-                            <div class="RichTextField">
+                            <div class="RichTextField Field">
                                 <textarea id="Body" class="RichText Validate_DependingRequiredAND Validate_Depending_Subject [% Data.BodyInvalid %]" name="Body" rows="15" cols="[% Config("Ticket::Frontend::TextAreaNote") %]">[% Data.Body | html %]</textarea>
                                 <div id="BodyError" class="TooltipErrorMessage"><p>[% Translate("This field is required.") | html %]</p></div>
                                 <div id="BodyServerError" class="TooltipErrorMessage"><p>[% Translate("This field is required.") | html %]</p></div>
                             </div>
                             <div class="Clear"></div>
 
-                            <label for="ArticleTypeID">[% Translate("Note type") | html %]:</label>
+                            <label for="IsVisibleForCustomer">[% Translate("Visible for customer") | html %]:</label>
                             <div class="Field">
-                                [% Data.NoteStrg %]
+                                <input type="checkbox" id="IsVisibleForCustomer" name="IsVisibleForCustomer" value="1" [% IF Data.IsVisibleForCustomer %]checked="checked"[% END %]/>
                             </div>
                             <div class="Clear"></div>
 [% RenderBlockStart("TimeUnitsLabel") %]
@@ -101,6 +94,13 @@
                     <div class="Content">
 
                         <fieldset class="TableLike FixedLabel">
+
+                            <label for="Recipients">[% Translate("Recipients") | html %]:</label>
+                            <div class="Field">
+                                <span id="EmailRecipientsList"><i class="fa fa-spinner fa-spin"></i></span>
+                            </div>
+                            <div class="Clear"></div>
+
                             <label class="Mandatory" for="EmailSubject"><span class="Marker">*</span> [% Translate("Subject") | html %]:</label>
                             <div class="Field">
                                 <input type="text" class="Validate_DependingRequiredAND Validate_Depending_EmailBody [% Data.SubjectInvalid %] W75pc" id="EmailSubject" name="EmailSubject" value="[% Data.EmailSubject | html %]" />
@@ -109,16 +109,8 @@
                             </div>
                             <div class="Clear"></div>
 
-[% RenderBlockStart("SpellCheckEmail") %]
-                            <label>[% Translate("Options") | html %]:</label>
-                            <div class="Field">
-                                <a href="#" id="EmailOptionSpellCheck">[ [% Translate("Spell check") | html %] ]</a>
-                            </div>
-                            <div class="Clear"></div>
-[% RenderBlockEnd("SpellCheckEmail") %]
-
                             <label class="Mandatory" for="EmailBody"><span class="Marker">*</span> [% Translate("Text") | html %]:</label>
-                            <div class="RichTextField">
+                            <div class="RichTextField Field">
                                 <textarea id="EmailBody" class="RichText Validate_DependingRequiredAND Validate_Depending_EmailSubject [% Data.BodyInvalid %]" name="EmailBody" rows="15" cols="[% Config("Ticket::Frontend::TextAreaNote") %]">[% Data.EmailBody | html %]</textarea>
                                 <div id="EmailBodyError" class="TooltipErrorMessage"><p>[% Translate("This field is required.") | html %]</p></div>
                                 <div id="EmailBodyServerError" class="TooltipErrorMessage"><p>[% Translate("This field is required.") | html %]</p></div>
@@ -203,7 +195,7 @@
                     <div class="Field">
                         <div>
                             <input type="radio" name="MergeToSelection" id="OptionMergeTo" value="OptionMergeTo" [% Data.MergeToChecked %]/>
-                            <label for="MergeTo">[% Translate("Merge to") | html %] [% Config("Ticket::Hook") %]:</label>
+                            <label for="MergeTo">[% Translate("Merge to") | html %] [% Config("Ticket::Hook") | html %]:</label>
                             <input type="text" class="[% Data.MergeToInvalid | html %] W50pc" id="MergeTo" name="MergeTo" value="[% Data.MergeTo | html %]"/>
                             <div id="MergeToServerError" class="TooltipErrorMessage"><p>[% Translate("Invalid ticket identifier!") | html %]</p></div>
                         </div>

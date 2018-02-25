@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -25,7 +25,8 @@ sub new {
     my $Self = {};
     bless( $Self, $Type );
 
-    $Self->{Debug} = $Param{Debug} || 0;
+    # get communication log object and MessageID
+    $Self->{CommunicationLogObject} = $Param{CommunicationLogObject} || die "Got no CommunicationLogObject!";
 
     return $Self;
 }
@@ -34,22 +35,24 @@ sub Run {
     my ( $Self, %Param ) = @_;
 
     # checking mandatory configuration options
-    for my $Option (qw(NumberRegExp DynamicFieldName SenderType ArticleType)) {
+    for my $Option (qw(NumberRegExp DynamicFieldName SenderType IsVisibleForCustomer)) {
         if ( !defined $Param{JobConfig}->{$Option} && !$Param{JobConfig}->{$Option} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "Missing configuration for $Option for postmaster filter.",
+            $Self->{CommunicationLogObject}->ObjectLog(
+                ObjectLogType => 'Message',
+                Priority      => 'Error',
+                Key           => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
+                Value         => "Missing configuration for $Option for postmaster filter.",
             );
             return 1;
         }
     }
 
-    if ( $Self->{Debug} >= 1 ) {
-        $Kernel::OM->Get('Kernel::System::Log')->Log(
-            Priority => 'debug',
-            Message  => "starting Filter $Param{JobConfig}->{Name}",
-        );
-    }
+    $Self->{CommunicationLogObject}->ObjectLog(
+        ObjectLogType => 'Message',
+        Priority      => 'Debug',
+        Key           => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
+        Value         => "Starting filter '$Param{JobConfig}->{Name}'",
+    );
 
     # check if sender is of interest
     return 1 if !$Param{GetParam}->{From};
@@ -76,20 +79,20 @@ sub Run {
         }
 
         if ( $Self->{Number} ) {
-            if ( $Self->{Debug} >= 1 ) {
-                $Kernel::OM->Get('Kernel::System::Log')->Log(
-                    Priority => 'debug',
-                    Message  => "Found number: $Self->{Number} in subject",
-                );
-            }
+            $Self->{CommunicationLogObject}->ObjectLog(
+                ObjectLogType => 'Message',
+                Priority      => 'Debug',
+                Key           => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
+                Value         => "Found number: '$Self->{Number}' in subject",
+            );
         }
         else {
-            if ( $Self->{Debug} >= 1 ) {
-                $Kernel::OM->Get('Kernel::System::Log')->Log(
-                    Priority => 'debug',
-                    Message  => "No number found in subject: '" . join( '', @SubjectLines ) . "'",
-                );
-            }
+            $Self->{CommunicationLogObject}->ObjectLog(
+                ObjectLogType => 'Message',
+                Priority      => 'Debug',
+                Key           => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
+                Value         => "No number found in subject: '" . join( '', @SubjectLines ) . "'",
+            );
         }
     }
 
@@ -113,21 +116,21 @@ sub Run {
 
     # we need to have found an external number to proceed.
     if ( !$Self->{Number} ) {
-        if ( $Self->{Debug} >= 1 ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'debug',
-                Message  => 'Could not find external ticket number => Ignoring',
-            );
-        }
+        $Self->{CommunicationLogObject}->ObjectLog(
+            ObjectLogType => 'Message',
+            Priority      => 'Debug',
+            Key           => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
+            Value         => "Could not find external ticket number => Ignoring",
+        );
         return 1;
     }
     else {
-        if ( $Self->{Debug} >= 1 ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'debug',
-                Message  => "Found number $Self->{Number}",
-            );
-        }
+        $Self->{CommunicationLogObject}->ObjectLog(
+            ObjectLogType => 'Message',
+            Priority      => 'Debug',
+            Key           => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
+            Value         => "Found number $Self->{Number}",
+        );
     }
 
     # is there a ticket for this ticket number?
@@ -190,13 +193,12 @@ sub Run {
             UserID   => 1,
         );
 
-        if ( $Self->{Debug} >= 1 ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'debug',
-                Message =>
-                    "Found ticket $TicketNumber open for external number $Self->{Number}. Updating.",
-            );
-        }
+        $Self->{CommunicationLogObject}->ObjectLog(
+            ObjectLogType => 'Message',
+            Priority      => 'Debug',
+            Key           => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
+            Value         => "Found ticket $TicketNumber open for external number $Self->{Number}. Updating.",
+        );
 
         # get config object
         my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
@@ -207,30 +209,30 @@ sub Run {
         $Param{GetParam}->{Subject} .= " [$TicketHook$TicketHookDivider$TicketNumber]";
 
         # set sender type and article type.
-        $Param{GetParam}->{'X-OTRS-FollowUp-SenderType'}  = $Param{JobConfig}->{SenderType};
-        $Param{GetParam}->{'X-OTRS-FollowUp-ArticleType'} = $Param{JobConfig}->{ArticleType};
+        $Param{GetParam}->{'X-OTRS-FollowUp-SenderType'}           = $Param{JobConfig}->{SenderType};
+        $Param{GetParam}->{'X-OTRS-FollowUp-IsVisibleForCustomer'} = $Param{JobConfig}->{IsVisibleForCustomer};
 
         # also set these parameters. It could be that the follow up is rejected by Reject.pm
         #   (follow-ups not allowed), but the original article will still be attached to the ticket.
-        $Param{GetParam}->{'X-OTRS-SenderType'}  = $Param{JobConfig}->{SenderType};
-        $Param{GetParam}->{'X-OTRS-ArticleType'} = $Param{JobConfig}->{ArticleType};
+        $Param{GetParam}->{'X-OTRS-SenderType'}           = $Param{JobConfig}->{SenderType};
+        $Param{GetParam}->{'X-OTRS-IsVisibleForCustomer'} = $Param{JobConfig}->{IsVisibleForCustomer};
 
     }
     else {
-        if ( $Self->{Debug} >= 1 ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'debug',
-                Message  => "Creating new ticket for external ticket $Self->{Number}",
-            );
-        }
+        $Self->{CommunicationLogObject}->ObjectLog(
+            ObjectLogType => 'Message',
+            Priority      => 'Debug',
+            Key           => 'Kernel::System::PostMaster::Filter::ExternalTicketNumberRecognition',
+            Value         => "Creating new ticket for external ticket '$Self->{Number}'",
+        );
 
         # get the dynamic field name and description from JobConfig, set as headers
         my $TicketDynamicFieldName = $Param{JobConfig}->{'DynamicFieldName'};
         $Param{GetParam}->{ 'X-OTRS-DynamicField-' . $TicketDynamicFieldName } = $Self->{Number};
 
         # set sender type and article type
-        $Param{GetParam}->{'X-OTRS-SenderType'}  = $Param{JobConfig}->{SenderType};
-        $Param{GetParam}->{'X-OTRS-ArticleType'} = $Param{JobConfig}->{ArticleType};
+        $Param{GetParam}->{'X-OTRS-SenderType'}           = $Param{JobConfig}->{SenderType};
+        $Param{GetParam}->{'X-OTRS-IsVisibleForCustomer'} = $Param{JobConfig}->{IsVisibleForCustomer};
     }
 
     return 1;

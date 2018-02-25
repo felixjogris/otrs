@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -22,8 +22,16 @@
 <a class="AsBlock LinkObjectLink" href="[% Data.Link %]" title="[% Data.Title | html %]" >[% Data.Content | truncate(Data.MaxLength) | html %]</a>
 [% RenderBlockEnd("Link") %]
 
+[% RenderBlockStart("DeleteLinkIcon") %]
+<a href="#" data-delete-link-sourceobject="[% Data.SourceObject | html %]" data-delete-link-sourcekey="[% Data.SourceKey | html %]" data-delete-link-targetidentifier="[% Data.TargetIdentifier | html %]" class="InstantLinkDelete" title="[% Translate("Delete link") | html %]">
+    <i class="fa fa-trash-o">
+        <span class="InvisibleText">[% Translate("Delete Link") | html %]</span>
+    </i>
+</a>
+[% RenderBlockEnd("DeleteLinkIcon") %]
+
 [% RenderBlockStart("TimeLong") %]
-[% Data.Content | Localize("TimeLong") %]
+<span title="[% Data.Content | Localize("TimeLong") %]">[% Data.Content | Localize("TimeLong") %]</span>
 [% RenderBlockEnd("TimeLong") %]
 
 [% RenderBlockStart("Date") %]
@@ -37,7 +45,6 @@
     checked="checked"
 [% END %]
     />
-&nbsp;<br/>
 [% RenderBlockEnd("Checkbox") %]
 
 [% RenderBlockStart("InputText") %]
@@ -88,7 +95,7 @@
             <li class="Bulk">
                 <span>
                     <input type="checkbox" class="SelectAll" title="[% Translate("Select all") | html %]" id="SelectAllLinks[% Translate(Data.TableNumber) | html %]" autocomplete="off" />
-                    <label class="InvisibleText" for="SelectAllLinks[% Translate(Data.TableNumber) | html %]">[% Translate("Select all") | html %]</label>
+                    <label for="SelectAllLinks[% Translate(Data.TableNumber) | html %]">[% Translate("Select all") | html %]</label>
                 </span>
             </li>
 [% RenderBlockEnd("TableComplexBlockActionRowBulk") %]
@@ -111,6 +118,7 @@
                     [% Data.SourceObjectData %]
                     <input type="hidden" name="SourceObject" value="[% Data.SourceObject | html %]"/>
                     <input type="hidden" name="DestinationObject" value="[% Data.DestinationObject | html %]"/>
+                    <input type="hidden" name="AdditionalLinkListWithDataJSON" value="[% Data.AdditionalLinkListWithDataJSON | html %]"/>
                     <input type="hidden" name="[% Data.NamePref | html %]" class="ColumnsJSON" value="[% Data.Columns | html %]" />
                     <input type="hidden" class="ColumnsEnabledJSON" value="[% Data.ColumnsEnabled | html %]" />
                     <input type="hidden" class="ColumnsAvailableJSON" value="[% Data.ColumnsAvailable | html %]" />
@@ -181,14 +189,14 @@
 [% RenderBlockStart("TableComplexBlockFooterAdd") %]
         <div class="SpacingTopSmall">
             [% Data.LinkTypeStrg %]
-            <button class="Primary CallForAction Inline" id="AddLinks" name="AddLinks" type="submit" title="[% Translate("Add links") | html %]"><span>[% Translate("Add links") | html %]</span></button>
+            <button class="CallForAction Inline" id="AddLinks" name="AddLinks" type="submit" title="[% Translate("Add links") | html %]"><span>[% Translate("Add links") | html %]</span></button>
         </div>
         <input type="hidden" name="SubmitLink" value="[% Translate("Link") | html %]" />
 [% RenderBlockEnd("TableComplexBlockFooterAdd") %]
 
 [% RenderBlockStart("TableComplexBlockFooterDelete") %]
         <div class="SpacingTopSmall">
-            <button class="Primary CallForAction" type="submit" title="[% Translate("Delete links") | html %]"><span>[% Translate("Delete links") | html %]</span></button>
+            <button class="CallForAction" type="submit" title="[% Translate("Delete links") | html %]"><span>[% Translate("Delete links") | html %]</span></button>
         </div>
         <input type="hidden" name="SubmitDelete" value="[% Translate("Delete") | html %]" />
 [% RenderBlockEnd("TableComplexBlockFooterDelete") %]

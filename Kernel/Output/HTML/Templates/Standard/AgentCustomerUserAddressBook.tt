@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -9,28 +9,30 @@
 [% IF Data.ShowSearchDialog %]
 <div class="MainBox ARIARoleMain CustomerUserAdressBookSearch">
     <h1>[% Translate("Customer User Address Book") | html %]</h1>
-    <div class="FieldExplanation">[% Translate("Search for recipients and add the results as '%s'.", Data.RecipientField) | html %]</div>
+    <div class="FieldExplanation">[% Translate("Search for recipients and add the results as '%s'.", Data.RecipientFieldLabel) | html %]</div>
     <div class="ContentColumn">
         <form action="[% Env("CGIHandle") %]" method="post" id="SearchForm" class="CustomerUserAddressBookForm">
             <input type="hidden" name="Action" value="[% Env("Action") %]" id="SearchAction"/>
             <input type="hidden" name="Subaction" value="Search"/>
             <input type="hidden" name="EmptySearch" value="[% Data.EmptySearch | html %]" id="EmptySearch"/>
             <input type="hidden" name="ShownAttributes" value="" id="ShownAttributes">
+            <input type="hidden" name="RecipientType" value="[% Data.RecipientType | html %]" id="RecipientType" />
             <input type="hidden" name="RecipientField" value="[% Data.RecipientField | html %]" id="RecipientField" />
+            <input type="hidden" name="RecipientFieldLabel" value="[% Data.RecipientFieldLabel | html %]" id="RecipientFieldLabel" />
             <input type="hidden" name="ExcludeUserLoginsJSON" value="" id="ExcludeUserLogins">
             <fieldset class="TableLike SpacingTop">
                 <legend><span>[% Translate("Templates") | html %]</span></legend>
                 <label>[% Translate("Search template") | html %]:</label>
                 <div class="Field">
                     [% Data.ProfilesStrg %]
-                    <div id="SearchProfileAddBlock">
+                    <div id="SearchProfileAddBlock" class="SpacingTopSmall">
                         <input type="text" name="Name" id="SearchProfileAddName"/>
-                        <button type="button" title="[% Translate("Create Template") | html %]" id="SearchProfileAddAction">[% Translate("Add") | html %]</button>
+                        <button type="button" title="[% Translate("Create Template") | html %]" id="SearchProfileAddAction" class="CallForAction Inline"><span>[% Translate("Add") | html %]</span></button>
                     </div>
                 </div>
                 <div class="Field">
-                    <button id="SearchProfileNew" value="[% Translate("Create New") | html %]">[% Translate("Create New") | html %]</button>
-                    <button id="SearchProfileDelete" class="Hidden" value="[% Translate("Delete") | html %]">[% Translate("Delete") | html %]</button>
+                    <button id="SearchProfileNew" value="[% Translate("Create New") | html %]" class="CallForAction Inline"><span>[% Translate("Create New") | html %]</span></button>
+                    <button id="SearchProfileDelete" class="CallForAction Inline Hidden" value="[% Translate("Delete") | html %]"><span>[% Translate("Delete") | html %]</span></button>
                 </div>
                 <div class="Clear"></div>
                 <label>[% Translate("Save changes in template") | html %]:</label>

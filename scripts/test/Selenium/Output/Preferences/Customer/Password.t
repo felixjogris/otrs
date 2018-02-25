@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -41,7 +41,7 @@ $Selenium->RunTest(
         $Selenium->find_element( "#CurPw",  'css' )->send_keys("incorrect");
         $Selenium->find_element( "#NewPw",  'css' )->send_keys($NewPw);
         $Selenium->find_element( "#NewPw1", 'css' )->send_keys($NewPw);
-        $Selenium->find_element( "#CurPw",  'css' )->VerifiedSubmit();
+        $Selenium->find_element( "#Update", 'css' )->VerifiedClick();
 
         # check for incorrect password update preferences message on screen
         my $IncorrectUpdateMessage = "The current password is not correct. Please try again!";
@@ -54,7 +54,7 @@ $Selenium->RunTest(
         $Selenium->find_element( "#CurPw",  'css' )->send_keys($TestUserLogin);
         $Selenium->find_element( "#NewPw",  'css' )->send_keys($NewPw);
         $Selenium->find_element( "#NewPw1", 'css' )->send_keys($NewPw);
-        $Selenium->find_element( "#CurPw",  'css' )->VerifiedSubmit();
+        $Selenium->find_element( "#Update", 'css' )->VerifiedClick();
 
         # check for correct password update preferences message on screen
         my $UpdateMessage = "Preferences updated successfully!";

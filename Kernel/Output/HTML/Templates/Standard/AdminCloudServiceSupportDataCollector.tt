@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -7,7 +7,7 @@
 # --
 
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
-    <h1>[% Translate("Cloud Service Management") | html %] » [% Translate("Support Data Collector") | html %]</h1>
+    <h1 class="InvisibleText">[% Translate("Cloud Service Management") | html %] [% Translate("Support Data Collector") | html %]</h1>
 
     [% BreadcrumbPath = [
             {
@@ -93,7 +93,7 @@
 [% RenderBlockStart("NotRegistered") %]
         <div class="WidgetSimple">
             <div class="Header Center">
-                <h2>[% Translate("System Registration") %]</h2>
+                <h2>[% Translate("System Registration") | html %]</h2>
             </div>
             <div class="Content">
                 <p class="Center">
@@ -112,7 +112,7 @@
                 [% ELSE %]
                 <div class="Center SpacingTop">
                     <p>
-                        [% Translate("System Registration is disabled for your system. Please check your configuration.") %]
+                        [% Translate("System Registration is disabled for your system. Please check your configuration.") | html %]
                     </p>
                 </div>
                 [% END %]

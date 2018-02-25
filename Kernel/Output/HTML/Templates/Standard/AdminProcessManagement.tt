@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,7 +12,7 @@ SET OTRSBusinessLinkLabel = '<strong><a href="#" class="OTRSBusinessRequired">OT
 %]
 
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
-    <h1>[% Translate("Process Management") | html %]</h1>
+    <h1 class="InvisibleText">[% Translate("Process Management") | html %]</h1>
 
     [% BreadcrumbPath = [
             {
@@ -80,15 +80,15 @@ SET OTRSBusinessLinkLabel = '<strong><a href="#" class="OTRSBusinessRequired">OT
 
         <div class="WidgetSimple" id="ExampleProcesses">
             <div class="Header">
-                <h2>[% Translate("Ready-to-run Processes") | html %]</h2>
+                <h2>[% Translate("Ready2Adopt Processes") | html %]</h2>
             </div>
             <div class="Content">
                 <p class="FieldExplanation">
-                    [% Translate("Here you can activate ready-to-run processes showcasing our best practices. Please note that some additional configuration may be required." ) %]
+                    [% Translate("Here you can activate Ready2Adopt processes showcasing our best practices. Please note that some additional configuration may be required.") | html %]
                 </p>
             [% IF !Data.OTRSBusinessIsInstalled %]
                 <p class="FieldExplanation">
-                    [% Translate("Would you like to benefit from processes created by experts? Upgrade to %s to import some sophisticated ready-to-run processes.", OTRSBusinessLinkLabel) %]
+                    [% Translate("Would you like to benefit from processes created by experts? Upgrade to %s to import some sophisticated Ready2Adopt processes.") | html | ReplacePlaceholders(OTRSBusinessLinkLabel) %]
                 </p>
             [% END %]
                 <ul class="ActionList SpacingTop">
@@ -104,8 +104,8 @@ SET OTRSBusinessLinkLabel = '<strong><a href="#" class="OTRSBusinessRequired">OT
                                 <input type="checkbox" id="OverwriteExistingEntitiesExample" name="OverwriteExistingEntities" value="1" checked="checked" />
                                 <label for="OverwriteExistingEntitiesExample">[% Translate("Overwrite existing entities") | html %]</label>
                             </fieldset>
-                            <button class="CallForAction Fullsize Center SpacingTop" type="submit" value="[% Translate("Import ready-to-run process") | html %]">
-                                <span><i class="fa fa-upload"></i>[% Translate("Import ready-to-run process") | html %]</span>
+                            <button class="CallForAction Fullsize Center SpacingTop" type="submit" value="[% Translate("Import Ready2Adopt process") | html %]">
+                                <span><i class="fa fa-upload"></i>[% Translate("Import Ready2Adopt process") | html %]</span>
                             </button>
                         </form>
                     </li>
@@ -174,13 +174,13 @@ SET OTRSBusinessLinkLabel = '<strong><a href="#" class="OTRSBusinessRequired">OT
 [% RenderBlockEnd("ProcessRow") %]
 [% RenderBlockStart("ProcessNoDataRow") %]
                         <tr>
-                            <td colspan="4">
+                            <td colspan="6">
                                 [% Translate("No data found.") | html %]
                             </td>
                         </tr>
 [% RenderBlockEnd("ProcessNoDataRow") %]
                         <tr class="FilterMessage Hidden">
-                            <td colspan="4">[% Translate("No matches found.") | html %]</td>
+                            <td colspan="6">[% Translate("No matches found.") | html %]</td>
                         </tr>
                     </tbody>
                 </table>

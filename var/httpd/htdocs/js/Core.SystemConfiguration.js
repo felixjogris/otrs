@@ -1,10 +1,12 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
 // did not receive this file, see http://www.gnu.org/licenses/agpl.txt.
 // --
+
+/*eslint-disable no-window*/
 
 "use strict";
 
@@ -74,7 +76,7 @@ var Core = Core || {};
             return false;
         });
 
-        $("input:checkbox").on("change", function() {
+        $("input:checkbox").on("click", function() {
             TargetNS.CheckboxValueSet($(this));
         });
 
@@ -83,14 +85,14 @@ var Core = Core || {};
 
             var $WidgetObj = $(this).closest('.WidgetSimple.Setting');
 
-            if (!Event || !Event.keyCode) {
+            if (!Event) {
                 return false;
             }
 
             if ($WidgetObj.hasClass('IsLockedByMe')) {
 
                 // Enter: Save current setting
-                if (Event.keyCode === 13) {
+                if (Event.keyCode && Event.keyCode === 13) {
 
                     if ($(this).hasClass('Key')) {
                         $(this).closest('.HashItem').find('button.AddKey').trigger('click');
@@ -101,8 +103,9 @@ var Core = Core || {};
 
                     return false;
                 }
+
                 // Esc: Cancel editing
-                else if (Event.keyCode === 27) {
+                else if (Event.keyCode && Event.keyCode === 27) {
                     $WidgetObj.find('button.Cancel').trigger('click');
                 }
             }
@@ -162,6 +165,10 @@ var Core = Core || {};
             UserModificationActive : UserModificationActive
         };
 
+        if (Core.Config.Get('Action') == 'AgentPreferences') {
+            Data.Action = 'AgentPreferences';
+        }
+
         // if there are only the base categories available, hide the selection
         // and use 'All' as default.
         if ($('#Category option').length <= 2) {
@@ -170,6 +177,12 @@ var Core = Core || {};
             $('#Category').val('All').trigger('change');
             Data["Category"] = 'All';
         }
+
+        $('#ConfigTree').on('click', '.OpenNodeInNewWindow', function(Event) {
+            window.open(Core.Config.Get('CGIHandle') + '?Action=AdminSystemConfigurationGroup;RootNavigation=' + $(this).data('node'), '_blank');
+            Event.preventDefault;
+            return false;
+        });
 
         if (Core.Config.Get('Action') == 'AgentPreferences') {
             Data["IsValid"] = 1;
@@ -200,6 +213,7 @@ var Core = Core || {};
                 $('#ConfigTree')
                     .jstree({
                         core: {
+                            multiple: false,
                             animation: 70,
                             themes: {
                                 name: 'InputField',
@@ -221,6 +235,18 @@ var Core = Core || {};
                     .on('after_close.jstree', function (Node, Selected, Event) {  //eslint-disable-line no-unused-vars
                         Core.UI.InitStickyElement();
                     })
+                    .on('hover_node.jstree', function (Node, Selected, Event) {  //eslint-disable-line no-unused-vars
+                        $('#ConfigTree #' + Core.App.EscapeSelector(Selected.node.id)).children('a').append('<span class="OpenNodeInNewWindow" title="' + Core.Language.Translate('Open this node in a new window') + '" data-node="' + Selected.node.id + '"><i class="fa fa-external-link"></i></span>').find('.OpenNodeInNewWindow').fadeIn();
+                    })
+                    .on('dehover_node.jstree', function (Node, Selected, Event) {  //eslint-disable-line no-unused-vars
+                        $('#ConfigTree #' + Core.App.EscapeSelector(Selected.node.id)).find('.OpenNodeInNewWindow').remove();
+                    });
+
+                if (SelectedNode) {
+                    $('#ConfigTree').jstree('select_node', SelectedNode);
+                }
+
+                $('#ConfigTree')
                     .on('select_node.jstree', function (Node, Selected, Event) {  //eslint-disable-line no-unused-vars
 
                         $('.ContentColumn').html(Core.Template.Render("Agent/WidgetLoading"));
@@ -244,10 +270,6 @@ var Core = Core || {};
                         return false;
                     }
                 );
-
-                if (SelectedNode) {
-                    $('#ConfigTree').jstree(true)._open_to(SelectedNode);
-                }
 
                 $("#ConfigTreeSearch").on('keyup keydown', function() {
                     $('#ConfigTree').jstree('search', $(this).val());
@@ -279,7 +301,8 @@ var Core = Core || {};
             ValidationError,
             IsValid,
             UserModificationActive,
-            Item;
+            Item,
+            $InvalidElement;
 
         // if there are still hash items within the current Widget
         // for which a key field has been added but no value has been
@@ -313,11 +336,15 @@ var Core = Core || {};
 
             // run element validation
             if (!Core.Form.Validate.ValidateElement($(this))) {
+
+                // Highlight error
                 ValidationError = 1;
-                Core.Form.Validate.HighlightError($(this), "Error");
+                Core.Form.Validate.HighlightError(this, "Error");
                 $(this).on("change", function() {
-                    Core.Form.Validate.UnHighlightError($(this));
+                    Core.Form.Validate.UnHighlightError(this);
                 });
+
+                // Continue, check for other errors as well.
                 return;
             }
 
@@ -359,7 +386,7 @@ var Core = Core || {};
                     FullName = FullName.substr(0, FullName.lastIndexOf("_Hash"));
                 }
                 else {
-                    // Array is not empty.
+                    // Hash is not empty.
                     return;
                 }
             }
@@ -390,6 +417,13 @@ var Core = Core || {};
         });
 
         if (ValidationError) {
+            $InvalidElement = $Widget.find('.Error:first');
+
+            $('html, body').animate({scrollTop: $InvalidElement.offset().top -100 }, 'slow');
+
+            // Focus first error element.
+            $InvalidElement.focus();
+
             return;
         }
 
@@ -415,7 +449,7 @@ var Core = Core || {};
 
         if (ToggleValid) {
             IsValid = 0;
-            if ($Widget.find(".SettingDisabled:visible").length) {
+            if ($Widget.find(".SettingDisabled:visible").length || $Widget.find(".SettingEnable:visible").length) {
                 IsValid = 1;
             }
 
@@ -441,7 +475,7 @@ var Core = Core || {};
 
                 if (Response.Data.SettingData.IsDirty) {
                     Core.UI.ShowNotification(
-                        'You have undeployed settings, would you like to deploy them?',
+                        Core.Language.Translate('You have undeployed settings, would you like to deploy them?'),
                         'Notice',
                         'Action=AdminSystemConfigurationDeployment;Subaction=Deployment',
                         function() {
@@ -451,7 +485,7 @@ var Core = Core || {};
                 }
                 else if (Response.Data.DeploymentNeeded == 0) {
                     Core.UI.HideNotification(
-                        'You have undeployed settings, would you like to deploy them?',
+                        Core.Language.Translate('You have undeployed settings, would you like to deploy them?'),
                         'Notice',
                         function() {
                             Core.UI.InitStickyElement();
@@ -479,7 +513,7 @@ var Core = Core || {};
      */
     function ValueSet(Data, Name, Value) {
         var Result = Data,
-            StructureArray = Name.split("_"),
+            StructureArray = Name.split(/_(?=Array|Hash)/),
             HashKey,
             SettingName = StructureArray.shift(),
             Structure,
@@ -858,7 +892,7 @@ var Core = Core || {};
                 return $(this).val() === Key;
             }).length > 1) {
 
-            alert(Core.Language.Translate("A key with this name ('%s') does already exist.", Key));
+            alert(Core.Language.Translate("A key with this name ('%s') already exists.", Key));
             return;
         }
 
@@ -1037,7 +1071,7 @@ var Core = Core || {};
 
                         // hide the "deployment" notification
                         Core.UI.HideNotification(
-                            'You have undeployed settings, would you like to deploy them?',
+                            Core.Language.Translate('You have undeployed settings, would you like to deploy them?'),
                             'Notice',
                             function() {
                                 Core.UI.InitStickyElement();
@@ -1046,7 +1080,7 @@ var Core = Core || {};
                     }
                     else {
                         Core.UI.ShowNotification(
-                            'You have undeployed settings, would you like to deploy them?',
+                            Core.Language.Translate('You have undeployed settings, would you like to deploy them?'),
                             'Notice',
                             'Action=AdminSystemConfigurationDeployment;Subaction=Deployment',
                             function() {
@@ -1178,6 +1212,7 @@ var Core = Core || {};
 
             $Widget.find(".SettingDisabled").addClass("Hidden");
             $Widget.find(".SettingEnabled").removeClass("Hidden");
+            $Widget.removeClass("IsDisabled");
         }
         else {
             $Widget.find(".Header .Icon i")
@@ -1185,6 +1220,7 @@ var Core = Core || {};
 
             $Widget.find(".SettingDisabled").removeClass("Hidden");
             $Widget.find(".SettingEnabled").addClass("Hidden");
+            $Widget.addClass("IsDisabled");
         }
 
         if (Response.Data.SettingData.UserModificationActive == '1') {
@@ -1243,6 +1279,12 @@ var Core = Core || {};
             // setting is valid
             $Widget.find(".Icon .fa-check-circle-o").removeClass("Hidden");
         }
+
+        $Widget.find("input:checkbox")
+        .off("change")
+        .on("change", function() {
+            TargetNS.CheckboxValueSet($(this));
+        });
     }
 
     /**
@@ -1306,12 +1348,12 @@ var Core = Core || {};
             }
             else {
                 // Show all AddArrayItem and AddHashKey buttons.
-                $Structure.find("> .AddArrayItem, > .AddHashKey").show();
+                $Structure.find("> .AddArrayItem:not(.Hidden), > .AddHashKey:not(.Hidden)").show();
             }
         }
         else {
             // Show all AddArrayItem and AddHashKey buttons.
-            $Structure.find("> .AddArrayItem, > .AddHashKey").show();
+            $Structure.find("> .AddArrayItem:not(.Hidden), > .AddHashKey:not(.Hidden)").show();
         }
     }
 
@@ -1396,7 +1438,7 @@ var Core = Core || {};
             if (ID.indexOf("_Hash###") > 0) {
                 // put placeholders
                 while (ID.indexOf("_Hash###") > 0) {
-                    SubString = ID.match(/(_Hash###.*?)(_|Day$|Month$|Year$|Hour$|Minute$|$)/)[1];
+                    SubString = ID.match(/(_Hash###.*?)(_Array|_Hash|Day$|Month$|Year$|Hour$|Minute$|$)/)[1];
 
                     ID = ID.replace(SubString, "_PLACEHOLDER" + Count);
                     Count++;
@@ -1416,44 +1458,56 @@ var Core = Core || {};
 
                     $ClosestItem = $ClosestItem.parent().closest(".HashItem");
                 }
-            }
-            if (ID.indexOf("_Array") > 0) {
-                // put placeholders
-                while (ID.indexOf("_Array") > 0) {
-                    SubString = ID.match(/(_Array\d+)/)[1];
-                    ID = ID.replace(SubString, "_PLACEHOLDER" + Count);
-                    Count++;
+
+                // set new id
+                if ($(this).hasClass("Entry")) {
+                    $(this).attr("id", ID);
                 }
-
-                $ClosestItem = $(this).closest(".ArrayItem");
-
-                while (Count > 0) {
-                    Count--;
-
-                    // get index
-                    Key = $ClosestItem.index() + 1;
-
-                    // update id
-                    ID = ID.replace("_PLACEHOLDER" + Count, "_Array" + Key);
-
-                    $ClosestItem = $ClosestItem.parent().closest(".ArrayItem");
+                else {
+                    $(this).attr("data-suffix", ID);
                 }
             }
+            if (ID.indexOf("_Array") >= 0) {
+                $(this).closest('.Array').find(".ArrayItem").each(function() {
+                    Count = 0;
 
-            if (ValueType != null) {
+                    $(this).find(
+                        ".SettingContent input:visible:not(.InputField_Search), " +
+                        ".SettingContent select:visible, .SettingContent select.Modernize, " +
+                        ".SettingContent textarea:visible"
+                    ).each(function() {
+                        var OldID = $(this).attr('id');
 
-                // Run dedicated CheckID() for this ValueType (in a Core.SystemConfiguration.ValueTypeX.js).
-                if (window["Core"]["SystemConfiguration"][ValueType]["CheckID"]) {
-                    window["Core"]["SystemConfiguration"][ValueType]["CheckID"]($(this), ID);
-                }
-            }
+                        ID = OldID;
 
-            // set new id
-            if ($(this).hasClass("Entry")) {
-                $(this).attr("id", ID);
-            }
-            else {
-                $(this).attr("data-suffix", ID);
+                        while (ID.indexOf("_Array") >= 0) {
+                            SubString = ID.match(/(_Array\d+)/)[1];
+                            ID = ID.replace(SubString, "_PLACEHOLDER" + Count);
+                            Count++;
+                        }
+
+                        $ClosestItem = $(this).closest('.ArrayItem');
+
+                        while (Count > 0) {
+                            Count--;
+
+                            Key = $ClosestItem.index() + 1;
+                            ID = ID.replace("_PLACEHOLDER" + Count, "_Array" + Key);
+                            // update id
+                            $(this).attr('id', ID);
+
+                            $ClosestItem = $ClosestItem.parent().closest(".ArrayItem");
+                        }
+
+                        if (OldID != ID && ValueType) {
+
+                            // Run dedicated CheckID() for this ValueType (in a Core.SystemConfiguration.ValueTypeX.js).
+                            if (window["Core"]["SystemConfiguration"][ValueType]["CheckID"]) {
+                                window["Core"]["SystemConfiguration"][ValueType]["CheckID"]($(this), OldID);
+                            }
+                        }
+                    });
+                });
             }
         });
     }
@@ -1538,6 +1592,8 @@ var Core = Core || {};
             Action = "AgentPreferences";
         }
 
+        window.history.pushState(null, null, URL);
+
         Data = {
             Action     : Action,
             Subaction  : 'SettingList',
@@ -1564,6 +1620,7 @@ var Core = Core || {};
                 TargetNS.Init();
                 if (Core.Config.Get('Action') == 'AgentPreferences') {
                     Core.Agent.Preferences.InitSysConfig();
+                    Core.UI.Table.InitTableFilter($("#FilterSettings"), $(".SettingsList"));
                 }
                 else {
                     Core.Agent.Admin.SystemConfiguration.InitGroupView(true);
@@ -1583,12 +1640,19 @@ var Core = Core || {};
                 Core.UI.InputFields.InitSelect(
                     $(".SettingsList .Modernize")
                 );
+
+                // scroll to top to see all the settings from the current node
+                $('html, body').animate({
+                    scrollTop: $('.ContentColumn .WidgetSimple').first().position().top
+                }, 'fast');
             }, 'html'
         );
 
-        window.setTimeout(function() {
-            Core.Agent.Admin.SystemConfiguration.InitFavourites();
-        }, 1000);
+        if ($('#SysConfigFavourites').length) {
+            window.setTimeout(function() {
+                Core.Agent.Admin.SystemConfiguration.InitFavourites();
+            }, 1000);
+        }
     }
 
     Core.Init.RegisterNamespace(TargetNS, 'APP_MODULE');

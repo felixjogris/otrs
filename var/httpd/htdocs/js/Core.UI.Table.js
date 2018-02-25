@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -26,11 +26,12 @@ Core.UI.Table = (function (TargetNS) {
      * @param {jQueryObject} $FilterInput - Filter input element.
      * @param {jQueryObject} $Container - Table or list to be filtered.
      * @param {Number|String} ColumnNumber - Only search in thsi special column of the table (counting starts with 0).
+     * @param {Boolean} HideEmptyContainers - hide containers of type .WidgetSimple which don't contain any search results.
      * @description
      *      This function initializes a filter input field which can be used to
      *      dynamically filter a table or a list with the class TableLike (e.g. in the admin area overviews).
      */
-    TargetNS.InitTableFilter = function ($FilterInput, $Container, ColumnNumber) {
+    TargetNS.InitTableFilter = function ($FilterInput, $Container, ColumnNumber, HideEmptyContainers) {
         var Timeout;
 
         $FilterInput.wrap('<span class="TableFilterContainer" />');
@@ -108,26 +109,55 @@ Core.UI.Table = (function (TargetNS) {
                         $(this).remove();
                     });
                     $Elements.show();
+                    $('#SelectAllrw').removeClass('Disabled');
+                    $('table th input:not([name="rw"]:visible)').prop('disabled', false);
+
+                    // Disable top row if all rw elements are checked.
+                    if($('input[type="checkbox"][name="rw"]').length !== 0 &&
+                        $('input[type="checkbox"][name="rw"]').not('#SelectAllrw').filter(':checked').length ===
+                        $('input[type="checkbox"][name="rw"]').not('#SelectAllrw').length){
+                        $('table th input:not([name="rw"]:visible)').prop('disabled', true);
+                        $('#SelectAllrw').addClass('Disabled');
+                    }
                 }
 
-                // handle multiple containers correctly
-                if ($Container.length > 1) {
-                    $Container.each(function() {
-                        if ($(this).find('tbody tr:visible:not(.FilterMessage), li:visible:not(.Header):not(.FilterMessage)').length) {
-                            $(this).find('.FilterMessage').hide();
+                // Handle containers correctly.
+                $Container.each(function() {
+                    var $Widget = $(this).closest('.WidgetSimple'),
+                        IsCollapsed = $Widget.hasClass('Collapsed');
+
+                    $Widget.show();
+                    if (IsCollapsed) {
+                        // Expand widget for a moment.
+                        $Widget.addClass("Expanded").removeClass("Collapsed");
+                    }
+
+                    if ($(this).find('tbody tr:visible:not(.FilterMessage), li:visible:not(.Header):not(.FilterMessage)').length) {
+                        $(this).find('.FilterMessage').hide();
+
+                        if (HideEmptyContainers) {
+                            $(this).closest('.WidgetSimple').show();
                         }
-                        else {
-                            $(this).find('.FilterMessage').show();
-                        }
-                    });
-                }
-                else {
-                    if ($Rows.filter(':visible').length) {
-                        $Container.find('.FilterMessage').hide();
                     }
                     else {
-                        $Container.find('.FilterMessage').show();
+                        $(this).find('.FilterMessage').show();
+                        if (HideEmptyContainers) {
+                            $(this).closest('.WidgetSimple').hide();
+                        }
                     }
+
+                    if (IsCollapsed) {
+                        // Collapse widget, just like it was before.
+                        $Widget.addClass("Collapsed").removeClass("Expanded");
+                    }
+                });
+
+                if (!$Container.filter(':visible').length
+                    && !$Container.closest(".WidgetSimple:visible").length) {
+                    $('.FilterMessageWidget').show();
+                }
+                else {
+                    $('.FilterMessageWidget').hide();
                 }
 
                 Core.App.Publish('Event.UI.Table.InitTableFilter.Change', [$FilterInput, $Container, ColumnNumber]);

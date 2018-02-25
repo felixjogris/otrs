@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,7 +8,7 @@
 
 [% RenderBlockStart("Overview") %]
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
-    <h1>[% Translate("Priority Management") | html %]</h1>
+    <h1 class="InvisibleText">[% Translate("Priority Management") | html %]</h1>
 
     [% BreadcrumbPath = [
             {
@@ -125,7 +125,7 @@
             </div>
             <div class="Content">
 
-                <form id="EntityUpdate" action="[% Env("CGIHandle") %]" method="post" class="Validate">
+                <form id="EntityUpdate" action="[% Env("CGIHandle") %]" method="post" class="Validate PreventMultipleSubmits">
                     <input type="hidden" name="Action" value="[% Env("Action") %]" />
                     <input type="hidden" name="Subaction" value="[% Data.Action | uri %]Action" />
                     <input type="hidden" name="PriorityID" value="[% Data.PriorityID | html %]" />

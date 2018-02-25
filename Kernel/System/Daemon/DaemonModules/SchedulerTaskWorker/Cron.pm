@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -14,14 +14,14 @@ use warnings;
 use IPC::Open3;
 use Symbol;
 
-use base qw(Kernel::System::Daemon::DaemonModules::BaseTaskWorker);
+use parent qw(Kernel::System::Daemon::DaemonModules::BaseTaskWorker);
 
 our @ObjectDependencies = (
     'Kernel::Config',
     'Kernel::System::Daemon::SchedulerDB',
+    'Kernel::System::DateTime',
     'Kernel::System::Email',
     'Kernel::System::Log',
-    'Kernel::System::Time',
 );
 
 =head1 NAME
@@ -89,7 +89,7 @@ sub Run {
     # Stop execution if an error in params is detected.
     return if !$CheckResult;
 
-    my $StartSystemTime = $Kernel::OM->Get('Kernel::System::Time')->SystemTime();
+    my $StartSystemTime = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
 
     my $ModuleObject;
     eval {
@@ -147,7 +147,7 @@ sub Run {
     };
 
     # Get current system time (as soon as the method has been called).
-    my $EndSystemTime = $Kernel::OM->Get('Kernel::System::Time')->SystemTime();
+    my $EndSystemTime = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
 
     my $IsConsoleCommand;
     if (
@@ -170,7 +170,7 @@ sub Run {
     # Check if there are errors.
     if ( $ErrorMessage || $ConsoleCommandFailure ) {
 
-        $ErrorMessage //= '';
+        $ErrorMessage //= "Console command '$Param{TaskName}' is failed.";
 
         $Self->_HandleError(
             TaskName     => $Param{TaskName},

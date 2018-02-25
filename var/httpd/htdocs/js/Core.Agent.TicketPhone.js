@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -29,9 +29,7 @@ Core.Agent.TicketPhone = (function (TargetNS) {
      */
     TargetNS.Init = function () {
 
-        var $Form,
-            FieldID,
-            DynamicFieldNames = Core.Config.Get('DynamicFieldNames'),
+        var DynamicFieldNames = Core.Config.Get('DynamicFieldNames'),
             FromExternalCustomerName = Core.Config.Get('FromExternalCustomerName'),
             FromExternalCustomerEmail = Core.Config.Get('FromExternalCustomerEmail'),
             Fields = ['TypeID', 'Dest', 'NewUserID', 'NewResponsibleID', 'NextStateID', 'PriorityID', 'ServiceID', 'SLAID'],
@@ -93,22 +91,6 @@ Core.Agent.TicketPhone = (function (TargetNS) {
                 Core.AJAX.FormUpdate($('#NewPhoneTicket'), 'AJAXUpdate', 'StandardTemplateID', ['RichTextField']);
             });
             return false;
-        });
-
-        // Bind event to AttachmentDelete button.
-        $('button[id*=AttachmentDeleteButton]').on('click', function () {
-            $Form = $(this).closest('form');
-            FieldID = $(this).attr('id').split('AttachmentDeleteButton')[1];
-            $('#AttachmentDelete' + FieldID).val(1);
-            Core.Form.Validate.DisableValidation($Form);
-            $Form.trigger('submit');
-        });
-
-        // Bind event to FileUpload button.
-        $('#FileUpload').on('change', function () {
-            $Form = $('#FileUpload').closest('form');
-            Core.Form.Validate.DisableValidation($Form);
-            $Form.find('#AttachmentUpload').val('1').end().submit();
         });
 
         // Initialize the ticket action popup.

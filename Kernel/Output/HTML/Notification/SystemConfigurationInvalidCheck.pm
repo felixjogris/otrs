@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,7 +8,7 @@
 
 package Kernel::Output::HTML::Notification::SystemConfigurationInvalidCheck;
 
-use base 'Kernel::Output::HTML::Base';
+use parent 'Kernel::Output::HTML::Base';
 
 use strict;
 use warnings;
@@ -34,7 +34,9 @@ sub Run {
 
     return '' if !$HasPermission;
 
-    my @InvalidSettings = $Kernel::OM->Get('Kernel::System::SysConfig')->ConfigurationInvalidList();
+    my @InvalidSettings = $Kernel::OM->Get('Kernel::System::SysConfig')->ConfigurationInvalidList(
+        CachedOnly => 1,
+    );
 
     if ( scalar @InvalidSettings ) {
 

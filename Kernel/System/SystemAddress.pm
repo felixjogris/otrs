@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -76,6 +76,15 @@ sub SystemAddressAdd {
             );
             return;
         }
+    }
+
+    # check if a system address with this name already exists
+    if ( $Self->NameExistsCheck( Name => $Param{Name} ) ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "A system address with the name '$Param{Name}' already exists.",
+        );
+        return;
     }
 
     # get database object
@@ -220,6 +229,21 @@ sub SystemAddressUpdate {
             );
             return;
         }
+    }
+
+    # check if a system address with this name already exists
+    if (
+        $Self->NameExistsCheck(
+            ID   => $Param{ID},
+            Name => $Param{Name}
+        )
+        )
+    {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "A system address with the name '$Param{Name}' already exists.",
+        );
+        return;
     }
 
     # update system address
@@ -461,6 +485,82 @@ sub SystemAddressQueueList {
 
     return %SystemAddressQueueList;
 
+}
+
+=head2 NameExistsCheck()
+
+return 1 if another system address with this name already exists
+
+    $Exist = $SystemAddressObject->NameExistsCheck(
+        Name => 'Some Address',
+        ID => 1, # optional
+    );
+
+=cut
+
+sub NameExistsCheck {
+    my ( $Self, %Param ) = @_;
+
+    # get database object
+    my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
+    return if !$DBObject->Prepare(
+        SQL  => 'SELECT id FROM system_address WHERE value0 = ?',
+        Bind => [ \$Param{Name} ],
+    );
+
+    # fetch the result
+    my $Flag;
+    while ( my @Row = $DBObject->FetchrowArray() ) {
+        if ( !$Param{ID} || $Param{ID} ne $Row[0] ) {
+            $Flag = 1;
+        }
+    }
+
+    if ($Flag) {
+        return 1;
+    }
+
+    return 0;
+}
+
+=head2 SystemAddressIsUsed()
+
+Return 1 if system address is used in one of the queue's.
+
+    $SytemAddressIsUsed = $SystemAddressObject->SystemAddressIsUsed(
+        SystemAddressID => 1,
+    );
+
+=cut
+
+sub SystemAddressIsUsed {
+    my ( $Self, %Param ) = @_;
+
+    # Check needed param.
+    if ( !$Param{SystemAddressID} ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "Need SystemAddressID!"
+        );
+        return;
+    }
+
+    # Get database object.
+    my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
+
+    return if !$DBObject->Prepare(
+        SQL   => 'SELECT id FROM queue WHERE system_address_id = ?',
+        Bind  => [ \$Param{SystemAddressID} ],
+        Limit => 1,
+    );
+
+    # Fetch the result.
+    my $SystemAddressIsUsed;
+    while ( my @Row = $DBObject->FetchrowArray() ) {
+        $SystemAddressIsUsed = $Row[0] ? 1 : 0;
+    }
+
+    return $SystemAddressIsUsed;
 }
 
 1;

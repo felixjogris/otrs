@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -23,6 +23,12 @@ $Kernel::OM->ObjectParamAdd(
     },
 );
 my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+# use Test email backend
+$Kernel::OM->Get('Kernel::Config')->Set(
+    Key   => 'SendmailModule',
+    Value => 'Kernel::System::Email::Test',
+);
 
 # define variables
 my $UserID     = 1;
@@ -212,19 +218,19 @@ my @Tests = (
             UserID => undef,
             Ticket => \%Ticket,
             Config => {
-                ArticleType    => 'note-internal',
-                SenderType     => 'agent',
-                ContentType    => 'text/plain; charset=ISO-8859-15',
-                Subject        => 'some short description',
-                Body           => 'the message text',
-                HistoryType    => 'OwnerUpdate',
-                HistoryComment => 'Some free text!',
-                From           => 'Some Agent <email@example.com>',
-                To             => 'Some Customer A <customer-a@example.com>',
-                Cc             => 'Some Customer B <customer-b@example.com>',
-                ReplyTo        => 'Some Customer B <customer-b@example.com>',
-                MessageID      => '<asdasdasd.123@example.com>',
-                InReplyTo      => '<asdasdasd.12@example.com>',
+                IsVisibleForCustomer => 0,
+                SenderType           => 'agent',
+                ContentType          => 'text/plain; charset=ISO-8859-15',
+                Subject              => 'some short description',
+                Body                 => 'the message text',
+                HistoryType          => 'OwnerUpdate',
+                HistoryComment       => 'Some free text!',
+                From                 => 'Some Agent <email@example.com>',
+                To                   => 'Some Customer A <customer-a@example.com>',
+                Cc                   => 'Some Customer B <customer-b@example.com>',
+                ReplyTo              => 'Some Customer B <customer-b@example.com>',
+                MessageID            => '<asdasdasd.123@example.com>',
+                InReplyTo            => '<asdasdasd.12@example.com>',
                 References =>
                     '<asdasdasd.1@example.com> <asdasdasd.12@example.com>',
                 NoAgentNotify             => 0,
@@ -242,19 +248,19 @@ my @Tests = (
             UserID => $UserID,
             Ticket => undef,
             Config => {
-                ArticleType    => 'note-internal',
-                SenderType     => 'agent',
-                ContentType    => 'text/plain; charset=ISO-8859-15',
-                Subject        => 'some short description',
-                Body           => 'the message text',
-                HistoryType    => 'OwnerUpdate',
-                HistoryComment => 'Some free text!',
-                From           => 'Some Agent <email@example.com>',
-                To             => 'Some Customer A <customer-a@example.com>',
-                Cc             => 'Some Customer B <customer-b@example.com>',
-                ReplyTo        => 'Some Customer B <customer-b@example.com>',
-                MessageID      => '<asdasdasd.123@example.com>',
-                InReplyTo      => '<asdasdasd.12@example.com>',
+                IsVisibleForCustomer => 0,
+                SenderType           => 'agent',
+                ContentType          => 'text/plain; charset=ISO-8859-15',
+                Subject              => 'some short description',
+                Body                 => 'the message text',
+                HistoryType          => 'OwnerUpdate',
+                HistoryComment       => 'Some free text!',
+                From                 => 'Some Agent <email@example.com>',
+                To                   => 'Some Customer A <customer-a@example.com>',
+                Cc                   => 'Some Customer B <customer-b@example.com>',
+                ReplyTo              => 'Some Customer B <customer-b@example.com>',
+                MessageID            => '<asdasdasd.123@example.com>',
+                InReplyTo            => '<asdasdasd.12@example.com>',
                 References =>
                     '<asdasdasd.1@example.com> <asdasdasd.12@example.com>',
                 NoAgentNotify             => 0,
@@ -312,19 +318,19 @@ my @Tests = (
             UserID => $UserID,
             Ticket => \%Ticket,
             Config => {
-                ArticleType    => 'note-internal',
-                SenderType     => 'agent',
-                ContentType    => 'text/plain; charset=ISO-8859-15',
-                Subject        => 'some short description',
-                Body           => 'the message text',
-                HistoryType    => 'OwnerUpdate',
-                HistoryComment => 'Some free text!',
-                From           => 'Some Agent <email@example.com>',
-                To             => 'Some Customer A <customer-a@example.com>',
-                Cc             => 'Some Customer B <customer-b@example.com>',
-                ReplyTo        => 'Some Customer B <customer-b@example.com>',
-                MessageID      => '<asdasdasd.123@example.com>',
-                InReplyTo      => '<asdasdasd.12@example.com>',
+                IsVisibleForCustomer => 0,
+                SenderType           => 'agent',
+                ContentType          => 'text/plain; charset=ISO-8859-15',
+                Subject              => 'some short description',
+                Body                 => 'the message text',
+                HistoryType          => 'OwnerUpdate',
+                HistoryComment       => 'Some free text!',
+                From                 => 'Some Agent <email@example.com>',
+                To                   => 'Some Customer A <customer-a@example.com>',
+                Cc                   => 'Some Customer B <customer-b@example.com>',
+                ReplyTo              => 'Some Customer B <customer-b@example.com>',
+                MessageID            => '<asdasdasd.123@example.com>',
+                InReplyTo            => '<asdasdasd.12@example.com>',
                 References =>
                     '<asdasdasd.1@example.com> <asdasdasd.12@example.com>',
                 NoAgentNotify             => 0,
@@ -341,9 +347,9 @@ my @Tests = (
             UserID => $UserID,
             Ticket => \%Ticket,
             Config => {
-                ArticleType => 'note-internal',
-                SenderType  => 'agent',
-                ContentType => 'text/plain; charset=ISO-8859-15',
+                IsVisibleForCustomer => 0,
+                SenderType           => 'agent',
+                ContentType          => 'text/plain; charset=ISO-8859-15',
                 Subject =>
                     'äöüßÄÖÜ€исáéíúóúÁÉÍÓÚñÑ-カスタ-用迎使用-Язык',
                 Body =>
@@ -372,9 +378,9 @@ my @Tests = (
             UserID => $UserID,
             Ticket => \%Ticket,
             Config => {
-                ArticleType => 'note-internal',
-                SenderType  => 'agent',
-                ContentType => 'text/plain; charset=ISO-8859-15',
+                IsVisibleForCustomer => 0,
+                SenderType           => 'agent',
+                ContentType          => 'text/plain; charset=ISO-8859-15',
                 Subject =>
                     '<OTRS_TICKET_Title>',
                 Body =>
@@ -403,9 +409,9 @@ my @Tests = (
             UserID => $UserID,
             Ticket => \%Ticket,
             Config => {
-                ArticleType => 'note-internal',
-                SenderType  => 'agent',
-                ContentType => 'text/plain; charset=ISO-8859-15',
+                IsVisibleForCustomer => 0,
+                SenderType           => 'agent',
+                ContentType          => 'text/plain; charset=ISO-8859-15',
                 Subject =>
                     '<OTRS_TICKET_NotExisting> - tag not found',
                 Body =>
@@ -434,9 +440,9 @@ my @Tests = (
             UserID => $UserID,
             Ticket => \%Ticket,
             Config => {
-                ArticleType => 'note-internal',
-                SenderType  => 'agent',
-                ContentType => 'text/plain; charset=ISO-8859-15',
+                IsVisibleForCustomer => 0,
+                SenderType           => 'agent',
+                ContentType          => 'text/plain; charset=ISO-8859-15',
                 Subject =>
                     '<OTRS_TICKET_NotExisting> - tag not found',
                 Body =>
@@ -465,9 +471,9 @@ my @Tests = (
             UserID => $UserID,
             Ticket => \%Ticket,
             Config => {
-                ArticleType => 'note-internal',
-                SenderType  => 'agent',
-                ContentType => 'text/plain; charset=ISO-8859-15',
+                IsVisibleForCustomer => 0,
+                SenderType           => 'agent',
+                ContentType          => 'text/plain; charset=ISO-8859-15',
                 Subject =>
                     '<OTRS_TICKET_DynamicField_' . $TextFieldName . '_Value>',
                 Body =>
@@ -496,9 +502,9 @@ my @Tests = (
             UserID => $UserID,
             Ticket => \%Ticket,
             Config => {
-                ArticleType => 'note-internal',
-                SenderType  => 'agent',
-                ContentType => 'text/plain; charset=ISO-8859-15',
+                IsVisibleForCustomer => 0,
+                SenderType           => 'agent',
+                ContentType          => 'text/plain; charset=ISO-8859-15',
                 Subject =>
                     '<OTRS_TICKET_DynamicField_' . $DropDownFieldName . '>',
                 Body =>
@@ -527,9 +533,9 @@ my @Tests = (
             UserID => $UserID,
             Ticket => \%Ticket,
             Config => {
-                ArticleType => 'note-internal',
-                SenderType  => 'agent',
-                ContentType => 'text/plain; charset=ISO-8859-15',
+                IsVisibleForCustomer => 0,
+                SenderType           => 'agent',
+                ContentType          => 'text/plain; charset=ISO-8859-15',
                 Subject =>
                     '<OTRS_TICKET_DynamicField_' . $MultiSelectFieldName . '_Value>',
                 Body =>
@@ -553,6 +559,101 @@ my @Tests = (
         Success => 1,
     },
 
+    {
+        Name   => 'Correct using Internal backend',
+        Config => {
+            UserID => $UserID,
+            Ticket => \%Ticket,
+            Config => {
+                SenderType           => 'agent',
+                IsVisibleForCustomer => 0,
+                CommunicationChannel => 'Internal',
+                Subject              => 'Test Internal',
+                Body           => 'äöüßÄÖÜ€исáéíúóúÁÉÍÓÚñÑ-カスタ-用迎使用-Язык',
+                HistoryType    => 'OwnerUpdate',
+                HistoryComment => 'Some free text!',
+                From           => 'Some Agent <email@example.com>',
+                To             => 'Some Customer A <customer-a@example.com>',
+                Charset        => 'ISO-8859-15',
+                MimeType       => 'text/plain',
+                UnlockOnAway   => 1,
+            },
+        },
+        Success => 1,
+    },
+    {
+        Name   => 'Correct using Phone backend',
+        Config => {
+            UserID => $UserID,
+            Ticket => \%Ticket,
+            Config => {
+                SenderType           => 'agent',
+                IsVisibleForCustomer => 0,
+                CommunicationChannel => 'Phone',
+                Subject              => 'Test Phone',
+                Body           => 'äöüßÄÖÜ€исáéíúóúÁÉÍÓÚñÑ-カスタ-用迎使用-Язык',
+                HistoryType    => 'OwnerUpdate',
+                HistoryComment => 'Some free text!',
+                From           => 'Some Agent <email@example.com>',
+                To             => 'Some Customer A <customer-a@example.com>',
+                Charset        => 'ISO-8859-15',
+                MimeType       => 'text/plain',
+                UnlockOnAway   => 1,
+            },
+        },
+        Success => 1,
+    },
+    {
+        Name   => 'Correct using Email backend',
+        Config => {
+            UserID => $UserID,
+            Ticket => \%Ticket,
+            Config => {
+                SenderType           => 'agent',
+                IsVisibleForCustomer => 0,
+                CommunicationChannel => 'Email',
+                Subject              => 'Test Email',
+                Body           => 'äöüßÄÖÜ€исáéíúóúÁÉÍÓÚñÑ-カスタ-用迎使用-Язык',
+                HistoryType    => 'OwnerUpdate',
+                HistoryComment => 'Some free text!',
+                From           => 'Some Agent <email@example.com>',
+                To             => 'Some Customer A <customer-a@example.com>',
+                Charset        => 'ISO-8859-15',
+                MimeType       => 'text/plain',
+                UnlockOnAway   => 1,
+
+                Cc         => 'Some Customer B <customer-b@example.com>',
+                Bcc        => 'Some Customer C <customer-c@example.com>',
+                ReplyTo    => 'Some Customer B <customer-b@example.com>',
+                InReplyTo  => '<asdasdasd.12@example.com>',
+                References => '<asdasdasd.1@example.com> <asdasdasd.12@example.com>',
+            },
+        },
+        Success => 1,
+    },
+
+    {
+        Name   => 'Correct using Test123 backend',
+        Config => {
+            UserID => $UserID,
+            Ticket => \%Ticket,
+            Config => {
+                SenderType           => 'agent',
+                IsVisibleForCustomer => 0,
+                CommunicationChannel => 'Test123',
+                Subject              => 'Test Test123',
+                Body           => 'äöüßÄÖÜ€исáéíúóúÁÉÍÓÚñÑ-カスタ-用迎使用-Язык',
+                HistoryType    => 'OwnerUpdate',
+                HistoryComment => 'Some free text!',
+                From           => 'Some Agent <email@example.com>',
+                To             => 'Some Customer A <customer-a@example.com>',
+                Charset        => 'ISO-8859-15',
+                MimeType       => 'text/plain',
+                UnlockOnAway   => 1,
+            },
+        },
+        Success => 0,
+    },
 );
 
 my %ExcludedArtributes = (
@@ -563,9 +664,12 @@ my %ExcludedArtributes = (
     NoAgentNotify                   => 1,
     ExcludeMuteNotificationToUserID => 1,
     AutoResponseType                => 1,
+    UnlockOnAway                    => 1,
+    Bcc                             => 1,
 );
 
-my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+my $ArticleObject              = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+my $CommunicationChannelObject = $Kernel::OM->Get('Kernel::System::CommunicationChannel');
 
 for my $Test (@Tests) {
 
@@ -588,13 +692,11 @@ for my $Test (@Tests) {
         );
 
         # get last article
-        my @ArticleIDs = $ArticleObject->ArticleIndex(
+        my @MetaArticles = $ArticleObject->ArticleList(
             TicketID => $TicketID,
+            OnlyLast => 1,
         );
-        my %Article = $ArticleObject->ArticleGet(
-            ArticleID => $ArticleIDs[-1],
-            UserID    => 1,
-        );
+        my %Article = $ArticleObject->BackendForArticle( %{ $MetaArticles[-1] } )->ArticleGet( %{ $MetaArticles[-1] } );
 
         ATTRIBUTE:
         for my $Attribute ( sort keys %{ $Test->{Config}->{Config} } ) {
@@ -607,6 +709,21 @@ for my $Test (@Tests) {
                 )
             {
                 $Article{$Attribute} //= '';
+            }
+
+            if ( $Attribute eq 'CommunicationChannel' ) {
+
+                my %CommunicationChannel = $CommunicationChannelObject->ChannelGet(
+                    ChannelID => $Article{CommunicationChannelID},
+                );
+
+                $Self->Is(
+                    $CommunicationChannel{ChannelName},
+                    $Test->{Config}->{Config}->{$Attribute},
+                    "$ModuleName - Test:'$Test->{Name}' | Attribute: $Attribute for ArticleID:"
+                        . " $Article{ArticleID} match expected value",
+                );
+                next ATTRIBUTE;
             }
 
             $Self->True(

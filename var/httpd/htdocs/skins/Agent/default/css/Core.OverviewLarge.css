@@ -51,11 +51,11 @@
 
 .OverviewLarge > li ul.InlineActions {
     position: absolute;
-    top: -30px;
+    top: -35px;
     right: 0px;
     background-color: #777;
     padding-left: 5px;
-    height: 30px;
+    height: 35px;
     cursor: auto;
     transition: all ease-in 0.2s;
 }
@@ -294,6 +294,15 @@ body.TouchDevice .OverviewLarge > li ul.InlineActions li.ResponsiveActionMenu {
     font-weight: bold;
 }
 
+.OverviewLarge .ItemActions {
+    cursor: default;
+    position: relative;
+    overflow: hidden;
+    background: #EEEEEE;
+    border-bottom: 1px solid #CCC;
+    min-height: 28px;
+}
+
 .OverviewLarge .Preview {
     width: 60%;
     float: right;
@@ -429,6 +438,5 @@ body.TouchDevice .OverviewLarge > li ul.InlineActions li.ResponsiveActionMenu {
 .OverviewLarge .Preview .ArticleCount1 li div.HiddenBlock div.ActionRow + div.Content {
     height: 177px;
 }
-
 
 } /* end @media */

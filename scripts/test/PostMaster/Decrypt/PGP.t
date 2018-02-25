@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -18,7 +18,8 @@ use Kernel::System::PostMaster;
 # Get helper object.
 $Kernel::OM->ObjectParamAdd(
     'Kernel::System::UnitTest::Helper' => {
-        RestoreDatabase => 1,
+        RestoreDatabase  => 1,
+        UseTmpArticleDir => 1,
     },
 );
 my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
@@ -53,6 +54,13 @@ if ( !-e $ConfigObject->Get('PGP::Bin') ) {
         $ConfigObject->Set(
             Key   => 'PGP::Bin',
             Value => '/usr/bin/gpg'
+        );
+    }
+
+    elsif ( -e '/usr/local/bin/gpg' ) {
+        $ConfigObject->Set(
+            Key   => 'PGP::Bin',
+            Value => '/usr/local/bin/gpg'
         );
     }
 
@@ -113,6 +121,7 @@ for my $Count ( 1 .. 2 ) {
     my @Keys = $PGPObject->KeySearch(
         Search => $Search{$Count},
     );
+
     $Self->False(
         $Keys[0] || '',
         "Key:$Count - KeySearch()",
@@ -171,12 +180,18 @@ my $FilterRand1      = 'filter' . $Helper->GetRandomID();
 $PostMasterFilter->FilterAdd(
     Name           => $FilterRand1,
     StopAfterMatch => 0,
-    Match          => {
-        'X-OTRS-BodyDecrypted' => 'test',
-    },
-    Set => {
-        'X-OTRS-Queue' => 'Junk',
-    },
+    Match          => [
+        {
+            Key   => 'X-OTRS-BodyDecrypted',
+            Value => 'test',
+        },
+    ],
+    Set => [
+        {
+            Key   => 'X-OTRS-Queue',
+            Value => 'Junk',
+        },
+    ],
 );
 
 # Read email content (from a file).
@@ -185,10 +200,20 @@ my $Email = $MainObject->FileRead(
     Result   => 'ARRAY',
 );
 
+my $CommunicationLogObject = $Kernel::OM->Create(
+    'Kernel::System::CommunicationLog',
+    ObjectParams => {
+        Transport => 'Email',
+        Direction => 'Incoming',
+    },
+);
+$CommunicationLogObject->ObjectLogStart( ObjectLogType => 'Message' );
+
 # Part where StoreDecryptedBody is enabled
 my $PostMasterObject = Kernel::System::PostMaster->new(
-    Email   => $Email,
-    Trusted => 1,
+    CommunicationLogObject => $CommunicationLogObject,
+    Email                  => $Email,
+    Trusted                => 1,
 );
 
 $ConfigObject->Set(
@@ -232,8 +257,9 @@ my %Ticket = $TicketObject->TicketGet(
 );
 
 my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+my $ArticleBackendObject = $ArticleObject->BackendForChannel( ChannelName => 'Email' );
 
-my @ArticleIndex = $ArticleObject->ArticleGet(
+my @ArticleIndex = $ArticleObject->ArticleList(
     TicketID => $Return[1],
     UserID   => 1,
 );
@@ -244,13 +270,15 @@ $Self->Is(
     "Ticket created in $Ticket{Queue}",
 );
 
-my $GetBody = $ArticleIndex[0]{Body};
+my %FirstArticle = $ArticleBackendObject->ArticleGet( %{ $ArticleIndex[0] } );
+
+my $GetBody = $FirstArticle{Body};
 chomp($GetBody);
 
 $Self->Is(
     $GetBody,
     'This is only a test.',
-    "Body decrypted $ArticleIndex[0]{Body}",
+    "Body decrypted $FirstArticle{Body}",
 );
 
 # Read email again to make sure that everything is there in the array.
@@ -261,8 +289,9 @@ $Email = $MainObject->FileRead(
 
 # Part where StoreDecryptedBody is disabled
 $PostMasterObject = Kernel::System::PostMaster->new(
-    Email   => $Email,
-    Trusted => 1,
+    CommunicationLogObject => $CommunicationLogObject,
+    Email                  => $Email,
+    Trusted                => 1,
 );
 
 $ConfigObject->Set(
@@ -296,13 +325,21 @@ $Self->True(
     "Create new ticket (TicketID)",
 );
 
+$CommunicationLogObject->ObjectLogStop(
+    ObjectLogType => 'Message',
+    Status        => 'Successful',
+);
+$CommunicationLogObject->CommunicationStop(
+    Status => 'Successful',
+);
+
 my $TicketIDEncrypted = $Return[1];
 
 my %TicketEncrypted = $TicketObject->TicketGet(
     TicketID => $ReturnEncrypted[1],
 );
 
-my @ArticleIndexEncrypted = $ArticleObject->ArticleGet(
+my @ArticleIndexEncrypted = $ArticleObject->ArticleList(
     TicketID => $ReturnEncrypted[1],
     UserID   => 1,
 );
@@ -313,7 +350,9 @@ $Self->Is(
     "Ticket created in $TicketEncrypted{Queue}",
 );
 
-my $GetBodyEncrypted = $ArticleIndexEncrypted[0]{Body};
+my %FirstArticleEncrypted = $ArticleBackendObject->ArticleGet( %{ $ArticleIndexEncrypted[0] } );
+
+my $GetBodyEncrypted = $FirstArticleEncrypted{Body};
 
 $Self->True(
     scalar $GetBodyEncrypted =~ m{no text message => see attachment},

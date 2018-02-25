@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -28,6 +28,31 @@ $Kernel::OM->ObjectParamAdd(
     },
 );
 my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+# Disable email addresses checking.
+$Helper->ConfigSettingChange(
+    Key   => 'CheckEmailAddresses',
+    Value => 0,
+);
+
+my $SendEmails = sub {
+    my %Param = @_;
+
+    my $MailQueueObj = $Kernel::OM->Get('Kernel::System::MailQueue');
+
+    # Get last item in the queue.
+    my $Items = $MailQueueObj->List();
+    my @ToReturn;
+    for my $Item (@$Items) {
+        $MailQueueObj->Send( %{$Item} );
+        push @ToReturn, $Item->{Message};
+    }
+
+    # Clean the mail queue
+    $MailQueueObj->Delete();
+
+    return @ToReturn;
+};
 
 my $RandomID = $Helper->GetRandomNumber();
 
@@ -104,8 +129,10 @@ $ConfigObject->Set(
     Value => 'unittest@example.com',
 );
 
+my $PGPBin = $ConfigObject->Get('PGP::Bin');
+
 # check if gpg is located there
-if ( !-e $ConfigObject->Get('PGP::Bin') ) {
+if ( !$PGPBin || !( -e $PGPBin ) ) {
 
     # maybe it's a mac with macport
     if ( -e '/opt/local/bin/gpg' ) {
@@ -113,6 +140,17 @@ if ( !-e $ConfigObject->Get('PGP::Bin') ) {
             Key   => 'PGP::Bin',
             Value => '/opt/local/bin/gpg'
         );
+    }
+    else {
+        # Try to guess using system 'which'
+        my $GPGBin = `which gpg`;
+        chomp $GPGBin;
+        if ($GPGBin) {
+            $ConfigObject->Set(
+                Key   => 'PGP::Bin',
+                Value => $GPGBin,
+            );
+        }
     }
 }
 
@@ -236,8 +274,9 @@ my $QueueUpdate = $QueueObject->QueueUpdate(
 );
 $Self->True( $QueueUpdate, "QueueUpdate() $Queue{Name}" );
 
-my $TicketObject  = $Kernel::OM->Get('Kernel::System::Ticket');
-my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+my $TicketObject          = $Kernel::OM->Get('Kernel::System::Ticket');
+my $ArticleObject         = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+my $ArticleInternalObject = $Kernel::OM->Get('Kernel::System::Ticket::Article::Backend::Internal');
 
 # create ticket
 my $TicketID = $TicketObject->TicketCreate(
@@ -258,19 +297,19 @@ $Self->True(
     "TicketCreate() successful for Ticket ID $TicketID",
 );
 
-my $ArticleID = $ArticleObject->ArticleCreate(
-    TicketID       => $TicketID,
-    ArticleType    => 'webrequest',
-    SenderType     => 'customer',
-    From           => 'customerOne@example.com',
-    To             => 'Some Agent A <agent-a@example.com>',
-    Subject        => 'some short description',
-    Body           => 'the message text',
-    Charset        => 'utf8',
-    MimeType       => 'text/plain',
-    HistoryType    => 'OwnerUpdate',
-    HistoryComment => 'Some free text!',
-    UserID         => $UserID,
+my $ArticleID = $ArticleInternalObject->ArticleCreate(
+    TicketID             => $TicketID,
+    IsVisibleForCustomer => 1,
+    SenderType           => 'customer',
+    From                 => 'customerOne@example.com',
+    To                   => 'Some Agent A <agent-a@example.com>',
+    Subject              => 'some short description',
+    Body                 => 'the message text',
+    Charset              => 'utf8',
+    MimeType             => 'text/plain',
+    HistoryType          => 'OwnerUpdate',
+    HistoryComment       => 'Some free text!',
+    UserID               => $UserID,
 );
 
 # sanity check
@@ -300,11 +339,6 @@ $Self->True(
 
 my $NotificationEventObject      = $Kernel::OM->Get('Kernel::System::NotificationEvent');
 my $EventNotificationEventObject = $Kernel::OM->Get('Kernel::System::Ticket::Event::NotificationEvent');
-
-# get article types email-notification-int ID
-my $ArticleTypeIntID = $ArticleObject->ArticleTypeLookup(
-    ArticleType => 'email-notification-int',
-);
 
 my @Tests = (
     {
@@ -452,6 +486,8 @@ for my $Test (@Tests) {
         UserID => $UserID,
     );
 
+    $SendEmails->();
+
     my $Emails = $TestEmailObject->EmailsGet();
     if ( $Test->{Success} ) {
 
@@ -470,19 +506,16 @@ for my $Test (@Tests) {
     }
 
     # get ticket articles
-    my @ArticleIDs = $ArticleObject->ArticleIndex(
+    my @Articles = $ArticleObject->ArticleList(
         TicketID => $TicketID,
+        OnlyLast => 1,
     );
-
-    my $LastArticleID = pop @ArticleIDs;
-
-    my %Article = $ArticleObject->ArticleGet(
-        TicketID  => $TicketID,
-        ArticleID => $LastArticleID,
-    );
+    my %Article = %{ $Articles[0] };
 
     my $CheckObject = Kernel::Output::HTML::ArticleCheck::PGP->new(
-        ArticleID => $LastArticleID,
+
+        # ArticleID => $LastArticleID,
+        ArticleID => $Article{ArticleID},
         UserID    => $UserID,
     );
 

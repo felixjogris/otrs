@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,6 +8,7 @@
 
 package Kernel::System::DateTime;
 ## nofilter(TidyAll::Plugin::OTRS::Perl::Time)
+## nofilter(TidyAll::Plugin::OTRS::Perl::Translatable)
 
 use strict;
 use warnings;
@@ -26,7 +27,6 @@ Exporter::export_ok_tags('all');
 use DateTime;
 use DateTime::TimeZone;
 use Scalar::Util qw( looks_like_number );
-
 use Kernel::System::VariableCheck qw( IsArrayRefWithData IsHashRefWithData );
 
 our %ObjectManagerFlags = (
@@ -38,6 +38,8 @@ our @ObjectDependencies = (
     'Kernel::Config',
     'Kernel::System::Log',
 );
+
+our $Locale = DateTime::Locale->load('en_US');
 
 use overload
     '>'        => \&_OpIsNewerThan,
@@ -62,7 +64,6 @@ Handles date and time calculations.
 
 Creates a DateTime object. Do not use new() directly, instead use the object manager:
 
-
     # Create an object with current date and time
     # within time zone set in SysConfig OTRSTimeZone:
     my $DateTimeObject = $Kernel::OM->Create(
@@ -74,7 +75,7 @@ Creates a DateTime object. Do not use new() directly, instead use the object man
     my $DateTimeObject = $Kernel::OM->Create(
         'Kernel::System::DateTime',
         ObjectParams => {
-            TimeZone => 'Europe/Berlin',        # optional
+            TimeZone => 'Europe/Berlin',        # optional, TimeZone name.
         }
     );
 
@@ -114,6 +115,18 @@ Creates a DateTime object. Do not use new() directly, instead use the object man
         }
     );
 
+    # Following formats for parameter String are supported:
+    #
+    #   yyyy-mm-dd hh:mm:ss
+    #   yyyy-mm-dd hh:mm                # sets second to 0
+    #   yyyy-mm-dd                      # sets hour, minute and second to 0
+    #   yyyy-mm-ddThh:mm:ss+tt:zz
+    #   yyyy-mm-ddThh:mm:ss+ttzz
+    #   yyyy-mm-ddThh:mm:ss-tt:zz
+    #   yyyy-mm-ddThh:mm:ss-ttzz
+    #   yyyy-mm-ddThh:mm:ss [timezone]  # time zone will be deduced from the string
+    #   yyyy-mm-ddThh:mm:ss[timezone]   # time zone will be deduced from the string
+
 =cut
 
 sub new {
@@ -123,14 +136,21 @@ sub new {
     my $Self = {};
     bless( $Self, $Type );
 
-    # CPAN DateTime:
-    # Only use English descriptions and abbreviations internally.
-    # This has nothing to do with the user's locale settings in OTRS.
-    $Self->{Locale} = 'en_US';
+    # CPAN DateTime: only use English descriptions and abbreviations internally.
+    #   This has nothing to do with the user's locale settings in OTRS.
+    $Self->{Locale} = $Locale;
 
-    # create CPAN/Perl DateTime object
+    # Use private parameter to pass in an already created CPANDateTimeObject (used)
+    #   by the Clone() method).
+    if ( $Param{_CPANDateTimeObject} ) {
+        $Self->{CPANDateTimeObject} = $Param{_CPANDateTimeObject};
+        return $Self;
+    }
+
+    # Create the CPAN/Perl DateTime object.
     my $CPANDateTimeObject = $Self->_CPANDateTimeObjectCreate(%Param);
-    if ( !$CPANDateTimeObject ) {
+
+    if ( ref $CPANDateTimeObject ne 'DateTime' ) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             'Priority' => 'Error',
             'Message'  => 'Error creating DateTime object.',
@@ -140,7 +160,6 @@ sub new {
     }
 
     $Self->{CPANDateTimeObject} = $CPANDateTimeObject;
-
     return $Self;
 }
 
@@ -186,13 +205,11 @@ sub Get {
 
 =head2 Set()
 
-Sets date and time values of this object.
-You have to give at least one parameter.
-Only given values will be changed.
-Note that the resulting date and time have to be valid.
-On validation error, the current date and time of the object won't be changed.
+Sets date and time values of this object. You have to give at least one parameter. Only given values will be changed.
+Note that the resulting date and time have to be valid. On validation error, the current date and time of the object
+won't be changed.
 
-Note that for changing the time zone, you have to use method ToTimeZone.
+Note that in order to change the time zone, you have to use method C<L</ToTimeZone()>>.
 
     # Setting values by hash:
     my $Success = $DateTimeObject->Set(
@@ -205,8 +222,10 @@ Note that for changing the time zone, you have to use method ToTimeZone.
     );
 
     # Settings values by date/time string:
-    # If parameter String is present, all other parameters will be ignored.
     my $Success = $DateTimeObject->Set( String => '2016-02-25 20:34:01' );
+
+If parameter C<String> is present, all other parameters will be ignored. Please see C<L</new()>> for the list of
+supported string formats.
 
 Returns:
 
@@ -269,8 +288,7 @@ sub Set {
 
 =head2 Add()
 
-Adds duration or working time to date and time of this object.
-You have to give at least one of the valid parameters.
+Adds duration or working time to date and time of this object. You have to give at least one of the valid parameters.
 On error, the current date and time of this object won't be changed.
 
     my $Success = $DateTimeObject->Add(
@@ -580,9 +598,8 @@ sub Add {
 
 =head2 Subtract()
 
-Subtracts duration from date and time of this object.
-You have to give at least one of the valid parameters.
-On validation error, the current date and time of this object won't be changed.
+Subtracts duration from date and time of this object. You have to give at least one of the valid parameters. On
+validation error, the current date and time of this object won't be changed.
 
     my $Success = $DateTimeObject->Subtract(
         Years     => 1,
@@ -679,20 +696,17 @@ sub Subtract {
 
 =head2 Delta()
 
-Calculates delta between this and another DateTime object. Optionally calculates the working
-time between the two.
+Calculates delta between this and another DateTime object. Optionally calculates the working time between the two.
 
     my $Delta = $DateTimeObject->Delta( DateTimeObject => $AnotherDateTimeObject );
 
-    Note that the returned values are always positive. Use the comparison methods
-    to see if a date is newer/older/equal.
+Note that the returned values are always positive. Use the comparison methods to see if a date is newer/older/equal.
 
     # Calculate "working time"
     ForWorkingTime => 0, # set to 1 to calculate working time between the two DateTime objects
 
     # Calendar to use for working time calculations, optional
     Calendar => 9,
-
 
 Returns:
 
@@ -712,9 +726,6 @@ Returns:
 sub Delta {
     my ( $Self, %Param ) = @_;
 
-    #
-    # check required params
-    #
     if (
         !defined $Param{DateTimeObject}
         || ref $Param{DateTimeObject} ne ref $Self
@@ -964,7 +975,7 @@ Compares dates and returns a value suitable for using Perl's sort function (-1, 
 
     my $Result = $DateTimeObject->Compare( DateTimeObject => $AnotherDateTimeObject );
 
-    You can also use this as a function for Perl's sort:
+You can also use this as a function for Perl's sort:
 
     my @SortedDateTimeObjects = sort { $a->Compare( DateTimeObject => $b ); } @UnsortedDateTimeObjects:
 
@@ -979,7 +990,6 @@ Returns:
 sub Compare {
     my ( $Self, %Param ) = @_;
 
-    # check required params
     if (
         !defined $Param{DateTimeObject}
         || ref $Param{DateTimeObject} ne ref $Self
@@ -1020,7 +1030,6 @@ Returns:
 sub ToTimeZone {
     my ( $Self, %Param ) = @_;
 
-    # check required params
     for my $RequiredParam (qw( TimeZone )) {
         if ( !defined $Param{$RequiredParam} ) {
             $Kernel::OM->Get('Kernel::System::Log')->Log(
@@ -1081,7 +1090,6 @@ Returns:
 sub Validate {
     my ( $Self, %Param ) = @_;
 
-    # Check given parameters
     my @DateTimeParams = qw ( Year Month Day Hour Minute Second TimeZone );
     for my $RequiredDateTimeParam (@DateTimeParams) {
         if ( !defined $Param{$RequiredDateTimeParam} ) {
@@ -1102,8 +1110,8 @@ sub Validate {
 =head2 Format()
 
 Returns the date/time as string formatted according to format given.
-See http://search.cpan.org/~drolsky/DateTime-1.21/lib/DateTime.pm#strftime_Patterns for formatting
-the time.
+
+See L<http://search.cpan.org/~drolsky/DateTime-1.21/lib/DateTime.pm#strftime_Patterns> for supported formats.
 
 Short overview of essential formatting options:
 
@@ -1208,7 +1216,6 @@ Returns the date/time of this object as time stamp in RFC 2822 format to be used
     $DateTimeObject->ToOTRSTimeZone();
     my $MailTimeStamp = $DateTimeObject->ToEmailTimeStamp();
 
-
 Returns:
 
     my $String = 'Wed, 2 Sep 2014 16:30:57 +0200';
@@ -1246,11 +1253,11 @@ sub ToEmailTimeStamp {
 
 =head2 ToCTimeString()
 
-Returns date and time as ctime string, as for example returned by Perl's localtime and gmtime in scalar context.
+Returns date and time as ctime string, as for example returned by Perl's C<localtime> and C<gmtime> in scalar context.
 
     my $CTimeString = $DateTimeObject->ToCTimeString();
 
-Returns
+Returns:
 
     my $String = 'Fri Feb 19 16:07:31 2016';
 
@@ -1372,12 +1379,9 @@ Clones the DateTime object.
 sub Clone {
     my ( $Self, %Param ) = @_;
 
-    my $ClonedDateTimeObject = $Kernel::OM->Create(
-        __PACKAGE__,
-        ObjectParams => $Self->Get(),
+    return __PACKAGE__->new(
+        _CPANDateTimeObject => $Self->{CPANDateTimeObject}->clone()
     );
-
-    return $ClonedDateTimeObject;
 }
 
 =head2 TimeZoneList()
@@ -1386,8 +1390,9 @@ Returns an array ref of available time zones.
 
     my $TimeZones = $DateTimeObject->TimeZoneList();
 
-    # You can also call this method without an object:
-    #my $TimeZones = Kernel::System::DateTime->TimeZoneList();
+You can also call this method without an object:
+
+    my $TimeZones = Kernel::System::DateTime->TimeZoneList();
 
 Returns:
 
@@ -1415,8 +1420,8 @@ sub TimeZoneList {
 
 =head2 TimeZoneByOffsetList()
 
-Returns a list of time zones by offset in hours.
-Of course the resulting list depends on the date/time set within this DateTime object.
+Returns a list of time zones by offset in hours. Of course, the resulting list depends on the date/time set within this
+DateTime object.
 
     my %TimeZoneByOffset = $DateTimeObject->TimeZoneByOffsetList();
 
@@ -1477,7 +1482,6 @@ my %ValidTimeZones;    # Cache for all instances.
 sub IsTimeZoneValid {
     my ( $Self, %Param ) = @_;
 
-    # check required params
     for my $RequiredParam (qw( TimeZone )) {
         if ( !defined $Param{$RequiredParam} ) {
             $Kernel::OM->Get('Kernel::System::Log')->Log(
@@ -1519,13 +1523,14 @@ sub OTRSTimeZoneGet {
 
 =head2 UserDefaultTimeZoneGet()
 
-Returns the time zone set as default in SysConfig UserDefaultTimeZone for
-newly created users or existing users without time zone setting.
+Returns the time zone set as default in SysConfig UserDefaultTimeZone for newly created users or existing users without
+time zone setting.
 
     my $UserDefaultTimeZoneGet = $DateTimeObject->UserDefaultTimeZoneGet();
 
-    # You can also call this method without an object:
-    #my $UserDefaultTimeZoneGet = Kernel::System::DateTime->UserDefaultTimeZoneGet();
+You can also call this method without an object:
+
+    my $UserDefaultTimeZoneGet = Kernel::System::DateTime->UserDefaultTimeZoneGet();
 
 Returns:
 
@@ -1543,8 +1548,9 @@ Returns the time zone of the system.
 
     my $SystemTimeZone = $DateTimeObject->SystemTimeZoneGet();
 
-    # You can also call this method without an object:
-    #my $SystemTimeZone = Kernel::System::DateTime->SystemTimeZoneGet();
+You can also call this method without an object:
+
+    my $SystemTimeZone = Kernel::System::DateTime->SystemTimeZoneGet();
 
 Returns:
 
@@ -1560,8 +1566,8 @@ sub SystemTimeZoneGet {
 
 =head2 _ToCPANDateTimeParamNames()
 
-Maps date/time parameter names expected by the methods of this package to the ones
-expected by CPAN/Perl DateTime package.
+Maps date/time parameter names expected by the methods of this package to the ones expected by CPAN/Perl DateTime
+package.
 
     my $DateTimeParams = $DateTimeObject->_ToCPANDateTimeParamNames(
         Year     => 2016,
@@ -1632,6 +1638,8 @@ Parses a date/time string and returns a hash ref.
     # Sets hour, minute and second to 0:
     my $DateTimeHash = $DateTimeObject->_StringToHash( String => '2016-08-14' );
 
+Please see C<L</new()>> for the list of supported string formats.
+
 Returns:
 
     my $DateTimeHash = {
@@ -1659,7 +1667,7 @@ sub _StringToHash {
         }
     }
 
-    if ( $Param{String} =~ m{\A(\d{4})-(\d{2})-(\d{2})(\s(\d{2}):(\d{2})(:(\d{2}))?)?\z} ) {
+    if ( $Param{String} =~ m{\A(\d{4})-(\d{1,2})-(\d{1,2})(\s(\d{1,2}):(\d{1,2})(:(\d{1,2}))?)?\z} ) {
 
         my $DateTimeHash = {
             Year   => int $1,
@@ -1671,6 +1679,49 @@ sub _StringToHash {
         };
 
         return $DateTimeHash;
+    }
+
+    # Match the following formats:
+    #   - yyyy-mm-ddThh:mm:ss+tt:zz
+    #   - yyyy-mm-ddThh:mm:ss+ttzz
+    #   - yyyy-mm-ddThh:mm:ss-tt:zz
+    #   - yyyy-mm-ddThh:mm:ss-ttzz
+    #   - yyyy-mm-ddThh:mm:ss [timezone]
+    #   - yyyy-mm-ddThh:mm:ss[timezone]
+    if ( $Param{String} =~ /^\d{4}-\d{1,2}-\d{1,2}T\d{1,2}:\d{1,2}:\d{1,2}(.+)$/i ) {
+        my ( $Year, $Month, $Day, $Hour, $Minute, $Second, $OffsetOrTZ ) =
+            ( $Param{String} =~ m/^(\d{4})-(\d{2})-(\d{2})T(\d{1,2}):(\d{1,2}):(\d{1,2})\s*(.+)$/i );
+
+        my $DateTimeHash = {
+            Year   => int $Year,
+            Month  => int $Month,
+            Day    => int $Day,
+            Hour   => int $Hour,
+            Minute => int $Minute,
+            Second => int $Second,
+        };
+
+        # Check if the rest 'OffsetOrTZ' is an offset or timezone.
+        #   If isn't an offset consider it a timezone
+        if ( $OffsetOrTZ !~ m/(\+|\-)\d{2}:?\d{2}/i ) {
+            return {
+                %{$DateTimeHash},
+                TimeZone => $OffsetOrTZ,
+            };
+        }
+
+        # It's an offset, get the time in GMT/UTC.
+        $OffsetOrTZ =~ s/://i;    # Remove the ':'
+        my $DT = DateTime->new(
+            ( map { lcfirst $_ => $DateTimeHash->{$_} } keys %{$DateTimeHash} ),
+            time_zone => $OffsetOrTZ,
+        );
+        $DT->set_time_zone('UTC');
+        $DT->set_time_zone( $Self->OTRSTimeZoneGet() );
+
+        return {
+            ( map { ucfirst $_ => $DT->$_() } qw(year month day hour minute second) )
+        };
     }
 
     $Kernel::OM->Get('Kernel::System::Log')->Log(
@@ -1716,7 +1767,8 @@ Creates a CPAN DateTime object which will be stored within this object and used 
 
     # Create an object from a date/time string.
     #
-    # If parameter String is given, Year, Month, Day, Hour, Minute and Second will be ignored
+    # If parameter String is given, Year, Month, Day, Hour, Minute and Second will be ignored. Please see C<L</new()>>
+    # for the list of supported string formats.
     my $CPANDateTimeObject = $DateTimeObject->_CPANDateTimeObjectCreate(
         String   => '2016-08-14 22:45:00',
         TimeZone => 'Europe/Berlin',        # optional, defaults to setting of SysConfig OTRSTimeZone
@@ -1726,6 +1778,24 @@ Creates a CPAN DateTime object which will be stored within this object and used 
 
 sub _CPANDateTimeObjectCreate {
     my ( $Self, %Param ) = @_;
+
+    # Create object from string
+    if ( defined $Param{String} ) {
+        my $DateTimeHash = $Self->_StringToHash( String => $Param{String} );
+        if ( !IsHashRefWithData($DateTimeHash) ) {
+            $Kernel::OM->Get('Kernel::System::Log')->Log(
+                'Priority' => 'Error',
+                'Message'  => "Invalid value for String: $Param{String}.",
+            );
+
+            return;
+        }
+
+        %Param = (
+            TimeZone => $Param{TimeZone},
+            %{$DateTimeHash},
+        );
+    }
 
     my $CPANDateTimeObject;
     my $TimeZone = $Param{TimeZone} || $Self->OTRSTimeZoneGet();
@@ -1760,21 +1830,6 @@ sub _CPANDateTimeObjectCreate {
         };
 
         return $CPANDateTimeObject;
-    }
-
-    # Create object from string
-    if ( defined $Param{String} ) {
-        my $DateTimeHash = $Self->_StringToHash( String => $Param{String} );
-        if ( !IsHashRefWithData($DateTimeHash) ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                'Priority' => 'Error',
-                'Message'  => "Invalid value for String: $Param{String}.",
-            );
-
-            return;
-        }
-
-        %Param = %{$DateTimeHash};
     }
 
     $Param{TimeZone} = $TimeZone;

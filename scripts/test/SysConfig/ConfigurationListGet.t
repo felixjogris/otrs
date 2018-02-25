@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -45,7 +45,7 @@ my $SettingsAdd = sub {
             IsInvisible    => 0,
             IsReadonly     => 0,
             IsRequired     => 1,
-            IsValid        => 1,
+            IsValid        => $Param{IsValid} // 1,
             HasConfigLevel => 0,
             XMLFilename    => 'UnitTest.xml',
         );
@@ -53,6 +53,8 @@ my $SettingsAdd = sub {
         my $SettingName = "Test$Counter$RandomID";
 
         my $XMLContentRaw = << "EOF";
+<?xml version="1.0" encoding="utf-8" ?>
+<otrs_config version="2.0" init="Framework">
     <Setting Name="$SettingName" Required="1" Valid="1">
         <Description Translatable="1">Test.</Description>
         <Navigation>Core::Test</Navigation>
@@ -60,14 +62,16 @@ my $SettingsAdd = sub {
             <Item ValueType="String" ValueRegex=".*">Test</Item>
         </Value>
     </Setting>
+</otrs_config>
 EOF
 
-        my $XMLContentParsed = $SysConfigXMLObject->SettingParse(
-            SettingXML => $XMLContentRaw,
+        my @DefaultSettingAddParams = $SysConfigXMLObject->SettingListParse(
+            %DefaultSettingAddTemplate,
+            XMLInput => $XMLContentRaw,
         );
 
         my $Value = $StorableObject->Clone(
-            Data => $XMLContentParsed->{Value},
+            Data => $DefaultSettingAddParams[0]->{XMLContentParsed}->{Value},
         );
 
         my $EffectiveValue = $SysConfigObject->SettingEffectiveValueGet(
@@ -76,8 +80,8 @@ EOF
 
         my $DefaultID = $SysConfigDBObject->DefaultSettingAdd(
             %DefaultSettingAddTemplate,
-            XMLContentRaw            => $XMLContentRaw,
-            XMLContentParsed         => $XMLContentParsed,
+            %{ $DefaultSettingAddParams[0] },
+            Name                     => "Test0$RandomID",
             EffectiveValue           => $EffectiveValue,
             Name                     => $SettingName,
             UserModificationPossible => 0,
@@ -143,6 +147,17 @@ my @Tests = (
         Success          => 1,
     },
     {
+        Name   => '1 default disabled',
+        Config => {
+            Navigation => 'Core::Test',
+            IsValid    => 1,
+        },
+        NumberOfSettings => 1,
+        IsValid          => 0,
+        ModifySettings   => [1],
+        Success          => 1,
+    },
+    {
         Name   => '3 default',
         Config => {
             Navigation => 'Core::Test',
@@ -159,7 +174,6 @@ my @Tests = (
         NumberOfSettings => 3,
         Success          => 1,
     },
-
 );
 
 TEST:
@@ -218,7 +232,7 @@ for my $Test (@Tests) {
         $Self->IsDeeply(
             scalar @List,
             0,
-            "$Test->{Name} ConfigurationList() returns no settings",
+            "$Test->{Name} ConfigurationListGet() returns no settings",
         );
         next TEST;
     }
@@ -226,7 +240,7 @@ for my $Test (@Tests) {
     $Self->Is(
         scalar @List,
         $Test->{NumberOfSettings},
-        "$Test->{Name}  ConfigurationList() cardinality",
+        "$Test->{Name}  ConfigurationListGet() cardinality",
     );
 
     my @ExpectedResult;
@@ -265,7 +279,7 @@ for my $Test (@Tests) {
     $Self->IsDeeply(
         \@List,
         \@ExpectedResult,
-        "$Test->{Name} ConfigurationList()",
+        "$Test->{Name} ConfigurationListGet()",
     );
 }
 continue {

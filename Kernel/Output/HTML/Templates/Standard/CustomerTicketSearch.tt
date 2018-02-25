@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -37,47 +37,23 @@
                     <p>[% Translate("e. g. 10*5155 or 105658*") | html %]</p>
                 </div>
                 <div>
-                    <label for="CustomerID">[% Translate("Customer ID") | html %]</label>
-                    <input title="[% Translate("Customer ID") | html %]" type="text" id="CustomerID" name="CustomerID" value="[% Data.CustomerID | html %]" size="20" />
+                    <label for="CustomerID">[% Translate("CustomerID") | html %]</label>
+                    [% Data.CustomerIDStrg %]
                 </div>
             </fieldset>
             <fieldset>
                 <h2>[% Translate("Fulltext Search in Tickets (e. g. \"John*n\" or \"Will*\")") | html %]</h2>
+[% RenderBlockStart("SearchableArticleField") %]
                 <div>
-                    <label for="From">[% Translate("From") | html %]</label>
-                    <input title="[% Translate("Sender") | html %]" type="text" id="From" name="From" value="[% Data.From | html %]" size="20" class="[% Data.FromInvalid | html %]" />
-                    <div id="FromServerError" class="TooltipErrorMessage">
-                        <p>[% Data.FromInvalidTooltip | html %]</p>
+                    <label for="[% Data.ArticleFieldKey | html %]">[% Translate(Data.ArticleFieldLabel) | html %]</label>
+                    <input title="[% Translate(Data.ArticleFieldLabel) | html %]" type="text" id="[% Data.ArticleFieldKey %]" name="[% Data.ArticleFieldKey | html %]" value="[% Data.ArticleFieldValue | html %]" size="20" class="[% Data.ArticleFieldKey %]Invalid" />
+                    <div id="[% Data.ArticleFieldKey %]ServerError" class="TooltipErrorMessage">
+                        <p>[% Data.ArticleFieldKeyTooltip | html %]</p>
                     </div>
+                    <div class="Clear"></div>
                 </div>
-                <div>
-                    <label for="To">[% Translate("To") | html %]</label>
-                    <input title="[% Translate("Recipient") | html %]" type="text" id="To" name="To" value="[% Data.To | html %]" size="20" class="[% Data.ToInvalid | html %]" />
-                    <div id="ToServerError" class="TooltipErrorMessage">
-                        <p>[% Data.ToInvalidTooltip | html %]</p>
-                    </div>
-                </div>
-                <div>
-                    <label for="Cc">[% Translate("Cc") | html %]</label>
-                    <input title="[% Translate("Carbon Copy") | html %]" type="text" id="Cc" name="Cc" value="[% Data.Cc | html %]" size="20" class="[% Data.CcInvalid | html %]" />
-                    <div id="CcServerError" class="TooltipErrorMessage">
-                        <p>[% Data.CcInvalidTooltip | html %]</p>
-                    </div>
-                </div>
-                <div>
-                    <label for="Subject">[% Translate("Subject") | html %]</label>
-                    <input title="[% Translate("Subject") | html %]" type="text" id="Subject" name="Subject" value="[% Data.Subject | html %]" size="20" class="[% Data.SubjectInvalid | html %]" />
-                    <div id="SubjectServerError" class="TooltipErrorMessage">
-                        <p>[% Data.SubjectInvalidTooltip | html %]</p>
-                    </div>
-                </div>
-                <div>
-                    <label for="Body">[% Translate("Text") | html %]</label>
-                    <input title="[% Translate("Text") | html %]" type="text" id="Body" name="Body" value="[% Data.Body | html %]" size="20" class="[% Data.BodyInvalid | html %]" />
-                    <div id="BodyServerError" class="TooltipErrorMessage">
-                        <p>[% Data.BodyInvalidTooltip | html %]</p>
-                    </div>
-                </div>
+[% RenderBlockEnd("SearchableArticleField") %]
+
 [% RenderBlockStart("DynamicField") %]
                 <div>
                     [% Data.Label %]
@@ -86,17 +62,6 @@
                 <div class="Clear"></div>
 [% RenderBlockEnd("DynamicField") %]
             </fieldset>
-
-[% RenderBlockStart("Attachment") %]
-            <fieldset>
-                <h2>[% Translate("Attachments") | html %]</h2>
-                <div>
-                    <label for="AttachmentName">[% Translate("Attachment Name") | html %]:</label>
-                    <input title="[% Translate("Attachment Name") | html %]" type="text" name="AttachmentName" value="[% Data.AttachmentName | html %]" size="20" />
-                    <p>[% Translate("e. g. m*file or myfi*") | html %]</p>
-                </div>
-            </fieldset>
-[% RenderBlockEnd("Attachment") %]
 
 [% IF Config('Ticket::Service') || Config('Ticket::Type') %]
             <fieldset class="Columns">

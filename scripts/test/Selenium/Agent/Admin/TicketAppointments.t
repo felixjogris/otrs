@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -23,6 +23,9 @@ $Selenium->RunTest(
         my $DynamicFieldObject      = $Kernel::OM->Get('Kernel::System::DynamicField');
         my $DynamicFieldValueObject = $Kernel::OM->Get('Kernel::System::DynamicFieldValue');
         my $TicketObject            = $Kernel::OM->Get('Kernel::System::Ticket');
+        my $ArticleBackendObject    = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForChannel(
+            ChannelName => 'Email',
+        );
 
         my $RandomID = $Helper->GetRandomID();
 
@@ -94,6 +97,20 @@ $Selenium->RunTest(
             $DynamicField->{DynamicFieldID} = $DynamicFieldID;
         }
 
+        my $SchedulerDBObject = $Kernel::OM->Get('Kernel::System::Daemon::SchedulerDB');
+
+        # Remove scheduled tasks from DB, as they may interfere with tests run later.
+        my @AllTasks = $SchedulerDBObject->TaskList();
+        for my $Task (@AllTasks) {
+            my $Success = $SchedulerDBObject->TaskDelete(
+                TaskID => $Task->{TaskID},
+            );
+            $Self->True(
+                $Success,
+                "TaskDelete - Removed scheduled task $Task->{TaskID}",
+            );
+        }
+
         my $Home           = $ConfigObject->Get('Home');
         my $Daemon         = $Home . '/bin/otrs.Daemon.pl';
         my $DaemonExitCode = 1;
@@ -140,19 +157,19 @@ $Selenium->RunTest(
             "TicketCreate() - $TicketTitle ($TicketID)",
         );
 
-        # Create article.
-        my $ArticleID = $Kernel::OM->Get('Kernel::System::Ticket::Article')->ArticleCreate(
-            TicketID       => $TicketID,
-            ArticleType    => 'email-external',
-            SenderType     => 'customer',
-            From           => 'Some Customer A <customer-a@example.com>',
-            To             => 'Some Agent <email@example.com>',
-            Subject        => 'some short description',
-            Body           => 'the message text',
-            ContentType    => 'text/plain; charset=ISO-8859-15',
-            HistoryType    => 'EmailCustomer',
-            HistoryComment => 'Customer sent an email',
-            UserID         => 1,
+        # Create email article.
+        my $ArticleID = $ArticleBackendObject->ArticleCreate(
+            TicketID             => $TicketID,
+            SenderType           => 'customer',
+            IsVisibleForCustomer => 1,
+            From                 => 'Some Customer A <customer-a@example.com>',
+            To                   => 'Some Agent <email@example.com>',
+            Subject              => 'some short description',
+            Body                 => 'the message text',
+            ContentType          => 'text/plain; charset=ISO-8859-15',
+            HistoryType          => 'EmailCustomer',
+            HistoryComment       => 'Customer sent an email',
+            UserID               => 1,
         );
 
         # Build escalation index.
@@ -171,6 +188,7 @@ $Selenium->RunTest(
             TicketID => $TicketID,
             UserID   => 1,
         );
+
         for my $EscalationType (qw(FirstResponseTime UpdateTime SolutionTime)) {
             my $EscalationTimeStartObject = $Kernel::OM->Create(
                 'Kernel::System::DateTime',
@@ -198,10 +216,6 @@ $Selenium->RunTest(
             );
             $EscalationTimes{ $EscalationType . 'End' } = $EscalationTimeEndObject->ToString();
         }
-        $Kernel::OM->Get('Kernel::System::Log')->Log(
-            Priority => 'error',
-            Message  => $Kernel::OM->Get('Kernel::System::Main')->Dump( \%EscalationTimes ),
-        );
 
         # Set pending time to next day.
         my $DateTimeObject         = $Kernel::OM->Create('Kernel::System::DateTime');
@@ -228,6 +242,18 @@ $Selenium->RunTest(
         $PendingTimeEndObject->Add(
             Hours => 1,
         );
+
+        # Calculate expected UntilTime.
+        my $UntilDateTimeObject = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                String => '2016-01-01 00:00:00',
+            },
+        );
+        my $UntilTimeDelta = $Kernel::OM->Create('Kernel::System::DateTime')->Delta(
+            DateTimeObject => $UntilDateTimeObject,
+        );
+        my $UntilTime = -$UntilTimeDelta->{AbsoluteSeconds};
 
         # Set dynamic field values.
         my $DynamicField1TimeObject = $Kernel::OM->Create(
@@ -272,7 +298,7 @@ $Selenium->RunTest(
             "ValueSet - $DynamicFields[1]->{DynamicFieldID} for ticket $TicketID",
         );
 
-        my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
+        my $ScriptAlias = $ConfigObject->Get('ScriptAlias');
 
         # Change resolution (desktop mode).
         $Selenium->set_window_size( 768, 1050 );
@@ -298,7 +324,7 @@ $Selenium->RunTest(
         $Selenium->find_element( '.SidebarColumn ul.ActionList a#Add',   'css' )->VerifiedClick();
         $Selenium->find_element( 'form#CalendarFrom input#CalendarName', 'css' )->send_keys($CalendarName);
         $Selenium->execute_script(
-            "return \$('#GroupID').val($GroupID).trigger('redraw.InputField').trigger('change');"
+            "\$('#GroupID').val($GroupID).trigger('redraw.InputField').trigger('change');"
         );
 
         $Selenium->find_element( 'form#CalendarFrom button#Submit', 'css' )->VerifiedClick();
@@ -312,8 +338,15 @@ $Selenium->RunTest(
             "CalendarGet - Found calendar $Calendar{CalendarID}",
         );
 
-        my $AppointmentObject = $Kernel::OM->Get('Kernel::System::Calendar::Appointment');
+        # Go to calendar edit page.
+        $Selenium->VerifiedGet(
+            "${ScriptAlias}index.pl?Action=AdminAppointmentCalendarManage;Subaction=Edit;CalendarID=$Calendar{CalendarID}"
+        );
 
+        my $AppointmentObject = $Kernel::OM->Get('Kernel::System::Calendar::Appointment');
+        my $CacheObject       = $Kernel::OM->Get('Kernel::System::Cache');
+
+        # Sleep for slow systems.
         my $SleepTime = 2;
 
         #
@@ -442,49 +475,43 @@ $Selenium->RunTest(
                     EndTime   => '2016-01-01 01:00:00',
                 },
                 UpdateResult => {
-                    UntilTime => -(
-                        $Kernel::OM->Create('Kernel::System::DateTime')->Delta(
-                            DateTimeObject => $Kernel::OM->Create(
-                                'Kernel::System::DateTime',
-                                ObjectParams => {
-                                    String => '2016-01-01 00:00:00',
-                                },
-                                )
-                            )->{AbsoluteSeconds}
-                    ),
+                    UntilTime => $UntilTime,
                 },
             },
         );
 
         for my $Test (@Tests) {
 
-            # Go to calendar edit page.
-            $Selenium->VerifiedGet(
-                "${ScriptAlias}index.pl?Action=AdminAppointmentCalendarManage;Subaction=Edit;CalendarID=$Calendar{CalendarID}"
-            );
-
             # Add ticket appointment rule.
-            $Selenium->find_element( '.WidgetSimple.Collapsed .WidgetAction.Toggle a', 'css' )->VerifiedClick();
-            $Selenium->find_element( '#AddRuleButton',                                 'css' )->VerifiedClick();
+            $Selenium->find_element( '.WidgetSimple.Collapsed .WidgetAction.Toggle a', 'css' )->click();
+            $Selenium->WaitFor(
+                JavaScript =>
+                    "return typeof(\$) === 'function' && \$('.WidgetSimple:contains(Ticket Appointments).Expanded').length"
+            );
+            $Selenium->find_element( '#AddRuleButton', 'css' )->click();
+            $Selenium->WaitFor(
+                JavaScript =>
+                    "return \$('.WidgetSimple:contains(Ticket Appointments).Expanded .Content:contains(Rule 1)').length"
+            );
 
             # Set start date module.
             if ( $Test->{Config}->{StartDate} ) {
                 $Selenium->execute_script(
-                    "return \$('#StartDate_1').val('$Test->{Config}->{StartDate}').trigger('redraw.InputField').trigger('change');"
+                    "\$('#StartDate_1').val('$Test->{Config}->{StartDate}').trigger('redraw.InputField').trigger('change');"
                 );
             }
 
             # Set end date module.
             if ( $Test->{Config}->{EndDate} ) {
                 $Selenium->execute_script(
-                    "return \$('#EndDate_1').val('$Test->{Config}->{EndDate}').trigger('redraw.InputField').trigger('change');"
+                    "\$('#EndDate_1').val('$Test->{Config}->{EndDate}').trigger('redraw.InputField').trigger('change');"
                 );
             }
 
             # Set a queue.
             if ( $Test->{Config}->{QueueID} ) {
                 $Selenium->execute_script(
-                    "return \$('#QueueID_1').val('$Test->{Config}->{QueueID}').trigger('redraw.InputField').trigger('change');"
+                    "\$('#QueueID_1').val('$Test->{Config}->{QueueID}').trigger('redraw.InputField').trigger('change');"
                 );
             }
 
@@ -492,25 +519,34 @@ $Selenium->RunTest(
             if ( $Test->{Config}->{SearchParams} ) {
                 for my $SearchParam ( sort keys %{ $Test->{Config}->{SearchParams} || {} } ) {
                     $Selenium->execute_script(
-                        "return \$('#SearchParams').val('$SearchParam').trigger('redraw.InputField').trigger('change');"
+                        "\$('#SearchParams').val('$SearchParam').trigger('redraw.InputField').trigger('change');"
                     );
-                    $Selenium->find_element( '.AddButton',                  'css' )->VerifiedClick();
+                    $Selenium->find_element( '.AddButton', 'css' )->click();
+                    $Selenium->WaitFor( JavaScript => "return \$('#SearchParam_1_$SearchParam').length" );
+
                     $Selenium->find_element( "#SearchParam_1_$SearchParam", 'css' )
                         ->send_keys( $Test->{Config}->{SearchParams}->{$SearchParam} );
                 }
             }
 
-            $Selenium->find_element( 'form#CalendarFrom button#Submit', 'css' )->VerifiedClick();
+            $Selenium->find_element( 'form#CalendarFrom button#SubmitAndContinue', 'css' )->VerifiedClick();
             $Self->True(
                 1,
                 "$Test->{Name} - Added ticket appointment rule",
             );
 
             # Wait for daemon to do its magic.
-            sleep $SleepTime;
+            print "Waiting at most $SleepTime s until tasks are executed\n";
+            ACTIVESLEEP:
+            for my $Seconds ( 1 .. $SleepTime ) {
+                my @List = $SchedulerDBObject->TaskList();
+                last ACTIVESLEEP if !scalar @List;
+                print "Sleeping for $Seconds seconds...\n";
+                sleep 1;
+            }
 
             # Make sure the cache is correct.
-            $Kernel::OM->Get('Kernel::System::Cache')->CleanUp(
+            $CacheObject->CleanUp(
                 Type => "AppointmentList$Calendar{CalendarID}",
             );
 
@@ -528,8 +564,8 @@ $Selenium->RunTest(
             # Check appointment data.
             for my $Field ( sort keys %{ $Test->{Result} || {} } ) {
                 $Self->Is(
-                    $Appointment->{$Field},
-                    $Test->{Result}->{$Field},
+                    substr( $Appointment->{$Field},    0, -3 ),
+                    substr( $Test->{Result}->{$Field}, 0, -3 ),
                     "$Test->{Name} - Appointment field $Field"
                 );
             }
@@ -550,7 +586,7 @@ $Selenium->RunTest(
                 sleep $SleepTime;
 
                 # Make sure the cache is correct.
-                $Kernel::OM->Get('Kernel::System::Cache')->CleanUp(
+                $CacheObject->CleanUp(
                     Type => 'Ticket',
                 );
 
@@ -560,7 +596,21 @@ $Selenium->RunTest(
                     DynamicFields => 1,
                     UserID        => 1,
                 );
+                FIELD:
                 for my $Field ( sort keys %{ $Test->{UpdateResult} || {} } ) {
+
+                    # In case of UntilTime, it can happen that there is an error of one second overall. This is
+                    #   acceptable, so in this case calculate the difference and allow for this error.
+                    if ( $Field eq 'UntilTime' ) {
+                        $Self->True(
+                            abs( $Test->{UpdateResult}->{UntilTime} - $Ticket{UntilTime} ) < 2,
+                            $Test->{UpdateResult}->{$Field},
+                            "$Test->{Name} - Ticket field UntilTime"
+                        );
+
+                        next FIELD;
+                    }
+
                     $Self->Is(
                         $Ticket{$Field},
                         $Test->{UpdateResult}->{$Field},
@@ -569,25 +619,31 @@ $Selenium->RunTest(
                 }
             }
 
-            # Go to calendar edit page again.
-            $Selenium->VerifiedGet(
-                "${ScriptAlias}index.pl?Action=AdminAppointmentCalendarManage;Subaction=Edit;CalendarID=$Calendar{CalendarID}"
+            # Remove ticket appointment rule.
+            $Selenium->find_element( '.RemoveButton', 'css' )->click();
+            $Selenium->WaitFor(
+                JavaScript =>
+                    "return !\$('.WidgetSimple:contains(Ticket Appointments).Expanded .Content:contains(Rule 1)').length"
             );
 
-            # Remove ticket appointment rule.
-            $Selenium->find_element( '.RemoveButton', 'css' )->VerifiedClick();
-
-            $Selenium->find_element( 'form#CalendarFrom button#Submit', 'css' )->VerifiedClick();
+            $Selenium->find_element( 'form#CalendarFrom button#SubmitAndContinue', 'css' )->VerifiedClick();
             $Self->True(
                 1,
                 "$Test->{Name} - Removed ticket appointment rule"
             );
 
             # Wait for daemon to do its magic.
-            sleep $SleepTime;
+            print "Waiting at most $SleepTime s until tasks are executed\n";
+            ACTIVESLEEP:
+            for my $Seconds ( 1 .. $SleepTime ) {
+                my @List = $SchedulerDBObject->TaskList();
+                last ACTIVESLEEP if !scalar @List;
+                print "Sleeping for $Seconds seconds...\n";
+                sleep 1;
+            }
 
             # Make sure the cache is correct.
-            $Kernel::OM->Get('Kernel::System::Cache')->CleanUp(
+            $CacheObject->CleanUp(
                 Type => "AppointmentList$Calendar{CalendarID}",
             );
 
@@ -603,7 +659,7 @@ $Selenium->RunTest(
 
         # Stop daemon if it was started earlier in the test.
         if ( !$DaemonExitCode ) {
-            `$Daemon stop`;
+            `$^X $Daemon stop`;
 
             $Self->True(
                 1,
@@ -668,7 +724,7 @@ $Selenium->RunTest(
 
         # Make sure cache is correct.
         for my $Cache (qw(Calendar Ticket Queue Group)) {
-            $Kernel::OM->Get('Kernel::System::Cache')->CleanUp( Type => $Cache );
+            $CacheObject->CleanUp( Type => $Cache );
         }
     },
 );

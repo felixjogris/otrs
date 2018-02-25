@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,18 +11,18 @@ package Kernel::System::AuthSession::DB;
 use strict;
 use warnings;
 
-use Storable qw();
 use MIME::Base64 qw();
 
 use Kernel::Language qw(Translatable);
 
 our @ObjectDependencies = (
     'Kernel::Config',
+    'Kernel::System::DateTime',
     'Kernel::System::DB',
     'Kernel::System::Encode',
     'Kernel::System::Log',
     'Kernel::System::Main',
-    'Kernel::System::Time',
+    'Kernel::System::Storable',
 );
 
 sub new {
@@ -32,15 +32,7 @@ sub new {
     my $Self = {};
     bless( $Self, $Type );
 
-    my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-
-    # get more common params
-    $Self->{SessionTable}      = $ConfigObject->Get('SessionTable')      || 'sessions';
-    $Self->{SessionActiveTime} = $ConfigObject->Get('SessionActiveTime') || 60 * 10;
-
-    if ( $Self->{SessionActiveTime} < 300 ) {
-        $Self->{SessionActiveTime} = 300;
-    }
+    $Self->{SessionTable} = $Kernel::OM->Get('Kernel::Config')->Get('SessionTable') || 'sessions';
 
     # get database type
     $Self->{DBType} = $Kernel::OM->Get('Kernel::System::DB')->{'DB::Type'} || '';
@@ -102,7 +94,7 @@ sub CheckSessionID {
     }
 
     # check session idle time
-    my $TimeNow            = $Kernel::OM->Get('Kernel::System::Time')->SystemTime();
+    my $TimeNow            = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
     my $MaxSessionIdleTime = $ConfigObject->Get('SessionMaxIdleTime');
 
     if ( ( $TimeNow - $MaxSessionIdleTime ) >= $Data{UserLastRequest} ) {
@@ -186,6 +178,9 @@ sub GetSessionIDData {
     # get encode object
     my $EncodeObject = $Kernel::OM->Get('Kernel::System::Encode');
 
+    # get storable object
+    my $StorableObject = $Kernel::OM->Get('Kernel::System::Storable');
+
     my %Session;
     my %SessionID;
     ROW:
@@ -193,7 +188,9 @@ sub GetSessionIDData {
 
         # deserialize data if needed
         if ( $Row[3] ) {
-            my $Value = eval { Storable::thaw( MIME::Base64::decode_base64( $Row[2] ) ) };
+            my $Value = eval {
+                $StorableObject->Deserialize( Data => MIME::Base64::decode_base64( $Row[2] ) )
+            };
 
             # workaround for the oracle problem with empty
             # strings and NULL values in VARCHAR columns
@@ -229,7 +226,7 @@ sub GetSessionIDData {
 sub CreateSessionID {
     my ( $Self, %Param ) = @_;
 
-    my $TimeNow = $Kernel::OM->Get('Kernel::System::Time')->SystemTime();
+    my $TimeNow = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
 
     # get remote address and the http user agent
     my $RemoteAddr      = $ENV{REMOTE_ADDR}     || 'none';
@@ -387,8 +384,10 @@ sub GetAllSessionIDs {
 sub GetActiveSessions {
     my ( $Self, %Param ) = @_;
 
+    my $MaxSessionIdleTime = $Kernel::OM->Get('Kernel::Config')->Get('SessionMaxIdleTime');
+
     # get system time
-    my $TimeNow = $Kernel::OM->Get('Kernel::System::Time')->SystemTime();
+    my $TimeNow = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
 
     my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
 
@@ -399,6 +398,7 @@ sub GetActiveSessions {
             WHERE data_key = 'UserType'
                 OR data_key = 'UserLastRequest'
                 OR data_key = 'UserLogin'
+                OR data_key = 'SessionSource'
             ORDER BY id ASC",
     );
 
@@ -420,6 +420,11 @@ sub GetActiveSessions {
         next SESSIONID if !$SessionID;
         next SESSIONID if !$SessionData{$SessionID};
 
+        # Don't count session from source 'GenericInterface'
+        my $SessionSource = $SessionData{$SessionID}->{SessionSource} || '';
+
+        next SESSIONID if $SessionSource eq 'GenericInterface';
+
         # get needed data
         my $UserType        = $SessionData{$SessionID}->{UserType}        || '';
         my $UserLastRequest = $SessionData{$SessionID}->{UserLastRequest} || $TimeNow;
@@ -427,7 +432,7 @@ sub GetActiveSessions {
 
         next SESSIONID if $UserType ne $Param{UserType};
 
-        next SESSIONID if ( $UserLastRequest + $Self->{SessionActiveTime} ) < $TimeNow;
+        next SESSIONID if ( $UserLastRequest + $MaxSessionIdleTime ) < $TimeNow;
 
         $ActiveSessionCount++;
 
@@ -454,7 +459,7 @@ sub GetExpiredSessionIDs {
     my $MaxSessionIdleTime = $ConfigObject->Get('SessionMaxIdleTime');
 
     # get current time
-    my $TimeNow = $Kernel::OM->Get('Kernel::System::Time')->SystemTime();
+    my $TimeNow = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
 
     # get database object
     my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
@@ -622,6 +627,8 @@ sub _SQLCreate {
     return if !$Param{SQLs};
     return if ref $Param{SQLs} ne 'ARRAY';
 
+    my $StorableObject = $Kernel::OM->Get('Kernel::System::Storable');
+
     if ( $Self->{DBType} eq 'mysql' || $Self->{DBType} eq 'postgresql' ) {
 
         # define row
@@ -645,7 +652,9 @@ sub _SQLCreate {
             {
 
                 # dump the data
-                $Value      = MIME::Base64::encode_base64( Storable::nfreeze($Value) );
+                $Value = MIME::Base64::encode_base64(
+                    $StorableObject->Serialize( Data => $Value )
+                );
                 $Serialized = 1;
             }
 
@@ -709,7 +718,9 @@ sub _SQLCreate {
                 }
 
                 # dump the data
-                $Value      = MIME::Base64::encode_base64( Storable::nfreeze($Value) );
+                $Value = MIME::Base64::encode_base64(
+                    $StorableObject->Serialize( Data => $Value )
+                );
                 $Serialized = 1;
             }
 
@@ -775,7 +786,9 @@ sub _SQLCreate {
             {
 
                 # dump the data
-                $Value      = MIME::Base64::encode_base64( Storable::nfreeze($Value) );
+                $Value = MIME::Base64::encode_base64(
+                    $StorableObject->Serialize( Data => $Value )
+                );
                 $Serialized = 1;
             }
 

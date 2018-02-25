@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # Copyright (C) 2011 Damir Dzeko <damir punkt dzeko masterspace inet.hr>
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
@@ -32,6 +32,9 @@ sub Data {
 
     # csv separator
     $Self->{Separator} = ';';
+
+    $Self->{DecimalSeparator}    = ',';
+    $Self->{ThousandSeparator}   = '.';
 
     $Self->{Translation} = {
 

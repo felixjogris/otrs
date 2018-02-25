@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -14,7 +14,7 @@ use warnings;
 use Kernel::System::VariableCheck qw(:all);
 use Kernel::Language qw(Translatable);
 
-use base qw(Kernel::System::DynamicField::Driver::Base);
+use parent qw(Kernel::System::DynamicField::Driver::Base);
 
 our @ObjectDependencies = (
     'Kernel::System::DB',
@@ -78,9 +78,15 @@ sub ValueValidate {
         UserID => $Param{UserID}
     );
 
+    my $CheckRegex = 1;
+    if ( defined $Param{NoValidateRegex} && $Param{NoValidateRegex} ) {
+        $CheckRegex = 0;
+    }
+
     if (
         IsArrayRefWithData( $Param{DynamicFieldConfig}->{Config}->{RegExList} )
         && IsStringWithData( $Param{Value} )
+        && $CheckRegex
         )
     {
         # check regular expressions
@@ -490,7 +496,7 @@ sub SearchFieldParameterBuild {
     my $Operator = 'Equals';
 
     # search for a wild card in the value
-    if ( $Value && $Value =~ m{\*} ) {
+    if ( $Value && ( $Value =~ m{\*} || $Value =~ m{\|\|} ) ) {
 
         # change operator
         $Operator = 'Like';

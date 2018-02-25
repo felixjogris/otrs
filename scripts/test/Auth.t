@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -105,7 +105,7 @@ my @Tests = (
     },
 );
 
-for my $CryptType (qw(plain crypt apr1 md5 sha1 sha2 bcrypt)) {
+for my $CryptType (qw(plain crypt apr1 md5 sha1 sha2 sha512 bcrypt)) {
 
     # make sure that the customer user objects gets recreated for each loop.
     $Kernel::OM->ObjectsDiscard(
@@ -155,6 +155,55 @@ for my $CryptType (qw(plain crypt apr1 md5 sha1 sha2 bcrypt)) {
             $Test->{AuthResult},
             "CryptType $CryptType Password '$Test->{Password}'",
         );
+
+        if ( $CryptType eq 'bcrypt' ) {
+            my $OldCost = $ConfigObject->Get('AuthModule::DB::bcryptCost') // 12;
+            my $NewCost = $OldCost + 2;
+
+            # Increase cost and check if old passwords can still be used.
+            $ConfigObject->Set(
+                Key   => 'AuthModule::DB::bcryptCost',
+                Value => $NewCost,
+            );
+
+            $AuthResult = $AuthObject->Auth(
+                User => $UserRand,
+                Pw   => $Test->{Password},
+            );
+
+            $Self->Is(
+                $AuthResult,
+                $Test->{AuthResult},
+                "CryptType $CryptType old Password '$Test->{Password}' with changed default cost ($NewCost)",
+            );
+
+            $PasswordSet = $UserObject->SetPassword(
+                UserLogin => $UserRand,
+                PW        => $Test->{Password},
+            );
+
+            $Self->True(
+                $PasswordSet,
+                "Password set - with new cost $NewCost"
+            );
+
+            $AuthResult = $AuthObject->Auth(
+                User => $UserRand,
+                Pw   => $Test->{Password},
+            );
+
+            $Self->Is(
+                $AuthResult,
+                $Test->{AuthResult},
+                "CryptType $CryptType new Password '$Test->{Password}' with changed default cost ($NewCost)",
+            );
+
+            # Restore old cost value
+            $ConfigObject->Set(
+                Key   => 'AuthModule::DB::bcryptCost',
+                Value => $OldCost,
+            );
+        }
 
         $AuthResult = $AuthObject->Auth(
             User => $UserRand,

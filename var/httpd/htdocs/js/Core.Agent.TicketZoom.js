@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -116,25 +116,31 @@ Core.Agent.TicketZoom = (function (TargetNS) {
      *      Set iframe height automatically based on real content height and default config setting.
      */
     TargetNS.IframeAutoHeight = function ($Iframe) {
-        var NewHeight;
+
+        var NewHeight,
+            IframeBodyHeight;
 
         if (isJQueryObject($Iframe)) {
-            // slightly change the width of the iframe to not be exactly 100% width anymore
-            // this prevents a double horizontal scrollbar (from iframe and surrounding div)
-            $Iframe.width($Iframe.width() - 2);
-
+            IframeBodyHeight = $Iframe.contents().find('body').height();
             NewHeight = $Iframe.contents().height();
             if (!NewHeight || isNaN(NewHeight)) {
                 NewHeight = Core.Config.Get('Ticket::Frontend::HTMLArticleHeightDefault');
             }
             else {
-                if (NewHeight > Core.Config.Get('Ticket::Frontend::HTMLArticleHeightMax')) {
+                NewHeight = IframeBodyHeight;
+                if (IframeBodyHeight > Core.Config.Get('Ticket::Frontend::HTMLArticleHeightMax')) {
                     NewHeight = Core.Config.Get('Ticket::Frontend::HTMLArticleHeightMax');
                 }
             }
 
             // add delta for scrollbar
             NewHeight = parseInt(NewHeight, 10) + 25;
+
+            // make sure the minimum height is in line with the avatar images
+            if (NewHeight < 46) {
+                NewHeight = 46;
+            }
+
             $Iframe.height(NewHeight + 'px');
         }
     };
@@ -186,10 +192,9 @@ Core.Agent.TicketZoom = (function (TargetNS) {
                 return false;
             });
 
-            // Initialize modernized input fields in article action menu
-            Core.UI.InputFields.Activate($('#ArticleItems'));
+            // Add event bindings to new widget.
+            ArticleDetailsEvents();
 
-            // Add event bindings to new widget
             Core.UI.InitWidgetActionToggle();
 
             // Add hash to the URL to provide direct URLs and history back/forward functionality
@@ -245,6 +250,9 @@ Core.Agent.TicketZoom = (function (TargetNS) {
                     }
                 }
             }
+
+            // Initialize modern input fields in article actions.
+            Core.UI.InputFields.Activate($('#ArticleItems'));
         });
     }
 
@@ -351,6 +359,57 @@ Core.Agent.TicketZoom = (function (TargetNS) {
 
     /**
      * @private
+     * @name ArticleViewEvents
+     * @memberof Core.Agent.TicketZoom
+     * @function
+     * @description
+     *      This function initializes article view settings dialog.
+     */
+    function ArticleViewEvents() {
+        var $ArticleViewSettingsObj = $('#ArticleViewSettings'),
+            ArticleViewSettingsDialogHTML;
+
+        if (!$ArticleViewSettingsObj.length) {
+            return;
+        }
+
+        ArticleViewSettingsDialogHTML = Core.Template.Render('Agent/TicketZoom/ArticleViewSettingsDialog', {
+            'ArticleViewStrg': Core.Config.Get('ArticleViewStrg')
+        });
+
+        // Calendar settings button
+        $ArticleViewSettingsObj.off('click.AgentTicketZoom').on('click.AgentTicketZoom', function (Event) {
+
+            Core.UI.Dialog.ShowContentDialog(ArticleViewSettingsDialogHTML, Core.Language.Translate('Settings'), '10px', 'Center', true,
+                [
+                    {
+                        Label: Core.Language.Translate('Close this dialog'),
+                        Type: 'Close'
+                    }
+                ], true);
+
+            $('#ArticleView').off('change').on('change', function() {
+
+                if (!parseInt(Core.Config.Get('OTRSBusinessIsInstalled'), 10) && ($(this).val() === null || $(this).val() === '')) {
+                    Core.UI.Dialog.CloseDialog($('.Dialog:visible'));
+                    Core.Agent.ShowOTRSBusinessRequiredDialog();
+                    return false;
+                }
+                else {
+                    Core.UI.Dialog.MakeDialogWait();
+                    $('#ArticleView').closest('form').submit();
+                }
+            });
+
+            Event.preventDefault();
+            Event.stopPropagation();
+
+            return false;
+        });
+    }
+
+    /**
+     * @private
      * @name ArticleFilterEvents
      * @memberof Core.Agent.TicketZoom
      * @function
@@ -376,7 +435,7 @@ Core.Agent.TicketZoom = (function (TargetNS) {
                     {
                         Label: Core.Language.Translate("Reset"),
                         Function: function () {
-                            $('#ArticleTypeFilter').val('').trigger('redraw.InputField');
+                            $('#CommunicationChannelFilter').val('').trigger('redraw.InputField');
                             $('#ArticleSenderTypeFilter').val('').trigger('redraw.InputField');
                         }
                     }
@@ -429,79 +488,6 @@ Core.Agent.TicketZoom = (function (TargetNS) {
                 });
             });
         }
-    }
-
-    /**
-     * @private
-     * @name InitTimelineView
-     * @memberof Core.Agent.TicketZoom
-     * @function
-     * @param {Object} TimelineView - data needed for initialization timeline view
-     * @description
-     *      This function initializes timeline view.
-     */
-    function InitTimelineView(TimelineView) {
-        var Index,
-            ArticleID,
-            ListObject = {},
-            ListObjects = [];
-
-        for (Index in TimelineView.Data.Items) {
-            ArticleID = TimelineView.Data.Items[Index].ArticleID;
-
-            ListObject = {
-                orientation   : TimelineView.Data.Items[Index].Orientation,
-                order         : TimelineView.Data.Items[Index].Counter,
-                id            : (typeof ArticleID !== 'undefined' && ArticleID !== '') ? ('ArticleID_' + ArticleID) : '',
-                class         : TimelineView.Data.Items[Index].Class,
-                time          : TimelineView.Data.Items[Index].CreateTime,
-                time_long     : TimelineView.Data.Items[Index].TimeLong,
-                type          : TimelineView.Data.Items[Index].HistoryType,
-                type_readable : Core.Language.Translate(TimelineView.Data.Items[Index].HistoryTypeReadable),
-                name          : TimelineView.Data.Items[Index].Name,
-                article_id    : ArticleID,
-                is_chat       : TimelineView.Data.Items[Index].IsChatArticle,
-                article_data  : {}
-            };
-
-            if (typeof ArticleID !== 'undefined' && ArticleID !== '') {
-                ListObject.article_data = {
-                    sender_type   : TimelineView.Data.Items[Index].ArticleData.SenderType,
-                    article_type  : TimelineView.Data.Items[Index].ArticleData.ArticleType,
-                    subject       : TimelineView.Data.Items[Index].ArticleData.Subject,
-                    from          : TimelineView.Data.Items[Index].ArticleData.From,
-                    to            : TimelineView.Data.Items[Index].ArticleData.To,
-                    cc            : TimelineView.Data.Items[Index].ArticleData.Cc,
-                    is_important  : TimelineView.Data.Items[Index].ArticleData.ArticleIsImportant,
-                    is_seen       : TimelineView.Data.Items[Index].ArticleData.ArticleIsSeen,
-                    attachment_id : TimelineView.Data.Items[Index].ArticleData.AttachmentIDOfHTMLBody,
-                    iframe_html   : '<iframe sandbox="allow-same-origin allow-popups ms-allow-popups allow-popups-to-escape-sandbox"' +
-                                    ' data-url="' + Core.Config.Get("Baselink") +
-                                    'Action=AgentTicketAttachment;Subaction=HTMLView;ArticleID=' + ArticleID +
-                                    ';FileID=' + TimelineView.Data.Items[Index].ArticleData.AttachmentIDOfHTMLBody + ';' +
-                                    Core.Config.Get("SessionName") + '=' + Core.Config.Get("SessionID") +
-                                    '" width="100%" frameborder="0" id="Iframe' + ArticleID +
-                                    '" class="TimelineArticleiFrame" src=""></iframe>'
-                };
-
-                if (typeof TimelineView.Data.Items[Index].IsChatArticle !== 'undefined') {
-                    ListObject.article_data.text      = TimelineView.Data.Items[Index].ArticleData.BodyChat;
-                    ListObject.article_data.text_long = Core.JSON.Parse(TimelineView.Data.Items[Index].ArticleData.ChatMessages);
-                }
-                else {
-                    ListObject.article_data.text      = TimelineView.Data.Items[Index].ArticleData.Body.substring(0, 650);
-                    ListObject.article_data.text_long = "";
-
-                    if (typeof TimelineView.Data.Items[Index].ArticleData.AttachmentIDOfHTMLBody === 'undefined') {
-                        ListObject.article_data.text_long = TimelineView.Data.Items[Index].ArticleData.Body;
-                    }
-                }
-            }
-
-            ListObjects.push(ListObject);
-        }
-
-        Core.Agent.TicketZoom.TimelineView.Init(TimelineView.Data.TicketID, ListObjects, TimelineView.Data.ArticleID);
     }
 
     /**
@@ -559,7 +545,7 @@ Core.Agent.TicketZoom = (function (TargetNS) {
                 Buttons: [
                     {
                         Type: 'Close',
-                        Label: Core.Language.Translate("Close dialog"),
+                        Label: Core.Language.Translate("Close this dialog"),
                         Function: function() {
                             Core.UI.Dialog.CloseDialog($('.Dialog:visible'));
                             Core.Form.EnableForm($('form[name="compose"]'));
@@ -567,6 +553,56 @@ Core.Agent.TicketZoom = (function (TargetNS) {
                         }
                     }
                 ]
+            });
+        });
+    }
+
+    function ArticleDetailsEvents() {
+
+        // Toggle article details.
+        $('.WidgetAction.Expand').off('click').on('click', function() {
+            var $WidgetObj = $(this).closest('.WidgetSimple');
+
+            if ($WidgetObj.hasClass('MenuExpanded')) {
+                $WidgetObj.find('.WidgetMenu').slideUp('fast')
+                $WidgetObj.removeClass('MenuExpanded');
+            }
+            else {
+                $WidgetObj.find('.WidgetMenu').slideDown('fast');
+                $WidgetObj.addClass('MenuExpanded');
+            }
+            return false;
+        });
+    }
+
+    /**
+     * @name InitWidgets
+     * @memberof Core.Agent.TicketZoom
+     * @function
+     * @param {Object} AsyncWidgetActions - list of widgets to initialize
+     * @description
+     *      This function initializes configured asynchronous widgets.
+     */
+    function InitWidgets(AsyncWidgetActions) {
+        $.each(AsyncWidgetActions, function (ElementID, URLPart) {
+            Core.AJAX.ContentUpdate($('#' + ElementID), Core.Config.Get('Baselink') + URLPart, function() {
+
+                // wait for content update
+                $('#' + ElementID).find("a.AsPopup").on('click', function () {
+                    var Matches,
+                        PopupType = 'TicketAction';
+
+                    Matches = $(this).attr('class').match(/PopupType_(\w+)/);
+                    if (Matches) {
+                        PopupType = Matches[1];
+                    }
+
+                    Core.UI.Popup.OpenPopup($(this).attr('href'), PopupType);
+                    return false;
+                });
+
+                $('#' + ElementID).find('.WidgetSimple').hide().fadeIn();
+                Core.UI.InitWidgetActionToggle();
             });
         });
     }
@@ -590,8 +626,7 @@ Core.Agent.TicketZoom = (function (TargetNS) {
             ArticleFilterDialog = parseInt(Core.Config.Get('ArticleFilterDialog'), 10),
             AsyncWidgetActions = Core.Config.Get('AsyncWidgetActions') || {},
             TimelineView = Core.Config.Get('TimelineView'),
-            ProcessWidget = Core.Config.Get('ProcessWidget'),
-            ElementID;
+            ProcessWidget = Core.Config.Get('ProcessWidget');
 
         // create open popup event for dropdown elements
         if (MenuItems.length > 0) {
@@ -609,11 +644,13 @@ Core.Agent.TicketZoom = (function (TargetNS) {
             }
         }
 
-        // Check, if ZoomExpand is active or not
-        // Only active on tickets with less than 400 articles (see bug#8424)
-        if ($('div.ArticleView a.OneArticle').length) {
-            ZoomExpand = !$('div.ArticleView a.OneArticle').hasClass('Active');
-        }
+        // Check, if ZoomExpand is active or not.
+        //   Only active on tickets with less than 400 articles (see bug#8424).
+        //   Since passed value is a regular 0/1 string, make sure it's a boolean first. To do this, convert it to
+        //   integer by performing addition on it (+) and then use double not (!!) for casting it to boolean.
+        //   !! + "1" === false;
+        //   !! + "0" === true;
+        ZoomExpand = !! + Core.Config.Get('ZoomExpand');
 
         Core.UI.Resizable.Init($('#ArticleTableBody'), ArticleTableHeight, function (Event, UI, Height) {
             // remember new height for next reload
@@ -665,27 +702,7 @@ Core.Agent.TicketZoom = (function (TargetNS) {
         });
 
         // Start asynchronous loading of widgets
-        for (ElementID in AsyncWidgetActions) {
-            if (AsyncWidgetActions.hasOwnProperty(ElementID)) {
-                Core.AJAX.ContentUpdate($('#' + ElementID), Core.Config.Get('Baselink') + AsyncWidgetActions[ElementID], function() {
-                    $('#' + ElementID).find("a.AsPopup").on('click', function () {
-                        var Matches,
-                            PopupType = 'TicketAction';
-
-                        Matches = $(this).attr('class').match(/PopupType_(\w+)/);
-                        if (Matches) {
-                            PopupType = Matches[1];
-                        }
-
-                        Core.UI.Popup.OpenPopup($(this).attr('href'), PopupType);
-                        return false;
-                    });
-
-                    $('#' + ElementID).find('.WidgetSimple').hide().fadeIn();
-                    Core.UI.InitWidgetActionToggle();
-                });
-            }
-        }
+        InitWidgets(AsyncWidgetActions);
 
         // loading new articles
         $('#ArticleTable tbody tr').on('click', function () {
@@ -769,6 +786,12 @@ Core.Agent.TicketZoom = (function (TargetNS) {
             }
         });
 
+        // Add event bindings to all article widgets.
+        ArticleDetailsEvents();
+
+        // Initialize article view settings dialog.
+        ArticleViewEvents();
+
         // initialize article filter events
         if (typeof ArticleFilterDialog !== 'undefined') {
             ArticleFilterEvents(ArticleFilterDialog, TicketID);
@@ -776,7 +799,7 @@ Core.Agent.TicketZoom = (function (TargetNS) {
 
         // initialize timeline view
         if (typeof TimelineView !== 'undefined' && parseInt(TimelineView.Enabled, 10) === 1) {
-            InitTimelineView(TimelineView);
+            Core.Agent.TicketZoom.TimelineView.InitTimelineView(TimelineView);
         }
 
         // initialize events for process widget
@@ -784,6 +807,17 @@ Core.Agent.TicketZoom = (function (TargetNS) {
             InitProcessWidget();
         }
 
+        Core.App.Subscribe('Event.AJAX.ContentUpdate.Callback', function() {
+            $('a.SplitSelection').unbind('click.SplitSelection').bind('click.SplitSelection', function() {
+                Core.Agent.TicketSplit.OpenSplitSelection($(this).attr('href'));
+                return false;
+            });
+        });
+
+        $('a.SplitSelection').unbind('click.SplitSelection').bind('click.SplitSelection', function() {
+            Core.Agent.TicketSplit.OpenSplitSelection($(this).attr('href'));
+            return false;
+        });
     };
 
     Core.Init.RegisterNamespace(TargetNS, 'APP_MODULE');

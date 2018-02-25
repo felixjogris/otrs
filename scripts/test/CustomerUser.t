@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -181,6 +181,16 @@ for my $Key ( 1 .. 3, 'ä', 'カス', '_', '&' ) {
     $Self->True(
         $User{UserLogin},
         "CustomerUserGet() - uc() - $UserID",
+    );
+
+    # check customer ids
+    my @CustomerIDs = $CustomerUserObject->CustomerIDs(
+        User => $UserID,
+    );
+    $Self->IsDeeply(
+        \@CustomerIDs,
+        [ $UserRand . '-Customer-Update-Id' ],
+        'CustomerIDs() - User',
     );
 
     # search by CustomerID
@@ -847,6 +857,47 @@ $Self->Is(
     scalar( keys %List ),
     1,
     "CustomerSourceList - found 1 writable sources",
+);
+
+# Use default CustomerUserListFields config and search for customer.
+my $UserLogin     = "NewLogin$UserID";
+my $FirstName     = "Firstname Update$UserID";
+my $LastName      = "Lastname Update$UserID";
+my $CustomerID    = "${UserID}new\@example.com";
+my $CustomerEmail = "<${UserID}new\@example.com>";
+my %CustomerUser  = $CustomerUserObject->CustomerSearch(
+    UserLogin => $UserLogin,
+    Valid     => 1,
+);
+
+# Verified search result.
+$Self->Is(
+    $CustomerUser{$UserLogin},
+    "\"$FirstName $LastName\" $CustomerEmail",
+    "Default 'CustomerUserListFields' config is"
+);
+
+# Change CustomerUserListFields config and search for customer again.
+#   See bug#13394 (https://bugs.otrs.org/show_bug.cgi?id=13394).
+my $CustomerUser = $ConfigObject->Get('CustomerUser');
+$CustomerUser->{CustomerUserListFields} = [ 'login', 'first_name', 'last_name', 'customer_id', 'email' ];
+$ConfigObject->Set(
+    Key   => 'CustomerUser',
+    Value => $CustomerUser,
+);
+
+$CacheObject->CleanUp();
+
+%CustomerUser = $CustomerUserObject->CustomerSearch(
+    UserLogin => $UserLogin,
+    Valid     => 1,
+);
+
+# Verify search result.
+$Self->Is(
+    $CustomerUser{$UserLogin},
+    "\"$UserLogin $FirstName $LastName $CustomerID\" $CustomerEmail",
+    "Changed 'CustomerUserListFields' config is"
 );
 
 # cleanup is done by RestoreDatabase

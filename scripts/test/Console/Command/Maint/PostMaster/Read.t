@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -42,20 +42,13 @@ $Self->Is(
     open STDIN, '<:utf8', \$Email;    ## no critic
     local *STDOUT;
     open STDOUT, '>:utf8', \$Result;    ## no critic
-    $ExitCode = $CommandObject->Execute('--debug');
+    $ExitCode = $CommandObject->Execute();
 }
 
 $Self->Is(
     $ExitCode,
     0,
     "Maint::PostMaster::Read exit code with email input",
-);
-
-my ($TicketID) = $Result =~ m{TicketID:\s+(\d+)};
-
-$Self->True(
-    $TicketID,
-    'Ticket created from email',
 );
 
 # cleanup is done by RestoreDatabase

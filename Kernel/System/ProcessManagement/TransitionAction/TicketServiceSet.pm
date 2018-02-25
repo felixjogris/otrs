@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -14,12 +14,13 @@ use utf8;
 
 use Kernel::System::VariableCheck qw(:all);
 
-use base qw(Kernel::System::ProcessManagement::TransitionAction::Base);
+use parent qw(Kernel::System::ProcessManagement::TransitionAction::Base);
 
 our @ObjectDependencies = (
     'Kernel::System::Log',
     'Kernel::System::Service',
     'Kernel::System::Ticket',
+    'Kernel::Config',
 );
 
 =head1 NAME
@@ -105,7 +106,11 @@ sub Run {
         return;
     }
 
-    if ( !$Param{Ticket}->{CustomerUserID} ) {
+    if (
+        !$Param{Ticket}->{CustomerUserID}
+        && !$Kernel::OM->Get('Kernel::Config')->Get('Ticket::Service::Default::UnknownCustomer')
+        )
+    {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
             Message  => $CommonMessage . "To set a service the ticket requires a customer!",

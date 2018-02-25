@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -46,6 +46,17 @@ $Success = $ConfigObject->Set(
 $Self->True(
     $Success,
     "Set Email Test backend with true",
+);
+
+# disable email checks to create new user
+$ConfigObject->Set(
+    Key   => 'CheckEmailAddresses',
+    Value => 0,
+);
+
+$ConfigObject->Set(
+    Key   => 'CheckMXRecord',
+    Value => 0,
 );
 
 # set default language to English
@@ -283,8 +294,96 @@ $Self->True(
     "TicketCreate() successful for Ticket ID $TicketID",
 );
 
-my $DynamicFieldObject      = $Kernel::OM->Get('Kernel::System::DynamicField');
-my $DynamicFieldValueObject = $Kernel::OM->Get('Kernel::System::DynamicFieldValue');
+my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+my $ArticleBackendObject = $ArticleObject->BackendForChannel( ChannelName => 'Email' );
+
+# create first article
+my $ArticleID1 = $ArticleBackendObject->ArticleCreate(
+    TicketID             => $TicketID,
+    IsVisibleForCustomer => 1,
+    SenderType           => 'agent',
+    Subject              => 'Article 1',
+    Body                 => 'This is the first article',
+    Charset              => 'ISO-8859-15',
+    MimeType             => 'text/plain',
+    HistoryType          => 'EmailCustomer',
+    HistoryComment       => 'Some free text!',
+    UserID               => 1,
+    From                 => "$CustomerUserLogin\@localunittest.com",
+    To                   => 'test1@otrsexample.com',
+    Cc                   => 'test2@otrsexample.com',
+);
+
+$Self->True(
+    $ArticleID1,
+    "Article is created - ID $ArticleID1",
+);
+
+# create last article
+my $ArticleID2 = $ArticleBackendObject->ArticleCreate(
+    TicketID             => $TicketID,
+    IsVisibleForCustomer => 1,
+    SenderType           => 'customer',
+    Subject              => 'Article 2',
+    Body                 => 'This is the last article',
+    Charset              => 'ISO-8859-15',
+    MimeType             => 'text/plain',
+    HistoryType          => 'EmailCustomer',
+    HistoryComment       => 'Some free text!',
+    UserID               => 1,
+    From                 => "$CustomerUserLogin\@localunittest.com",
+    To                   => 'test3@otrsexample.com',
+    Cc                   => 'test4@otrsexample.com',
+);
+
+$Self->True(
+    $ArticleID2,
+    "Article is created - ID $ArticleID2",
+);
+
+my $CustomerTicketID = $TicketObject->TicketCreate(
+    Title         => 'Ticket One Title',
+    QueueID       => 1,
+    Lock          => 'unlock',
+    Priority      => '3 normal',
+    State         => 'new',
+    CustomerID    => 'example.com',
+    CustomerUser  => $CustomerUserLogin,
+    OwnerID       => $UserID,
+    ResponsibleID => $UserID,
+    UserID        => $UserID,
+);
+
+$Self->True(
+    $CustomerTicketID,
+    "TicketCreate() successful for Ticket ID $CustomerTicketID",
+);
+
+# create first customer article
+my $CustomerArticleID1 = $ArticleBackendObject->ArticleCreate(
+    TicketID             => $CustomerTicketID,
+    IsVisibleForCustomer => 1,
+    SenderType           => 'customer',
+    Subject              => 'Article 1',
+    Body                 => 'This is the first article',
+    Charset              => 'ISO-8859-15',
+    MimeType             => 'text/plain',
+    HistoryType          => 'EmailCustomer',
+    HistoryComment       => 'Some free text!',
+    UserID               => 1,
+    From                 => "$CustomerUserLogin\@localunittest.com",
+    To                   => 'test1@otrsexample.com',
+    Cc                   => 'test2@otrsexample.com',
+);
+
+$Self->True(
+    $CustomerArticleID1,
+    "Article is created - ID $ArticleID1",
+);
+
+my $DynamicFieldObject        = $Kernel::OM->Get('Kernel::System::DynamicField');
+my $DynamicFieldValueObject   = $Kernel::OM->Get('Kernel::System::DynamicFieldValue');
+my $DynamicFieldBackendObject = $Kernel::OM->Get('Kernel::System::DynamicField::Backend');
 
 # Create test ticket dynamic field of type checkbox.
 my $FieldID = $DynamicFieldObject->DynamicFieldAdd(
@@ -305,16 +404,16 @@ $Self->True(
     "DynamicFieldAdd - Added checkbox field ($FieldID)",
 );
 
+my $DynamicFieldConfig = $DynamicFieldObject->DynamicFieldGet(
+    ID => $FieldID,
+);
+
 # Set ticket dynamic field checkbox value to unchecked.
-$Success = $DynamicFieldValueObject->ValueSet(
-    FieldID  => $FieldID,
-    ObjectID => $TicketID,
-    Value    => [
-        {
-            ValueInt => 0,
-        },
-    ],
-    UserID => 1,
+$Success = $DynamicFieldBackendObject->ValueSet(
+    DynamicFieldConfig => $DynamicFieldConfig,
+    ObjectID           => $TicketID,
+    Value              => 0,
+    UserID             => 1,
 );
 $Self->True(
     $Success,
@@ -340,16 +439,16 @@ $Self->True(
     "DynamicFieldAdd - Added text field ($FieldID)",
 );
 
-# Set ticket dynamic field checkbox value to unchecked.
-$Success = $DynamicFieldValueObject->ValueSet(
-    FieldID  => $FieldID,
-    ObjectID => $TicketID,
-    Value    => [
-        {
-            ValueText => 'foo@bar.com',
-        },
-    ],
-    UserID => 1,
+$DynamicFieldConfig = $DynamicFieldObject->DynamicFieldGet(
+    ID => $FieldID,
+);
+
+# Set ticket dynamic field value to additional email
+$Success = $DynamicFieldBackendObject->ValueSet(
+    DynamicFieldConfig => $DynamicFieldConfig,
+    ObjectID           => $TicketID,
+    Value              => 'foo@bar.com',
+    UserID             => 1,
 );
 $Self->True(
     $Success,
@@ -375,16 +474,16 @@ $Self->True(
     "DynamicFieldAdd - Added text field ($FieldID)",
 );
 
-# Set ticket dynamic field checkbox value to unchecked.
-$Success = $DynamicFieldValueObject->ValueSet(
-    FieldID  => $FieldID,
-    ObjectID => $TicketID,
-    Value    => [
-        {
-            ValueText => 'bar@foo.com',
-        },
-    ],
-    UserID => 1,
+$DynamicFieldConfig = $DynamicFieldObject->DynamicFieldGet(
+    ID => $FieldID,
+);
+
+# Set ticket dynamic field value to additional email
+$Success = $DynamicFieldBackendObject->ValueSet(
+    DynamicFieldConfig => $DynamicFieldConfig,
+    ObjectID           => $TicketID,
+    Value              => 'bar@foo.com',
+    UserID             => 1,
 );
 $Self->True(
     $Success,
@@ -401,13 +500,6 @@ my $SuccessWatcher = $TicketObject->TicketWatchSubscribe(
 $Self->True(
     $SuccessWatcher,
     "TicketWatchSubscribe() successful for Ticket ID $TicketID",
-);
-
-my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
-
-# get article types email-notification-int ID
-my $ArticleTypeIntID = $ArticleObject->ArticleTypeLookup(
-    ArticleType => 'email-notification-int',
 );
 
 my @Tests = (
@@ -687,6 +779,45 @@ my @Tests = (
         Success         => 1,
     },
     {
+        Name => 'Recipients agent creator for agent ticket - sent',
+        Data => {
+            Events     => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
+            Recipients => ['AgentCreateBy'],
+        },
+        Config => {
+            Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
+            Data  => {
+                TicketID => $TicketID,
+            },
+            Config => {},
+            UserID => 1,
+        },
+        ExpectedResults => [
+            {
+                ToArray => [ $UserData{UserEmail} ],
+                Body    => "JobName $TicketID Kernel::System::Email::Test $UserData{UserFirstname}=\n",
+            },
+        ],
+        Success => 1,
+    },
+    {
+        Name => 'Recipients agent creator for customer ticket - not sent',
+        Data => {
+            Events     => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
+            Recipients => ['AgentCreateBy'],
+        },
+        Config => {
+            Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
+            Data  => {
+                TicketID => $CustomerTicketID,
+            },
+            Config => {},
+            UserID => 1,
+        },
+        ExpectedResults => [],    # no notification, because ticket was not created by an agent
+        Success         => 1,
+    },
+    {
         Name => 'Recipients Owner',
         Data => {
             Events     => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
@@ -944,11 +1075,11 @@ my @Tests = (
         Success => 1,
     },
     {
-        Name => 'RecipientCustomer + NotificationArticleType email-notification-int',
+        Name => 'RecipientCustomer + IsVisibleForCustomer = 0',
         Data => {
-            Events                    => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
-            Recipients                => ['Customer'],
-            NotificationArticleTypeID => [$ArticleTypeIntID],
+            Events               => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
+            Recipients           => ['Customer'],
+            IsVisibleForCustomer => [0],
         },
         Config => {
             Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
@@ -965,6 +1096,25 @@ my @Tests = (
             },
         ],
         Success => 1,
+    },
+    {
+        Name => 'RecipientCustomer + OncePerDay',
+        Data => {
+            Events               => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
+            Recipients           => ['Customer'],
+            IsVisibleForCustomer => [0],
+            OncePerDay           => [1],
+        },
+        Config => {
+            Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
+            Data  => {
+                TicketID => $TicketID,
+            },
+            Config => {},
+            UserID => 1,
+        },
+        ExpectedResults => [],
+        Success         => 1,
     },
     {
         Name => 'RecipientEmail filter by unchecked dynamic field',
@@ -1082,6 +1232,125 @@ my @Tests = (
         ],
         Success => 1,
     },
+    {
+        Name => 'AllRecipientsFirstArticle',
+        Data => {
+            Events     => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
+            Recipients => ['AllRecipientsFirstArticle'],
+        },
+        Config => {
+            Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
+            Data  => {
+                TicketID => $TicketID,
+            },
+            Config => {},
+            UserID => 1,
+        },
+        ExpectedResults => [
+            {
+                ToArray =>
+                    [ "$CustomerUserLogin\@localunittest.com", 'test1@otrsexample.com', 'test2@otrsexample.com' ],
+                Body => "JobName $TicketID Kernel::System::Email::Test $UserData{UserFirstname}=\n",
+            },
+        ],
+        Success => 1,
+    },
+    {
+        Name => 'AllRecipientsLastArticle',
+        Data => {
+            Events     => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
+            Recipients => ['AllRecipientsLastArticle'],
+        },
+        Config => {
+            Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
+            Data  => {
+                TicketID => $TicketID,
+            },
+            Config => {},
+            UserID => 1,
+        },
+        ExpectedResults => [
+            {
+                ToArray =>
+                    [ "$CustomerUserLogin\@localunittest.com", 'test3@otrsexample.com', 'test4@otrsexample.com' ],
+                Body => "JobName $TicketID Kernel::System::Email::Test $UserData{UserFirstname}=\n",
+            },
+        ],
+        Success => 1,
+    },
+    {
+        Name => 'AllRecipientsFirstArticle + Customer',
+        Data => {
+            Events     => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
+            Recipients => [ 'AllRecipientsFirstArticle', 'Customer' ],
+        },
+        Config => {
+            Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
+            Data  => {
+                TicketID => $TicketID,
+            },
+            Config => {},
+            UserID => 1,
+        },
+        ExpectedResults => [
+            {
+                ToArray =>
+                    [ "$CustomerUserLogin\@localunittest.com", 'test1@otrsexample.com', 'test2@otrsexample.com' ],
+                Body => "JobName $TicketID Kernel::System::Email::Test $UserData{UserFirstname}=\n",
+            },
+        ],
+        Success => 1,
+    },
+    {
+        Name => 'AllRecipientsLastArticle + Customer',
+        Data => {
+            Events     => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
+            Recipients => [ 'AllRecipientsLastArticle', 'Customer' ],
+        },
+        Config => {
+            Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
+            Data  => {
+                TicketID => $TicketID,
+            },
+            Config => {},
+            UserID => 1,
+        },
+        ExpectedResults => [
+            {
+                ToArray =>
+                    [ "$CustomerUserLogin\@localunittest.com", 'test3@otrsexample.com', 'test4@otrsexample.com' ],
+                Body => "JobName $TicketID Kernel::System::Email::Test $UserData{UserFirstname}=\n",
+            },
+        ],
+        Success => 1,
+    },
+    {
+        Name => 'AllRecipientsFirstArticle + AllRecipientsLastArticle + Customer',
+        Data => {
+            Events     => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
+            Recipients => [ 'AllRecipientsFirstArticle', 'AllRecipientsLastArticle', 'Customer' ],
+        },
+        Config => {
+            Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
+            Data  => {
+                TicketID => $TicketID,
+            },
+            Config => {},
+            UserID => 1,
+        },
+        ExpectedResults => [
+            {
+                ToArray =>
+                    [ "$CustomerUserLogin\@localunittest.com", 'test1@otrsexample.com', 'test2@otrsexample.com' ],
+                Body => "JobName $TicketID Kernel::System::Email::Test $UserData{UserFirstname}=\n",
+            },
+            {
+                ToArray => [ 'test3@otrsexample.com', 'test4@otrsexample.com' ],
+                Body => "JobName $TicketID Kernel::System::Email::Test $UserData{UserFirstname}=\n",
+            },
+        ],
+        Success => 1,
+    },
 );
 
 my $SetPostMasterUserID = sub {
@@ -1103,23 +1372,24 @@ my $SetOutOfOffice = sub {
 
     if ( $Param{OutOfOffice} ) {
 
-        # get time object
-        my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
-        my ( $Sec, $Min, $Hour, $Day, $Month, $Year, $WeekDay ) = $TimeObject->SystemTime2Date(
-            SystemTime => $TimeObject->SystemTime() + $Param{SetOutOfOfficeDiffStart},
-        );
+        # create datetime object
+        my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
 
-        my ( $ESec, $EMin, $EHour, $EDay, $EMonth, $EYear, $EWeekDay ) = $TimeObject->SystemTime2Date(
-            SystemTime => $TimeObject->SystemTime() + $Param{SetOutOfOfficeDiffEnd},
-        );
+        my $SetOutOfOfficeDiffStartObj = $DateTimeObject->Clone();
+        $SetOutOfOfficeDiffStartObj->Add( Seconds => $Param{SetOutOfOfficeDiffStart} );
+        my $SetOutOfOfficeDiffStartValues = $SetOutOfOfficeDiffStartObj->Get();
+
+        my $SetOutOfOfficeDiffEndObj = $DateTimeObject->Clone();
+        $SetOutOfOfficeDiffEndObj->Add( Seconds => $Param{SetOutOfOfficeDiffEnd} );
+        my $SetOutOfOfficeDiffEndValues = $SetOutOfOfficeDiffEndObj->Get();
 
         my %Preferences = (
-            OutOfOfficeStartYear  => $Year,
-            OutOfOfficeStartMonth => $Month,
-            OutOfOfficeStartDay   => $Day,
-            OutOfOfficeEndYear    => $EYear,
-            OutOfOfficeEndMonth   => $EMonth,
-            OutOfOfficeEndDay     => $EDay,
+            OutOfOfficeStartYear  => $SetOutOfOfficeDiffStartValues->{Year},
+            OutOfOfficeStartMonth => $SetOutOfOfficeDiffStartValues->{Month},
+            OutOfOfficeStartDay   => $SetOutOfOfficeDiffStartValues->{Day},
+            OutOfOfficeEndYear    => $SetOutOfOfficeDiffEndValues->{Year},
+            OutOfOfficeEndMonth   => $SetOutOfOfficeDiffEndValues->{Month},
+            OutOfOfficeEndDay     => $SetOutOfOfficeDiffEndValues->{Day},
         );
 
         # pref update db
@@ -1216,6 +1486,31 @@ my $PostmasterUserID = $ConfigObject->Get('PostmasterUserID') || 1;
 my $NotificationEventObject      = $Kernel::OM->Get('Kernel::System::NotificationEvent');
 my $EventNotificationEventObject = $Kernel::OM->Get('Kernel::System::Ticket::Event::NotificationEvent');
 
+my $SendEmail = sub {
+    my %Param = @_;
+
+    my $MailQueueObj = $Kernel::OM->Get('Kernel::System::MailQueue');
+
+    # Get last item in the queue.
+    my $Items = $MailQueueObj->List();
+    my @ToReturn;
+    for my $Item (@$Items) {
+        $MailQueueObj->Send( %{$Item} );
+        push @ToReturn, $Item->{Message};
+    }
+
+    return @ToReturn;
+};
+
+my $DeleteQueue = sub {
+    my %Param = @_;
+
+    my $MailQueueObj = $Kernel::OM->Get('Kernel::System::MailQueue');
+
+    $MailQueueObj->Delete();
+
+};
+
 my $Count = 0;
 my $NotificationID;
 TEST:
@@ -1302,6 +1597,8 @@ for my $Test (@Tests) {
         "$Test->{Name} - NotificationEvent Run() with true",
     );
 
+    $SendEmail->();
+
     my $Emails = $TestEmailObject->EmailsGet();
 
     # remove not needed data
@@ -1326,14 +1623,16 @@ for my $Test (@Tests) {
     # check if there is email-notification-int article type when sending notification
     # to customer see bug#11592
     if ( $Test->{Name} =~ /RecipientCustomer/i ) {
-        my @ArticleBox = $ArticleObject->ArticleContentIndex(
-            TicketID      => $TicketID,
-            UserID        => 1,
-            ArticleTypeID => [$ArticleTypeIntID],
+        my @ArticleBox = $ArticleObject->ArticleList(
+            TicketID             => $TicketID,
+            CommunicationChannel => 'Email',
+            SenderType           => 'system',
+            IsVisibleForCustomer => 0,
         );
+
         $Self->Is(
             scalar @ArticleBox,
-            1,
+            2,
             "$Test->{Name} - Article Type email-notification-int created for Customer recipient",
         );
     }
@@ -1352,6 +1651,8 @@ continue {
     );
 
     $TestEmailObject->CleanUp();
+
+    $DeleteQueue->();
 
     # reset PostMasteruserID to the original value
     if ( $Test->{SetPostMasterUserID} ) {
@@ -1376,15 +1677,17 @@ continue {
 # code too to remove data if the FS backend is used
 
 # delete the ticket
-my $TicketDelete = $TicketObject->TicketDelete(
-    TicketID => $TicketID,
-    UserID   => $UserID,
-);
+for my $ID ( $TicketID, $CustomerTicketID ) {
 
-# sanity check
-$Self->True(
-    $TicketDelete,
-    "TicketDelete() successful for Ticket ID $TicketID",
-);
+    my $TicketDelete = $TicketObject->TicketDelete(
+        TicketID => $ID,
+        UserID   => $UserID,
+    );
+
+    $Self->True(
+        $TicketDelete,
+        "TicketDelete() successful for Ticket ID $ID",
+    );
+}
 
 1;

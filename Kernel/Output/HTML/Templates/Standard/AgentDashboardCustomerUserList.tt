@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,14 +12,14 @@
 </span>
 [% RenderBlockEnd("ContentLargeCustomerUserListNavBar") %]
 [% RenderBlockStart("ContentLargeCustomerUserAdd") %]
-<h2><a class="CallForAction" href="[% Env("Baselink") %]Action=AdminCustomerUser;Subaction=Add;CustomerID=[% Data.CustomerID | uri %]"><span><i class="fa fa-plus-square"></i> [% Translate("Add Customer") | html %]</span></a></h2>
+<h2><a class="CallForAction" href="[% Env("Baselink") %]Action=AdminCustomerUser;Subaction=Add;CustomerID=[% Data.CustomerID | uri %]"><span><i class="fa fa-plus-square"></i> [% Translate("Add Customer User") | html %]</span></a></h2>
 [% RenderBlockEnd("ContentLargeCustomerUserAdd") %]
 
 <table class="DataTable">
     <thead>
         <tr>
-            <th>[% Translate("Customer login") | html %]</th>
-            <th>[% Translate("Customer information") | html %]</th>
+            <th>[% Translate("Customer User ID") | html %]</th>
+            <th>[% Translate("Customer user information") | html %]</th>
             <th>[% Translate("Open") | html %]</th>
             <th>[% Translate("Closed") | html %]</th>
 [% RenderBlockStart("OverviewResultNewAgentTicketPhone") %]
@@ -28,6 +28,9 @@
 [% RenderBlockStart("OverviewResultNewAgentTicketEmail") %]
             <th>[% Translate("Email ticket") | html %]</th>
 [% RenderBlockEnd("OverviewResultNewAgentTicketEmail") %]
+        [% IF Data.EditCustomerPermission %]
+            <th class="Center">[% Translate("Edit") | html %]</th>
+        [% END %]
 [% RenderBlockStart("OverviewResultSwitchToCustomer") %]
             <th>[% Translate("Login as") | html %]</th>
 [% RenderBlockEnd("OverviewResultSwitchToCustomer") %]
@@ -42,17 +45,12 @@
                     <i class="fa fa-circle" title="[% Data.UserStateDescription | html %]"></i>
                 </span>
 [% RenderBlockEnd("ContentLargeCustomerUserListRowUserStatus") %]
-[% RenderBlockStart("ContentLargeCustomerUserListRowCustomerKeyLink") %]
-                <a href="[% Env("Baselink") %]Action=AdminCustomerUser;Subaction=Change;ID=[% Data.CustomerKey | uri %];Nav=Agent" class="MasterActionLink">
+                <a href="[% Env("Baselink") %]Action=AgentCustomerUserInformationCenter;CustomerUserID=[% Data.CustomerKey | uri %]" class="MasterActionLink">
                     [% Data.CustomerKey | html %]
                 </a>
-[% RenderBlockEnd("ContentLargeCustomerUserListRowCustomerKeyLink") %]
-[% RenderBlockStart("ContentLargeCustomerUserListRowCustomerKeyText") %]
-                [% Data.CustomerKey | html %]
-[% RenderBlockEnd("ContentLargeCustomerUserListRowCustomerKeyText") %]
 [% RenderBlockStart("ContentLargeCustomerUserListRowChatIcons") %]
                 <span class="UserChatIcons Hidden">
-                    <a href="#" title="[% Translate("Start chat") %]" type="button" class="UserChatStart" data-user-type="Customer" data-user-id="[% Data.UserID | html %]" data-user-fullname="[% Data.UserFullname | html %]">
+                    <a href="#" title="[% Translate("Start chat") | html %]" type="button" class="UserChatStart" data-user-type="Customer" data-user-id="[% Data.UserID | html %]" data-user-fullname="[% Data.UserFullname | html %]">
                         <i class="fa fa-comments"></i>
                     </a>
                     [% IF Data.VideoChatEnabled %]
@@ -78,25 +76,32 @@
 [% RenderBlockEnd("ContentLargeCustomerUserListRowCustomerUserTicketsOpen") %]
 [% RenderBlockStart("ContentLargeCustomerUserListRowCustomerUserTicketsClosed") %]
             <td>
-                <a href="[% Env("Baselink") %]Action=AgentTicketSearch;Subaction=Search;StateType=closed;CustomerUserLoginRaw=[% Data.CustomerKeySQL | uri %]" title="[% Translate("%s closed ticket(s) of %s", Data.Count, Data.CustomerKey) | html %]" class="AsBlock">
+                <a href="[% Env("Baselink") %]Action=AgentTicketSearch;Subaction=Search;StateType=Closed;CustomerUserLoginRaw=[% Data.CustomerKeySQL | uri %]" title="[% Translate("%s closed ticket(s) of %s", Data.Count, Data.CustomerKey) | html %]" class="AsBlock">
                     [% Data.Count | html %]
                 </a>
             </td>
 [% RenderBlockEnd("ContentLargeCustomerUserListRowCustomerUserTicketsClosed") %]
 [% RenderBlockStart("ContentLargeCustomerUserListNewAgentTicketPhone") %]
             <td class="PhoneTicket">
-                <a href="[% Env("Baselink") %]Action=AgentTicketPhone;Subaction=StoreNew;ExpandCustomerName=2;CustomerUserRaw=[% Data.CustomerKey | uri %]" title="[% Translate("New phone ticket from %s", Data.CustomerKey) | html %]">
+                <a href="[% Env("Baselink") %]Action=AgentTicketPhone;Subaction=StoreNew;ExpandCustomerName=2;CustomerUser=[% Data.CustomerKey | uri %]" title="[% Translate("New phone ticket from %s", Data.CustomerKey) | html %]">
                     <span>[% Translate("Create") | html %]</span>
                 </a>
             </td>
 [% RenderBlockEnd("ContentLargeCustomerUserListNewAgentTicketPhone") %]
 [% RenderBlockStart("ContentLargeCustomerUserListNewAgentTicketEmail") %]
             <td class="EmailTicket">
-                <a href="[% Env("Baselink") %]Action=AgentTicketEmail;Subaction=StoreNew;ExpandCustomerName=2;CustomerUserRaw=[% Data.CustomerKey | uri %]" title="[% Translate("New email ticket to %s", Data.CustomerKey) | html %]">
+                <a href="[% Env("Baselink") %]Action=AgentTicketEmail;Subaction=StoreNew;ExpandCustomerName=2;CustomerUser=[% Data.CustomerKey | uri %]" title="[% Translate("New email ticket to %s", Data.CustomerKey) | html %]">
                     <span>[% Translate("Create") | html %]</span>
                 </a>
             </td>
 [% RenderBlockEnd("ContentLargeCustomerUserListNewAgentTicketEmail") %]
+        [% IF Data.EditCustomerPermission %]
+            <td class="Center">
+                <a href="[% Env("Baselink") %]Action=AdminCustomerUser;Subaction=Change;ID=[% Data.CustomerKey | uri %];Nav=Agent" title="Edit customer user">
+                    <i class="fa fa-pencil-square-o"></i>
+                </a>
+            </td>
+        [% END %]
 [% RenderBlockStart("OverviewResultRowSwitchToCustomer") %]
             <td>
                 <a class="AsBlock" href="[% Env("Baselink") %]Action=AdminCustomerUser;Subaction=Switch;ID=[% Data.CustomerKey | uri %];[% Env("ChallengeTokenParam") | html %]" target="_blank">[% Translate("Switch to customer") | html %]</a>

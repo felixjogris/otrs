@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -23,7 +23,7 @@ our @ObjectDependencies = (
     'Kernel::System::Log',
     'Kernel::System::Main',
     'Kernel::System::SearchProfile',
-    'Kernel::System::Time',
+    'Kernel::System::DateTime',
     'Kernel::System::Valid',
 );
 
@@ -191,14 +191,14 @@ sub GetUserData {
         if ( $Param{User} ) {
             $Kernel::OM->Get('Kernel::System::Log')->Log(
                 Priority => 'notice',
-                Message  => "Panic! No UserData for user: '$Param{User}'!!!",
+                Message  => "No UserData for user: '$Param{User}'.",
             );
             return;
         }
         else {
             $Kernel::OM->Get('Kernel::System::Log')->Log(
                 Priority => 'notice',
-                Message  => "Panic! No UserData for user id: '$Param{UserID}'!!!",
+                Message  => "No UserData for user id: '$Param{UserID}'.",
             );
             return;
         }
@@ -243,13 +243,19 @@ sub GetUserData {
     # get preferences
     my %Preferences = $Self->GetPreferences( UserID => $Data{UserID} );
 
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+    my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
 
     # add last login timestamp
     if ( $Preferences{UserLastLogin} ) {
-        $Preferences{UserLastLoginTimestamp} = $TimeObject->SystemTime2TimeStamp(
-            SystemTime => $Preferences{UserLastLogin},
+
+        my $UserLastLoginTimeObj = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                Epoch => $Preferences{UserLastLogin}
+                }
         );
+
+        $Preferences{UserLastLoginTimestamp} = $UserLastLoginTimeObj->ToString();
     }
 
     # check compat stuff
@@ -260,18 +266,40 @@ sub GetUserData {
     # out of office check
     if ( !$Param{NoOutOfOffice} ) {
         if ( $Preferences{OutOfOffice} ) {
-            my $Time = $TimeObject->SystemTime();
-            my $Start
-                = "$Preferences{OutOfOfficeStartYear}-$Preferences{OutOfOfficeStartMonth}-$Preferences{OutOfOfficeStartDay} 00:00:00";
-            my $TimeStart = $TimeObject->TimeStamp2SystemTime(
-                String => $Start,
+
+            my $CurrentTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+            my $CreateDTObject    = sub {
+                my %Param = @_;
+
+                return $Kernel::OM->Create(
+                    'Kernel::System::DateTime',
+                    ObjectParams => {
+                        String => sprintf(
+                            '%d-%02d-%02d %s',
+                            $Param{Year},
+                            $Param{Month},
+                            $Param{Day},
+                            $Param{Time}
+                        ),
+                    },
+                );
+            };
+
+            my $TimeStartObj = $CreateDTObject->(
+                Year  => $Preferences{OutOfOfficeStartYear},
+                Month => $Preferences{OutOfOfficeStartMonth},
+                Day   => $Preferences{OutOfOfficeStartDay},
+                Time  => '00:00:00',
             );
-            my $End
-                = "$Preferences{OutOfOfficeEndYear}-$Preferences{OutOfOfficeEndMonth}-$Preferences{OutOfOfficeEndDay} 23:59:59";
-            my $TimeEnd = $TimeObject->TimeStamp2SystemTime(
-                String => $End,
+
+            my $TimeEndObj = $CreateDTObject->(
+                Year  => $Preferences{OutOfOfficeEndYear},
+                Month => $Preferences{OutOfOfficeEndMonth},
+                Day   => $Preferences{OutOfOfficeEndDay},
+                Time  => '23:59:59',
             );
-            if ( $TimeStart < $Time && $TimeEnd > $Time ) {
+
+            if ( $TimeStartObj < $CurrentTimeObject && $TimeEndObj > $CurrentTimeObject ) {
                 my $OutOfOfficeMessageTemplate =
                     $ConfigObject->Get('OutOfOfficeMessageTemplate') || '*** out of office until %s (%s d left) ***';
                 my $TillDate = sprintf(
@@ -280,9 +308,9 @@ sub GetUserData {
                     $Preferences{OutOfOfficeEndMonth},
                     $Preferences{OutOfOfficeEndDay}
                 );
-                my $Till = int( ( $TimeEnd - $Time ) / 60 / 60 / 24 );
+                my $Till = int( ( $TimeEndObj->ToEpoch() - $CurrentTimeObject->ToEpoch() ) / 60 / 60 / 24 );
                 $Preferences{OutOfOfficeMessage} = sprintf( $OutOfOfficeMessageTemplate, $TillDate, $Till );
-                $Data{UserLastname} .= ' ' . $Preferences{OutOfOfficeMessage};
+                $Data{UserFullname} .= ' ' . $Preferences{OutOfOfficeMessage};
             }
 
             # Reduce CacheTTL to one hour for users that are out of office to make sure the cache expires timely
@@ -357,7 +385,7 @@ sub UserAdd {
     if ( $Self->UserLoginExistsCheck( UserLogin => $Param{UserLogin} ) ) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => "A user with username '$Param{UserLogin}' already exists!"
+            Message  => "A user with the username '$Param{UserLogin}' already exists.",
         );
         return;
     }
@@ -366,6 +394,7 @@ sub UserAdd {
     if (
         $Param{UserEmail}
         && !$Kernel::OM->Get('Kernel::System::CheckItem')->CheckEmail( Address => $Param{UserEmail} )
+        && grep { $_ eq $Param{ValidID} } $Kernel::OM->Get('Kernel::System::Valid')->ValidIDsGet()
         )
     {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
@@ -509,7 +538,7 @@ sub UserUpdate {
     {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => "A user with username '$Param{UserLogin}' already exists!"
+            Message  => "A user with the username '$Param{UserLogin}' already exists.",
         );
         return;
     }
@@ -518,6 +547,7 @@ sub UserUpdate {
     if (
         $Param{UserEmail}
         && !$Kernel::OM->Get('Kernel::System::CheckItem')->CheckEmail( Address => $Param{UserEmail} )
+        && grep { $_ eq $Param{ValidID} } $Kernel::OM->Get('Kernel::System::Valid')->ValidIDsGet()
         )
     {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
@@ -750,8 +780,9 @@ sub SetPassword {
     my $Pw = $Param{PW} || '';
     my $CryptedPw = '';
 
-    # get crypt type
-    my $CryptType = $Kernel::OM->Get('Kernel::Config')->Get('AuthModule::DB::CryptType') || 'sha2';
+    my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
+
+    my $CryptType = $ConfigObject->Get('AuthModule::DB::CryptType') || 'sha2';
 
     # crypt plain (no crypt at all)
     if ( $CryptType eq 'plain' ) {
@@ -792,10 +823,16 @@ sub SetPassword {
     elsif ( $CryptType eq 'sha1' ) {
 
         my $SHAObject = Digest::SHA->new('sha1');
-
-        # encode output, needed by sha1_hex() only non utf8 signs
         $Kernel::OM->Get('Kernel::System::Encode')->EncodeOutput( \$Pw );
+        $SHAObject->add($Pw);
+        $CryptedPw = $SHAObject->hexdigest();
+    }
 
+    # crypt with sha512
+    elsif ( $CryptType eq 'sha512' ) {
+
+        my $SHAObject = Digest::SHA->new('sha512');
+        $Kernel::OM->Get('Kernel::System::Encode')->EncodeOutput( \$Pw );
         $SHAObject->add($Pw);
         $CryptedPw = $SHAObject->hexdigest();
     }
@@ -812,7 +849,14 @@ sub SetPassword {
             return;
         }
 
-        my $Cost = 9;
+        my $Cost = $ConfigObject->Get('AuthModule::DB::bcryptCost') // 12;
+
+        # Don't allow values smaller than 9 for security.
+        $Cost = 9 if $Cost < 9;
+
+        # Current Crypt::Eksblowfish::Bcrypt limit is 31.
+        $Cost = 31 if $Cost > 31;
+
         my $Salt = $Kernel::OM->Get('Kernel::System::Main')->GenerateRandomString( Length => 16 );
 
         # remove UTF8 flag, required by Crypt::Eksblowfish::Bcrypt
@@ -822,7 +866,7 @@ sub SetPassword {
         my $Octets = Crypt::Eksblowfish::Bcrypt::bcrypt_hash(
             {
                 key_nul => 1,
-                cost    => 9,
+                cost    => $Cost,
                 salt    => $Salt,
             },
             $Pw
@@ -1212,38 +1256,31 @@ sub _UserCacheClear {
         return;
     }
 
-    # get configuration for the full name order
-    my $FirstnameLastNameOrder = $Kernel::OM->Get('Kernel::Config')->Get('FirstnameLastnameOrder') || 0;
-
-    # create cachekey
     my $Login = $Self->UserLookup( UserID => $Param{UserID} );
-    my @CacheKeys = (
-        'GetUserData::User::' . $Login . '::0::' . $FirstnameLastNameOrder . '::0',
-        'GetUserData::User::' . $Login . '::0::' . $FirstnameLastNameOrder . '::1',
-        'GetUserData::User::' . $Login . '::1::' . $FirstnameLastNameOrder . '::0',
-        'GetUserData::User::' . $Login . '::1::' . $FirstnameLastNameOrder . '::1',
-        'GetUserData::UserID::' . $Param{UserID} . '::0::' . $FirstnameLastNameOrder . '::0',
-        'GetUserData::UserID::' . $Param{UserID} . '::0::' . $FirstnameLastNameOrder . '::1',
-        'GetUserData::UserID::' . $Param{UserID} . '::1::' . $FirstnameLastNameOrder . '::0',
-        'GetUserData::UserID::' . $Param{UserID} . '::1::' . $FirstnameLastNameOrder . '::1',
-        'UserList::Short::0::' . $FirstnameLastNameOrder . '::0',
-        'UserList::Short::0::' . $FirstnameLastNameOrder . '::1',
-        'UserList::Short::1::' . $FirstnameLastNameOrder . '::0',
-        'UserList::Short::1::' . $FirstnameLastNameOrder . '::1',
-        'UserList::Long::0::' . $FirstnameLastNameOrder . '::0',
-        'UserList::Long::0::' . $FirstnameLastNameOrder . '::1',
-        'UserList::Long::1::' . $FirstnameLastNameOrder . '::0',
-        'UserList::Long::1::' . $FirstnameLastNameOrder . '::1',
-        'UserLookup::ID::' . $Login,
-        'UserLookup::Login::' . $Param{UserID},
-    );
 
-    # get cache object
+    my @CacheKeys;
+
+    # Delete cache for all possible FirstnameLastNameOrder settings as this might be overridden by users.
+    for my $FirstnameLastNameOrder ( 0 .. 8 ) {
+        for my $ActiveLevel1 ( 0 .. 1 ) {
+            for my $ActiveLevel2 ( 0 .. 1 ) {
+                push @CacheKeys, (
+                    "GetUserData::User::${Login}::${ActiveLevel1}::${FirstnameLastNameOrder}::${ActiveLevel2}",
+                    "GetUserData::UserID::$Param{UserID}::${ActiveLevel1}::${FirstnameLastNameOrder}::${ActiveLevel2}",
+                    "UserList::Short::${ActiveLevel1}::${FirstnameLastNameOrder}::${ActiveLevel2}",
+                    "UserList::Long::${ActiveLevel1}::${FirstnameLastNameOrder}::${ActiveLevel2}",
+                );
+            }
+        }
+        push @CacheKeys, (
+            'UserLookup::ID::' . $Login,
+            'UserLookup::Login::' . $Param{UserID},
+        );
+    }
+
     my $CacheObject = $Kernel::OM->Get('Kernel::System::Cache');
 
-    # delete cache
     for my $CacheKey (@CacheKeys) {
-
         $CacheObject->Delete(
             Type => $Self->{CacheType},
             Key  => $CacheKey,
@@ -1288,7 +1325,7 @@ search in user preferences
 =cut
 
 sub SearchPreferences {
-    my $Self = shift;
+    my ( $Self, %Param ) = @_;
 
     # get user preferences config
     my $GeneratorModule = $Kernel::OM->Get('Kernel::Config')->Get('User::PreferencesModule')
@@ -1297,7 +1334,7 @@ sub SearchPreferences {
     # get generator preferences module
     my $PreferencesObject = $Kernel::OM->Get($GeneratorModule);
 
-    return $PreferencesObject->SearchPreferences(@_);
+    return $PreferencesObject->SearchPreferences(%Param);
 }
 
 =head2 TokenGenerate()
@@ -1455,6 +1492,9 @@ sub _UserFullname {
         $UserFullname = '(' . $Param{UserLogin}
             . ') ' . $Param{UserLastname}
             . ' ' . $Param{UserFirstname};
+    }
+    elsif ( $FirstnameLastNameOrder eq '9' ) {
+        $UserFullname = $Param{UserLastname} . $Param{UserFirstname};
     }
     return $UserFullname;
 }

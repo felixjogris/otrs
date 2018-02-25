@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -48,13 +48,13 @@
 [% RenderBlockStart("OverviewNavBarPageFlag") %]
                     <th class="OverviewHeader [% Data.CSS | html %]" title="[% Translate(Data.Title) | html %]">
 [% RenderBlockStart("OverviewNavBarPageFlagLink") %]
-                        <a name="OverviewControl" href="[% Env("Baselink") %]Action=[% Env("Action") %];[% Data.LinkSort %];SortBy=[% Data.Name | uri %];OrderBy=[% Data.OrderBy | uri %]" title="[% Translate(Data.Title) | html %]">
-                            <em class="PrintOnly">[% Translate(Data.Title) %]</em>
+                        <a name="OverviewControl" href="[% Env("Baselink") %]Action=[% Env("Action") | uri %];[% Data.LinkSort %];SortBy=[% Data.Name | uri %];OrderBy=[% Data.OrderBy | uri %]" title="[% Translate(Data.Title) | html %]">
+                            <em class="PrintOnly">[% Translate(Data.Title) | html %]</em>
                         </a>
 [% RenderBlockEnd("OverviewNavBarPageFlagLink") %]
 [% RenderBlockStart("OverviewNavBarPageFlagEmpty") %]
                         <span title="[% Translate(Data.Name) | html %]">
-                            <em class="PrintOnly">[% Translate(Data.Name) %]</em>
+                            <em class="PrintOnly">[% Translate(Data.Name) | html %]</em>
                         </span>
 [% RenderBlockEnd("OverviewNavBarPageFlagEmpty") %]
                     </th>
@@ -136,7 +136,7 @@
                                 [% Data.ColumnFilterStrg %]
                             </div>
                         </div>
-                        <a name="OverviewControl" href="[% Env("Baselink") %]Action=[% Env("Action") %];[% Data.LinkSort %];SortBy=DynamicField_[% Data.DynamicFieldName | uri %];OrderBy=[% Data.OrderBy | uri %]" title="[% Translate(Data.Title) | html %]">[% Data.Label | html %]</a>
+                        <a name="OverviewControl" href="[% Env("Baselink") %]Action=[% Env("Action") %];[% Data.LinkSort %];SortBy=DynamicField_[% Data.DynamicFieldName | uri %];OrderBy=[% Data.OrderBy | uri %]" title="[% Translate(Data.Title) | html %]">[% Translate(Data.Label) | html %]</a>
 [% RenderBlockEnd("OverviewNavBarPageDynamicFieldFiltrableSortable") %]
 
 [% RenderBlockStart("OverviewNavBarPageDynamicFieldFiltrableNotSortable") %]
@@ -266,36 +266,29 @@
 [% RenderBlockEnd("RecordEscalationTime") %]
 [% RenderBlockStart("RecordOwner") %]
                     <td>
-                        <div title="[% Data.UserFirstname | html %] [% Data.UserLastname | html %] ([% Data.Owner | html %])">[% Data.UserFullname | truncate(30) | html %]</div>
+                        <div title="[% Data.UserFullname | html %] ([% Data.Owner | html %])">[% Data.UserFullname | truncate(50) | html %]</div>
                     </td>
 [% RenderBlockEnd("RecordOwner") %]
 [% RenderBlockStart("RecordResponsible") %]
                     <td>
-                        <div title="[% Data.ResponsibleInfo.UserFirstname | html %] [% Data.ResponsibleInfo.UserLastname | html %] ([% Data.Responsible | html %])">[% Data.ResponsibleInfo.UserFullname | truncate(30) | html %]</div>
+                        <div title="[% Data.ResponsibleInfo.UserFullname | html %] ([% Data.Responsible | html %])">[% Data.ResponsibleInfo.UserFullname | truncate(50) | html %]</div>
                     </td>
 [% RenderBlockEnd("RecordResponsible") %]
 [% RenderBlockStart("RecordCustomerID") %]
                     <td>
                         <a href="[% Env("Baselink") %]Action=AgentTicketCustomer;TicketID=[% Data.TicketID | uri %]" class="AsPopup">
-                            <span title="[% Data.CustomerID | html %]">[% Data.CustomerID | truncate(15) | html %]</span>
+                            <span title="[% Data.CustomerID | html %]">[% Data.CustomerID | truncate(100) | html %]</span>
                         </a>
                     </td>
 [% RenderBlockEnd("RecordCustomerID") %]
-[% RenderBlockStart("RecordLastCustomerSubject") %]
+[% RenderBlockStart("RecordTicketCreatedBy") %]
                     <td>
-                        <div title="[% Data.From | html %]">[% Data.FromRealname | truncate(30) | html %]</div>
-                        <div title="[% Data.SubjectLong | html %]">[% Data.Subject | html %]</div>
+                        <div title="[% Data.UserFullname | html %] ([% Data.UserLogin | html %])">[% Data.UserFullname | truncate(50) | html %]</div>
                     </td>
-[% RenderBlockEnd("RecordLastCustomerSubject") %]
-[% RenderBlockStart("RecordTicketTitle") %]
-                    <td>
-                        <div title="[% Data.From | html %]">[% Data.FromRealname | truncate(30) | html %]</div>
-                        <div title="[% Data.Title | html %]">[% Data.Title | html %]</div>
-                    </td>
-[% RenderBlockEnd("RecordTicketTitle") %]
+[% RenderBlockEnd("RecordTicketCreatedBy") %]
 [% RenderBlockStart("RecordTicketColumn") %]
                     <td>
-                        <div title="[% Data.GenericValue | html %]">[% Data.GenericValue | truncate(30) | html %]</div>
+                        <div title="[% Data.GenericValue | html %]">[% Data.GenericValue | truncate(100) | html %]</div>
                     </td>
 [% RenderBlockEnd("RecordTicketColumn") %]
 [% RenderBlockStart("RecordTicketColumnTranslatable") %]
@@ -371,7 +364,7 @@
 
 [% RenderBlockStart("DocumentMenuItemMoveForm") %]
 <li class="[% Data.Class | html %]">
-    <form title="[% Translate("Move ticket to a different queue") | html %]" action="[% Env("CGIHandle") %]" method="post">
+    <form title="[% Translate("Move ticket to a different queue") | html %]" action="[% Env("CGIHandle") | html %]" method="post">
         <input type="hidden" name="Action" value="AgentTicketMove"/>
         <input type="hidden" name="QueueID" value="[% Data.QueueID | html %]"/>
         <input type="hidden" name="TicketID" value="[% Data.TicketID | html %]"/>
@@ -382,7 +375,7 @@
 [% RenderBlockEnd("DocumentMenuItemMoveForm") %]
 
 [% RenderBlockStart("DocumentColumnFilterForm") %]
-<form title="[% Translate("Column Filters Form") | html %]" action="[% Env("CGIHandle") %]" method="post" name="ColumnFilterAttributes" id="ColumnFilterAttributes">
+<form title="[% Translate("Column Filters Form") | html %]" action="[% Env("CGIHandle") | html %]" method="post" name="ColumnFilterAttributes" id="ColumnFilterAttributes">
 [% RenderBlockStart("DocumentColumnFilterFormElement") %]
     <input type="hidden" name="[% Data.ElementName | html %]" value="[% Data.ElementValue | html %]"/>
 [% RenderBlockEnd("DocumentColumnFilterFormElement") %]

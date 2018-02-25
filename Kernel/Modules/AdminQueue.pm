@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -596,7 +596,7 @@ sub _Edit {
             }
             $ParentQueue .= $Queue[$i];
         }
-        $Param{Name} = $Queue[$#Queue];
+        $Param{Name} = $Queue[-1];
     }
 
     my $QueueObject = $Kernel::OM->Get('Kernel::System::Queue');
@@ -887,7 +887,7 @@ sub _Edit {
 
     my @IsQueueInSysConfig = $SysConfigObject->ConfigurationEntityCheck(
         EntityType => 'Queue',
-        EntityName => $QueueName,
+        EntityName => $QueueName // '',
     );
 
     if (@IsQueueInSysConfig) {

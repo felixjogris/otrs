@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,7 +8,7 @@
 
 package Kernel::Output::HTML::Notification::AgentTicketEscalation;
 
-use base 'Kernel::Output::HTML::Base';
+use parent 'Kernel::Output::HTML::Base';
 
 use strict;
 use warnings;
@@ -30,7 +30,7 @@ sub Run {
     # only show the escalations on ticket overviews
     return ''
         if $LayoutObject->{Action}
-        !~ /^AgentTicket(Queue|(Status|Locked|Watch|Responsible)View)/;
+        !~ /^AgentTicket(Queue|Service|(Status|Locked|Watch|Responsible)View)/;
 
     # get cache object
     my $CacheObject = $Kernel::OM->Get('Kernel::System::Cache');
@@ -170,7 +170,7 @@ sub Run {
             }
             elsif ( $Ticket{SolutionTimeNotification} ) {
                 $LayoutObject->Block(
-                    Name => 'TicketEscalationSolutionTimeOver',
+                    Name => 'TicketEscalationSolutionTimeWillBeOver',
                     Data => \%Ticket,
                 );
                 my $Data = $LayoutObject->Output(

@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -28,7 +28,7 @@ Core.UI.Resizable = (function (TargetNS) {
      * @description
      *      The minimum height fpr the resizable object.
      */
-    var ScrollerMinHeight = 101,
+    var ScrollerMinHeight = 120,
     /**
      * @private
      * @name HandleHeight

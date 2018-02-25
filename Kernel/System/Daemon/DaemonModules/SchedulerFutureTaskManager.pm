@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,7 +12,7 @@ use strict;
 use warnings;
 use utf8;
 
-use base qw(Kernel::System::Daemon::BaseDaemon);
+use parent qw(Kernel::System::Daemon::BaseDaemon);
 
 our @ObjectDependencies = (
     'Kernel::Config',
@@ -20,7 +20,6 @@ our @ObjectDependencies = (
     'Kernel::System::Daemon::SchedulerDB',
     'Kernel::System::Cache',
     'Kernel::System::Log',
-    'Kernel::System::Time',
 );
 
 =head1 NAME
@@ -72,7 +71,7 @@ sub new {
 
     # Do not change the following values!
     # Modulo in PreRun() can be damaged after a change.
-    $Self->{SleepPost} = 1;          # sleep 60 seconds after each loop
+    $Self->{SleepPost} = 1;          # sleep 1 second after each loop
     $Self->{Discard}   = 60 * 60;    # discard every hour
 
     $Self->{DiscardCount} = $Self->{Discard} / $Self->{SleepPost};
@@ -115,8 +114,8 @@ sub PostRun {
 
     $Self->{DiscardCount}--;
 
-    if ( $Self->{Debug} ) {
-        print "  $Self->{DaemonName} Discard Count: $Self->{DiscardCount}\n";
+    if ( $Self->{Debug} && $Self->{DiscardCount} == 0 ) {
+        print "  $Self->{DaemonName} will be stopped and set for restart!\n";
     }
 
     return if $Self->{DiscardCount} <= 0;

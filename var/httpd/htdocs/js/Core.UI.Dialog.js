@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -88,10 +88,27 @@ Core.UI.Dialog = (function (TargetNS) {
      *      Focuses the first element within the dialog.
      */
     function FocusFirstElement() {
-        $('div.Dialog:visible .Content')
-            .find('a:visible, input:visible, textarea:visible, select:visible, button:visible')
-            .filter(':first')
-            .focus();
+        var $FirstElement = $('div.Dialog:visible .Content')
+                .find('a:visible, input:visible, textarea:visible, select:visible')
+                .filter(':first'),
+            $FocusField;
+
+        if (!$FirstElement || !$FirstElement.length || $('div.Dialog:visible').find('.OTRSBusinessRequiredDialog').length) {
+            return;
+        }
+
+        // If first element is modernized input field, prepend a semi-hidden text field and set focus on it instead.
+        //   This will prevent automatic expansion of the input field, but still move tab index to the dialog and allow
+        //   for keyboard navigation in it. See bug#12681 for more information.
+        if ($FirstElement.hasClass('InputField_Search')) {
+            $FocusField = $('<input/>')
+                .addClass('FocusField')
+                .insertBefore($FirstElement);
+            $FocusField.focus();
+        }
+        else {
+            $FirstElement.focus();
+        }
     }
 
     /**
@@ -192,6 +209,8 @@ Core.UI.Dialog = (function (TargetNS) {
      * @param {Boolean} Params.CloseOnClickOutside - If true, clicking outside the dialog closes the dialog (default: false).
      * @param {Boolean} Params.CloseOnEscape - If true, pressing escape key closes the dialog (default: false).
      * @param {Boolean} Params.AllowAutoGrow - If true, the InnerContent of the dialog can resize until the max window height is reached, if false (default), InnerContent of small dialogs does not resize over 200px.
+     * @param {Boolean} Params.HideHeader - Hide the header by setting this to true
+     * @param {Boolean} Params.HideFooter - Hide the footer by setting this to true
      * @param {Object} Params.Buttons - Array of Hashes with the following properties (buttons are placed in a div "footer" of the dialog):
      * @param {String} Params.Buttons.Label - Text of the button.
      * @param {String} Params.Buttons.Type - 'Submit'|'Close' (default: none) Special type of the button - invokes a standard function.
@@ -203,8 +222,18 @@ Core.UI.Dialog = (function (TargetNS) {
     TargetNS.ShowDialog = function(Params) {
 
         var $Dialog, $Content, $ButtonFooter, HTMLBackup, DialogCopy, DialogCopySelector,
-            DialogHTML = '<div class="Dialog"><div class="Header"><a class="Close" title="' + Core.Language.Translate('Close') + '" href="#"><i class="fa fa-times"></i></a></div><div class="Content"></div><div class="Footer"></div></div>',
+            DialogHTML,
             FullsizeMode = false;
+
+        DialogHTML = '<div class="Dialog" style="display: none;">';
+        if (!Params.HideHeader) {
+            DialogHTML += '<div class="Header"><a class="Close" title="' + Core.Language.Translate('Close this dialog') + '" href="#"><i class="fa fa-times"></i></a></div>';
+        }
+        DialogHTML += '<div class="Content"></div>';
+        if (!Params.HideFooter) {
+            DialogHTML += '<div class="Footer"></div>';
+        }
+        DialogHTML += '</div>';
 
         /**
          * @private
@@ -289,7 +318,7 @@ Core.UI.Dialog = (function (TargetNS) {
         // If Dialog is a modal dialog, initialize overlay
         if (Params.Modal) {
             $('<div id="Overlay" tabindex="-1">').appendTo('body');
-            $('body').css({
+            $('body').addClass('HasOverlay').css({
                 'overflow': 'hidden'
             });
             $('#Overlay').height($(document).height()).css('top', 0);
@@ -362,7 +391,7 @@ Core.UI.Dialog = (function (TargetNS) {
                 Type: 'Close',
                 Function: Params.OnClose
             }];
-            $Content.append('<div class="Center Spacing"><button type="button" id="DialogButton1" class="CallForAction Close"><span>OK</span></button></div>');
+            $Content.append('<div class="Center Spacing"><button type="button" id="DialogButton1" class="CallForAction Close"><span>' + Core.Language.Translate('OK') + '</span></button></div>');
         }
         // Define different other types here...
         else if (Params.Type === 'Search') {
@@ -406,7 +435,7 @@ Core.UI.Dialog = (function (TargetNS) {
         }
 
         // Add Dialog to page
-        $Dialog.appendTo('body');
+        $Dialog.appendTo('body').fadeIn();
 
         // Check if "ContentFooter" is used in Content
         if ($Dialog.find('.Content .ContentFooter').length) {
@@ -600,8 +629,22 @@ Core.UI.Dialog = (function (TargetNS) {
             CloseOnEscape: false,
             PositionTop: '20%',
             PositionLeft: 'Center',
-            AllowAutoGrow: true
+            AllowAutoGrow: true,
+            HideHeader: true,
+            HideFooter: true
         });
+    };
+
+    /**
+     * @name MakeDialogWait
+     * @memberof Core.UI.Dialog
+     * @function
+     * @description
+     *      Shows a spinner overlay on the currently visible modal dialog. Is meant for showing the user that something is about
+     *      to happen, e.g. if changing a field within a dialog causes a page reload.
+     */
+    TargetNS.MakeDialogWait = function () {
+        $('.Dialog:visible .InnerContent').prepend('<div class="Waiting"><i class="fa fa-spinner fa-spin"></i></div>').find('.Waiting').fadeIn();
     };
 
     /**
@@ -645,7 +688,7 @@ Core.UI.Dialog = (function (TargetNS) {
 
         $Dialog.remove();
         $('#Overlay').remove();
-        $('body').css({
+        $('body').removeClass('HasOverlay').css({
             'overflow': 'auto'
         });
         $(document).unbind('keydown.Dialog').unbind('keypress.Dialog').unbind('click.Dialog');

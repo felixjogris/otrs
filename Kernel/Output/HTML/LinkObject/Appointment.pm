@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -63,7 +63,7 @@ sub new {
     $Self->{ObjectData} = {
         Object     => 'Appointment',
         Realname   => 'Appointment',
-        ObjectName => 'TicketID',
+        ObjectName => 'SourceObjectID',
     };
 
     return $Self;
@@ -77,9 +77,11 @@ Return
 
     %BlockData = (
         {
-            Object    => 'Appointment',
-            Blockname => 'Appointment',
-            Headline  => [
+            ObjectName => 'SourceObjectID',
+            ObjectID   => 1,
+            Object     => 'Appointment',
+            Blockname  => 'Appointment',
+            Headline   => [
                 {
                     Content => 'Title',
                 },
@@ -273,8 +275,28 @@ sub TableCreateComplex {
     # Define Headline columns
 
     # Sort
+    my @AllColumns;
     COLUMN:
     for my $Column ( sort { $SortOrder{$a} <=> $SortOrder{$b} } keys %UserColumns ) {
+
+        my $ColumnTranslate = $Column;
+        if ( $Column eq 'CalendarName' ) {
+            $ColumnTranslate = Translatable('Calendar name');
+        }
+        elsif ( $Column eq 'StartTime' ) {
+            $ColumnTranslate = Translatable('Start date');
+        }
+        elsif ( $Column eq 'EndTime' ) {
+            $ColumnTranslate = Translatable('End date');
+        }
+        elsif ( $Column eq 'NotificationTime' ) {
+            $ColumnTranslate = Translatable('Notification');
+        }
+
+        push @AllColumns, {
+            ColumnName      => $Column,
+            ColumnTranslate => $ColumnTranslate,
+        };
 
         next COLUMN if $Column eq 'Title';    # Always present, already added.
 
@@ -282,7 +304,7 @@ sub TableCreateComplex {
         if ( $UserColumns{$Column} == 2 ) {
 
             # appointment fields
-            my $ColumnName = $Column;
+            my $ColumnName = $ColumnTranslate;
 
             push @Headline, {
                 Content => $ColumnName,
@@ -369,6 +391,7 @@ sub TableCreateComplex {
         ObjectID   => $Param{ObjectID},
         Headline   => \@Headline,
         ItemList   => \@ItemList,
+        AllColumns => \@AllColumns,
     );
 
     return ( \%Block );

@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -78,6 +78,18 @@ Core.Language = (function (TargetNS) {
         }
 
         return Translated;
+    };
+
+    /**
+     * @name DecimalSeparatorGet
+     * @memberof Core.Language
+     * @function
+     * @return {String} Decimal separator for current language
+     * @description
+     *      Returns decimal separator for selected language.
+     */
+    TargetNS.DecimalSeparatorGet = function () {
+        return MetaData.DecimalSeparator;
     };
 
     return TargetNS;

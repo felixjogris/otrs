@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -21,6 +21,7 @@ our @ObjectDependencies = (
     'Kernel::Config',
     'Kernel::Language',
     'Kernel::Output::HTML::Layout',
+    'Kernel::System::CustomerCompany',
     'Kernel::System::CustomerUser',
     'Kernel::System::DynamicField',
     'Kernel::System::DynamicField::Backend',
@@ -300,8 +301,58 @@ sub TableCreateComplex {
     # Define Headline columns
 
     # Sort
+    my @AllColumns;
     COLUMN:
     for my $Column ( sort { $SortOrder{$a} <=> $SortOrder{$b} } keys %UserColumns ) {
+
+        my $ColumnTranslate = $Column;
+        if ( $Column eq 'EscalationTime' ) {
+            $ColumnTranslate = Translatable('Service Time');
+        }
+        elsif ( $Column eq 'EscalationResponseTime' ) {
+            $ColumnTranslate = Translatable('First Response Time');
+        }
+        elsif ( $Column eq 'EscalationSolutionTime' ) {
+            $ColumnTranslate = Translatable('Solution Time');
+        }
+        elsif ( $Column eq 'EscalationUpdateTime' ) {
+            $ColumnTranslate = Translatable('Update Time');
+        }
+        elsif ( $Column eq 'PendingTime' ) {
+            $ColumnTranslate = Translatable('Pending till');
+        }
+        elsif ( $Column eq 'CustomerCompanyName' ) {
+            $ColumnTranslate = Translatable('Customer Name');
+        }
+        elsif ( $Column eq 'CustomerID' ) {
+            $ColumnTranslate = Translatable('Customer ID');
+        }
+        elsif ( $Column eq 'CustomerName' ) {
+            $ColumnTranslate = Translatable('Customer User Name');
+        }
+        elsif ( $Column eq 'CustomerUserID' ) {
+            $ColumnTranslate = Translatable('Customer User ID');
+        }
+        elsif ( $Column =~ m{ \A DynamicField_ }xms ) {
+            my $DynamicFieldConfig;
+
+            DYNAMICFIELD:
+            for my $DFConfig ( @{ $Self->{DynamicField} } ) {
+                next DYNAMICFIELD if !IsHashRefWithData($DFConfig);
+                next DYNAMICFIELD if 'DynamicField_' . $DFConfig->{Name} ne $Column;
+
+                $DynamicFieldConfig = $DFConfig;
+                last DYNAMICFIELD;
+            }
+            next COLUMN if !IsHashRefWithData($DynamicFieldConfig);
+
+            $ColumnTranslate = $DynamicFieldConfig->{Label};
+        }
+
+        push @AllColumns, {
+            ColumnName      => $Column,
+            ColumnTranslate => $ColumnTranslate,
+        };
 
         # if enabled by default
         if ( $UserColumns{$Column} == 2 ) {
@@ -309,27 +360,14 @@ sub TableCreateComplex {
 
             # Ticket fields
             if ( $Column !~ m{\A DynamicField_}xms ) {
-                $ColumnName = $Column eq 'TicketNumber' ? $TicketHook : $Column;
+                $ColumnName = $Column eq 'TicketNumber' ? $TicketHook : $ColumnTranslate;
             }
 
-            # Dynamic fields
+            # Dynamic fields (get label from the translated column).
             else {
-                my $DynamicFieldConfig;
-                my $DFColumn = $Column;
-                $DFColumn =~ s{DynamicField_}{}g;
-
-                DYNAMICFIELD:
-                for my $DFConfig ( @{ $Self->{DynamicField} } ) {
-                    next DYNAMICFIELD if !IsHashRefWithData($DFConfig);
-                    next DYNAMICFIELD if $DFConfig->{Name} ne $DFColumn;
-
-                    $DynamicFieldConfig = $DFConfig;
-                    last DYNAMICFIELD;
-                }
-                next COLUMN if !IsHashRefWithData($DynamicFieldConfig);
-
-                $ColumnName = $DynamicFieldConfig->{Label};
+                $ColumnName = $ColumnTranslate;
             }
+
             push @Headline, {
                 Content => $ColumnName,
             };
@@ -406,22 +444,25 @@ sub TableCreateComplex {
                     }
                     elsif ( $Column eq 'EscalationSolutionTime' ) {
 
-                        $Hash{'Content'} = $Self->{LayoutObject}->CustomerAgeInHours(
+                        $Hash{'Content'} = $Self->{LayoutObject}->CustomerAge(
                             Age => $Ticket->{SolutionTime} || 0,
-                            Space => ' ',
+                            TimeShowAlwaysLong => 1,
+                            Space              => ' ',
                         );
                     }
                     elsif ( $Column eq 'EscalationResponseTime' ) {
 
-                        $Hash{'Content'} = $Self->{LayoutObject}->CustomerAgeInHours(
+                        $Hash{'Content'} = $Self->{LayoutObject}->CustomerAge(
                             Age => $Ticket->{FirstResponseTime} || 0,
-                            Space => ' ',
+                            TimeShowAlwaysLong => 1,
+                            Space              => ' ',
                         );
                     }
                     elsif ( $Column eq 'EscalationUpdateTime' ) {
-                        $Hash{'Content'} = $Self->{LayoutObject}->CustomerAgeInHours(
+                        $Hash{'Content'} = $Self->{LayoutObject}->CustomerAge(
                             Age => $Ticket->{UpdateTime} || 0,
-                            Space => ' ',
+                            TimeShowAlwaysLong => 1,
+                            Space              => ' ',
                         );
                     }
                     elsif ( $Column eq 'PendingTime' ) {
@@ -436,7 +477,7 @@ sub TableCreateComplex {
                         my %OwnerInfo = $Kernel::OM->Get('Kernel::System::User')->GetUserData(
                             UserID => $Ticket->{OwnerID},
                         );
-                        $Hash{'Content'} = $OwnerInfo{'UserFirstname'} . ' ' . $OwnerInfo{'UserLastname'};
+                        $Hash{'Content'} = $OwnerInfo{'UserFullname'};
                     }
                     elsif ( $Column eq 'Responsible' ) {
 
@@ -444,8 +485,7 @@ sub TableCreateComplex {
                         my %ResponsibleInfo = $Kernel::OM->Get('Kernel::System::User')->GetUserData(
                             UserID => $Ticket->{ResponsibleID},
                         );
-                        $Hash{'Content'} = $ResponsibleInfo{'UserFirstname'} . ' '
-                            . $ResponsibleInfo{'UserLastname'};
+                        $Hash{'Content'} = $ResponsibleInfo{'UserFullname'};
                     }
                     elsif ( $Column eq 'CustomerName' ) {
 
@@ -457,6 +497,12 @@ sub TableCreateComplex {
                             );
                         }
                         $Hash{'Content'} = $CustomerName;
+                    }
+                    elsif ( $Column eq 'CustomerCompanyName' ) {
+                        my %CustomerCompany = $Kernel::OM->Get('Kernel::System::CustomerCompany')->CustomerCompanyGet(
+                            CustomerID => $Ticket->{CustomerID},
+                        );
+                        $Hash{'Content'} = $CustomerCompany{CustomerCompanyName};
                     }
                     elsif ( $Column eq 'State' || $Column eq 'Priority' || $Column eq 'Lock' ) {
                         $Hash{'Content'} = $LanguageObject->Translate( $Ticket->{$Column} );
@@ -514,6 +560,7 @@ sub TableCreateComplex {
         ObjectID   => $Param{ObjectID},
         Headline   => \@Headline,
         ItemList   => \@ItemList,
+        AllColumns => \@AllColumns,
     );
 
     return ( \%Block );

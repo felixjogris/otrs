@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU AFFERO General Public License as published by
@@ -40,7 +40,7 @@ my $Debug = 0;
 #my $Cnt = 0;
 
 # Response loop
-while ( my $WebRequest = new CGI::Fast ) {
+while ( my $WebRequest = CGI::Fast->new() ) {
 
     local $Kernel::OM = Kernel::System::ObjectManager->new();
     my $Interface = Kernel::System::Web::InterfacePublic->new(

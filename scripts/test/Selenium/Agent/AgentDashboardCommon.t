@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -32,6 +32,20 @@ $Selenium->RunTest(
             Password => $TestUserLogin,
         );
 
+        my %DashboardOnlineWidgetConfig = $Kernel::OM->Get('Kernel::System::SysConfig')->SettingGet(
+            Name => 'DashboardBackend###0400-UserOnline',
+        );
+
+        # Make 'UserOnline' widget mandatory.
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'DashboardBackend###0400-UserOnline',
+            Value => {
+                %{ $DashboardOnlineWidgetConfig{EffectiveValue} },
+                Mandatory => 1,
+            },
+        );
+
         # get script alias
         my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
 
@@ -56,7 +70,7 @@ $Selenium->RunTest(
             "Escalated Tickets widget found on page",
         );
         $Self->True(
-            index( $Selenium->get_page_source(), "Open Tickets / Need to be answered" ) > -1,
+            index( $Selenium->get_page_source(), "Open Tickets" ) > -1,
             "Open Tickets / Need to be answered widget found on page",
         );
         $Self->True(
@@ -68,6 +82,44 @@ $Selenium->RunTest(
             "Setting for toggle widgets found on page",
         );
 
+        # Check 'UserOnline' widget.
+        my $Widget = $Selenium->find_element( "#Dashboard0400-UserOnline-box", 'css' );
+        $Widget->is_enabled();
+        $Widget->is_displayed();
+
+        $Self->False(
+            $Selenium->execute_script("return \$('#Dashboard0400-UserOnline-box > div.WidgetAction.Close').length"),
+            "Remove button is not shown.",
+        );
+
+        $Self->True(
+            $Selenium->execute_script("return \$('#Settings0400-UserOnline').prop('checked')"),
+            "Widget is shown (checked).",
+        );
+
+        $Self->True(
+            $Selenium->execute_script("return \$('#Settings0400-UserOnline').prop('disabled')"),
+            "Widget is read-only.",
+        );
+
+        # Kill the session of the current user and see what happens - this needs to cause a redirect to login.
+        my $SessionObject = $Kernel::OM->Get('Kernel::System::AuthSession');
+        my @Sessions      = $SessionObject->GetAllSessionIDs();
+        for my $SessionID (@Sessions) {
+            $SessionObject->RemoveSessionID(
+                SessionID => $SessionID
+            );
+        }
+
+        # Refresh the user online widget.
+        $Selenium->execute_script("\$('#Dashboard0400-UserOnline-box .ActionMenu').show();");
+        $Selenium->find_element( "#Dashboard0400-UserOnline-box .WidgetAction.Refresh a", "css" )->click();
+
+        # We should now have been be redirected to the login screen.
+        $Selenium->WaitFor(
+            JavaScript =>
+                'return typeof($) === "function" && $("#LoginBox:visible").length'
+        ) || die "Login screen not found.";
     }
 );
 

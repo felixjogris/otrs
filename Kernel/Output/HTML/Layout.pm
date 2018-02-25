@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,10 +11,9 @@ package Kernel::Output::HTML::Layout;
 use strict;
 use warnings;
 
-use Storable;
 use URI::Escape qw();
+use Digest::MD5 qw(md5_hex);
 
-use Kernel::System::Time;
 use Kernel::System::VariableCheck qw(:all);
 use Kernel::Language qw(Translatable);
 
@@ -24,6 +23,7 @@ our @ObjectDependencies = (
     'Kernel::System::AuthSession',
     'Kernel::System::Chat',
     'Kernel::System::CustomerGroup',
+    'Kernel::System::DateTime',
     'Kernel::System::Group',
     'Kernel::System::Encode',
     'Kernel::System::HTMLUtils',
@@ -31,8 +31,8 @@ our @ObjectDependencies = (
     'Kernel::System::Log',
     'Kernel::System::Main',
     'Kernel::System::OTRSBusiness',
+    'Kernel::System::Storable',
     'Kernel::System::SystemMaintenance',
-    'Kernel::System::Time',
     'Kernel::System::User',
     'Kernel::System::VideoChat',
     'Kernel::System::Web::Request',
@@ -96,16 +96,7 @@ sub new {
         $Self->{UserTheme} = $ConfigObject->Get('DefaultTheme');
     }
 
-    # We'll keep one default TimeObject and one for the user's time zone (if needed)
-    $Self->{TimeObject} = $Kernel::OM->Get('Kernel::System::Time');
-
-    if ( $Self->{UserTimeZone} ) {
-        $Self->{UserTimeObject} = Kernel::System::Time->new( %{$Self} );
-    }
-    else {
-        $Self->{UserTimeObject} = $Self->{TimeObject};
-        $Self->{UserTimeZone}   = '';
-    }
+    $Self->{UserTimeZone} ||= Kernel::System::DateTime->UserDefaultTimeZoneGet();
 
     # Determine the language to use based on the browser setting, if there
     #   is none yet.
@@ -378,16 +369,6 @@ EOF
         $Self->{BrowserRichText} = 0;
     }
 
-    # check if spell check should be active
-    if ( $Self->{BrowserJavaScriptSupport} && $ConfigObject->Get('SpellChecker') ) {
-        if ( $ConfigObject->Get('Frontend::RichText') ) {
-            $Self->{BrowserSpellCheckerInline} = 1;
-        }
-        else {
-            $Self->{BrowserSpellChecker} = 1;
-        }
-    }
-
     # load theme
     my $Theme = $Self->{UserTheme} || $ConfigObject->Get('DefaultTheme') || Translatable('Standard');
 
@@ -520,6 +501,8 @@ sub Block {
         Name => $Param{Name},
         Data => $Param{Data},
         };
+
+    return 1;
 }
 
 =head2 JSONEncode()
@@ -577,7 +560,7 @@ sub Redirect {
 
     # add cookies if exists
     my $Cookies = '';
-    if ( $Self->{SetCookies} && $ConfigObject->Get('SessionUseCookie') ) {
+    if ( $Self->{SetCookies} ) {
         for ( sort keys %{ $Self->{SetCookies} } ) {
             $Cookies .= "Set-Cookie: $Self->{SetCookies}->{$_}\n";
         }
@@ -643,40 +626,6 @@ sub Redirect {
         Data         => \%Param
         );
 
-    # add session id to redirect if no cookie is enabled
-    if ( !$Self->{SessionIDCookie} && !( $Self->{BrowserHasCookie} && $Param{Login} ) ) {
-
-        # rewrite location header
-        $Output =~ s{
-            (location:\s)(.*)
-        }
-        {
-            my $Start  = $1;
-            my $Target = $2;
-            my $End = '';
-            if ($Target =~ /^(.+?)#(|.+?)$/) {
-                $Target = $1;
-                $End = "#$2";
-            }
-            if ($Target =~ /http/i || !$Self->{SessionID}) {
-                "$Start$Target$End";
-            }
-            else {
-                if ($Target =~ /(\?|&)$/) {
-                    "$Start$Target$Self->{SessionName}=$Self->{SessionID}$End";
-                }
-                elsif ($Target !~ /\?/) {
-                    "$Start$Target?$Self->{SessionName}=$Self->{SessionID}$End";
-                }
-                elsif ($Target =~ /\?/) {
-                    "$Start$Target&$Self->{SessionName}=$Self->{SessionID}$End";
-                }
-                else {
-                    "$Start$Target?&$Self->{SessionName}=$Self->{SessionID}$End";
-                }
-            }
-        }iegx;
-    }
     return $Output;
 }
 
@@ -690,29 +639,9 @@ sub Login {
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
     my $Output = '';
-    if ( $ConfigObject->Get('SessionUseCookie') ) {
-
-        # always set a cookie, so that at the time the user submits
-        # the password, we know already if the browser supports cookies.
-        # ( the session cookie isn't available at that time ).
-        my $CookieSecureAttribute = 0;
-        if ( $ConfigObject->Get('HttpType') eq 'https' ) {
-
-            # Restrict Cookie to HTTPS if it is used.
-            $CookieSecureAttribute = 1;
-        }
-        $Self->{SetCookies}->{OTRSBrowserHasCookie} = $Kernel::OM->Get('Kernel::System::Web::Request')->SetCookie(
-            Key      => 'OTRSBrowserHasCookie',
-            Value    => 1,
-            Expires  => '1y',
-            Path     => $ConfigObject->Get('ScriptAlias'),
-            Secure   => $CookieSecureAttribute,
-            HttpOnly => 1,
-        );
-    }
 
     # add cookies if exists
-    if ( $Self->{SetCookies} && $ConfigObject->Get('SessionUseCookie') ) {
+    if ( $Self->{SetCookies} ) {
         for ( sort keys %{ $Self->{SetCookies} } ) {
             $Output .= "Set-Cookie: $Self->{SetCookies}->{$_}\n";
         }
@@ -731,6 +660,10 @@ sub Login {
     $Self->LoaderCreateAgentJSCalls();
     $Self->LoaderCreateJavaScriptTranslationData();
     $Self->LoaderCreateJavaScriptTemplateData();
+
+    my $OTRSBusinessObject = $Kernel::OM->Get('Kernel::System::OTRSBusiness');
+    $Param{OTRSBusinessIsInstalled} = $OTRSBusinessObject->OTRSBusinessIsInstalled();
+    $Param{OTRSSTORMIsInstalled}    = $OTRSBusinessObject->OTRSSTORMIsInstalled();
 
     # we need the baselink for VerfifiedGet() of selenium tests
     $Self->AddJSData(
@@ -769,7 +702,10 @@ sub Login {
 
         for my $CSSStatement ( sort keys %AgentLoginLogo ) {
             if ( $CSSStatement eq 'URL' ) {
-                my $WebPath = $ConfigObject->Get('Frontend::WebPath');
+                my $WebPath = '';
+                if ( $AgentLoginLogo{$CSSStatement} !~ /(http|ftp|https):\//i ) {
+                    $WebPath = $ConfigObject->Get('Frontend::WebPath');
+                }
                 $Data{'URL'} = 'url(' . $WebPath . $AgentLoginLogo{$CSSStatement} . ')';
             }
             else {
@@ -890,7 +826,7 @@ sub Login {
     # create & return output
     $Output .= $Self->Output(
         TemplateFile => 'Login',
-        Data         => \%Param
+        Data         => \%Param,
     );
 
     # remove the version tag from the header if configured
@@ -1096,36 +1032,41 @@ sub Warning {
 
 =head2 Notify()
 
-create notify lines
+Generate HTML code for a notification line and return it.
 
-    infos, the text will be translated
+The C<Info>/C<Data> text of the notification will always be translated. Use the C<Priority> parameter to style the
+notification:
 
     my $Output = $LayoutObject->Notify(
         Priority => 'Warning',
-        Info => 'Some Info Message',
+        Info     => 'Some Info Message',
     );
 
-    data with link, the text will be translated
+If you supply C<Data> with a C<Link>, the text will be wrapped in an anchor tag with defined C<LinkClass> and
+C<LinkTarget>:
 
     my $Output = $LayoutObject->Notify(
-        Priority  => 'Warning',
-        Data      => 'Template content',
-        Link      => 'http://example.com/',
-        LinkClass => 'some_CSS_class',              # optional
+        Priority   => 'Warning',
+        Data       => 'Template content',
+        Link       => 'http://example.com/',
+        LinkClass  => 'some_CSS_class',              # optional
+        LinkTarget => '_blank',                      # optional
     );
 
-    errors, the text will be translated
-
-    my $Output = $LayoutObject->Notify(
-        Priority => 'Error',
-        Info => 'Some Error Message',
-    );
-
-    errors from log backend, if no error extists, a '' will be returned
+For error notifications, you can supply your own error message:
 
     my $Output = $LayoutObject->Notify(
         Priority => 'Error',
+        Info     => 'Some Error Message',
     );
+
+Or use the last error message from the log backend.
+
+    my $Output = $LayoutObject->Notify(
+        Priority => 'Error',
+    );
+
+If no error was found, an empty string will be returned.
 
 =cut
 
@@ -1168,8 +1109,9 @@ sub Notify {
         $Self->Block(
             Name => 'LinkStart',
             Data => {
-                LinkStart => $Param{Link},
-                LinkClass => $Param{LinkClass} || '',
+                LinkStart  => $Param{Link},
+                LinkClass  => $Param{LinkClass} || '',
+                LinkTarget => $Param{LinkTarget} || '',
             },
         );
     }
@@ -1211,6 +1153,8 @@ generates the HTML for the page begin in the Agent interface.
         ShowToolbarItems  => 0,                      # (optional) default 1 (0|1)
         ShowPrefLink      => 0,                      # (optional) default 1 (0|1)
         ShowLogoutButton  => 0,                      # (optional) default 1 (0|1)
+
+        DisableIFrameOriginRestricted => 1,          # (optional, default 0) - suppress X-Frame-Options header.
     );
 
 =cut
@@ -1297,7 +1241,7 @@ sub Header {
 
     # add cookies if exists
     my $Output = '';
-    if ( $Self->{SetCookies} && $ConfigObject->Get('SessionUseCookie') ) {
+    if ( $Self->{SetCookies} ) {
         for ( sort keys %{ $Self->{SetCookies} } ) {
             $Output .= "Set-Cookie: $Self->{SetCookies}->{$_}\n";
         }
@@ -1450,6 +1394,16 @@ sub Header {
             }
         }
 
+        # generate avatar
+        if ( $ConfigObject->Get('Frontend::AvatarEngine') eq 'Gravatar' && $Self->{UserEmail} ) {
+            my $DefaultIcon = $ConfigObject->Get('Frontend::Gravatar::DefaultImage') || 'mm';
+            $Param{Avatar}
+                = '//www.gravatar.com/avatar/' . md5_hex( lc $Self->{UserEmail} ) . '?s=100&d=' . $DefaultIcon;
+        }
+        else {
+            $Param{UserInitials} = $Self->UserInitialsGet( Fullname => $Self->{UserFullname} );
+        }
+
         # show logged in notice
         if ( $Param{ShowPrefLink} ) {
             $Self->Block(
@@ -1475,6 +1429,10 @@ sub Header {
                 Data => \%Param,
             );
         }
+    }
+
+    if ( $ConfigObject->Get('SecureMode') ) {
+        $Param{OTRSBusinessIsInstalled} = $Kernel::OM->Get('Kernel::System::OTRSBusiness')->OTRSBusinessIsInstalled();
     }
 
     # create & return output
@@ -1534,10 +1492,6 @@ sub Footer {
             = $Self->{LanguageObject}->Translate( $AutocompleteConfig->{$ConfigElement}->{ButtonText} );
     }
 
-    my $AutocompleteConfigJSON = $Self->JSONEncode(
-        Data => $AutocompleteConfig,
-    );
-
     # Search frontend (JavaScript)
     my $SearchFrontendConfig = $ConfigObject->Get('Frontend::Search::JavaScript');
 
@@ -1562,6 +1516,7 @@ sub Footer {
     # don't check for business package if the database was not yet configured (in the installer)
     if ( $ConfigObject->Get('SecureMode') ) {
         $Param{OTRSBusinessIsInstalled} = $OTRSBusinessObject->OTRSBusinessIsInstalled();
+        $Param{OTRSSTORMIsInstalled}    = $OTRSBusinessObject->OTRSSTORMIsInstalled();
     }
 
     # Check if video chat is enabled.
@@ -1577,14 +1532,12 @@ sub Footer {
         WebPath                        => $ConfigObject->Get('Frontend::WebPath'),
         Action                         => $Self->{Action},
         Subaction                      => $Self->{Subaction},
-        SessionIDCookie                => $Self->{SessionIDCookie},
         SessionName                    => $Self->{SessionName},
         SessionID                      => $Self->{SessionID},
         ChallengeToken                 => $Self->{UserChallengeToken},
         CustomerPanelSessionName       => $ConfigObject->Get('CustomerPanelSessionName'),
         UserLanguage                   => $Self->{UserLanguage},
-        SpellChecker                   => $ConfigObject->Get('SpellChecker'),
-        NeedSpellCheck                 => $ConfigObject->Get('Ticket::Frontend::NeedSpellCheck'),
+        WebMaxFileUpload               => $ConfigObject->Get('WebMaxFileUpload'),
         RichTextSet                    => $ConfigObject->Get('Frontend::RichText'),
         CheckEmailAddresses            => $ConfigObject->Get('CheckEmailAddresses'),
         MenuDragDropEnabled            => $ConfigObject->Get('Frontend::MenuDragDropEnabled'),
@@ -1599,11 +1552,11 @@ sub Footer {
                 &&
                 (
                 $ConfigObject->Get('Ticket::SearchIndexModule')
-                eq 'Kernel::System::Ticket::ArticleSearchIndex::StaticDB'
+                eq 'Kernel::System::Ticket::ArticleSearchIndex::DB'
                 )
             ) ? 1 : 0,
         SearchFrontend => $JSCall,
-        Autocomplete   => $AutocompleteConfigJSON,
+        Autocomplete   => $AutocompleteConfig,
     );
 
     for my $Config ( sort keys %JSConfig ) {
@@ -1690,7 +1643,7 @@ sub Print {
 
     # Disable perl warnings in case of printing unicode private chars,
     #   see https://rt.perl.org/Public/Bug/Display.html?id=121226.
-    no warnings 'nonchar';
+    no warnings 'nonchar';    ## no critic
 
     print ${ $Param{Output} };
 
@@ -1699,14 +1652,14 @@ sub Print {
 
 =head2 Ascii2Html()
 
-convert ascii to html string
+convert ASCII to html string
 
     my $HTML = $LayoutObject->Ascii2Html(
         Text            => 'Some <> Test <font color="red">Test</font>',
-        Max             => 20,       # max 20 chars folowed by [..]
+        Max             => 20,       # max 20 chars flowed by [..]
         VMax            => 15,       # first 15 lines
         NewLine         => 0,        # move \r to \n
-        HTMLResultMode  => 0,        # replace " " with &nbsp;
+        HTMLResultMode  => 0,        # replace " " with C<&nbsp;>
         StripEmptyLines => 0,
         Type            => 'Normal', # JSText or Normal text
         LinkFeature     => 0,        # do some URL detections
@@ -1821,8 +1774,6 @@ sub Ascii2Html {
         ${$Text} =~ s/(\n\r|\r\r\n|\r\n)/\n/g;
         ${$Text} =~ s/\r/\n/g;
         ${$Text} =~ s/(.{4,$Param{NewLine}})(?:\s|\z)/$1\n/gm;
-        my $ForceNewLine = $Param{NewLine} + 10;
-        ${$Text} =~ s/(.{$ForceNewLine})(.+?)/$1\n$2/g;
     }
 
     # remove tabs
@@ -2101,7 +2052,7 @@ sub CustomerAge {
     }
 
     # get minutes (just if age < 1 day)
-    if ( $ConfigObject->Get('TimeShowAlwaysLong') || $Age < 86400 ) {
+    if ( ( $Param{TimeShowAlwaysLong} || $ConfigObject->Get('TimeShowAlwaysLong') || $Age < 86400 ) && $Age != 0 ) {
         $AgeStrg .= int( ( $Age / 60 ) % 60 ) . ' ';
         $AgeStrg .= $Self->{LanguageObject}->Translate($MinuteDsc);
     }
@@ -2139,7 +2090,7 @@ build a HTML option element based on given data
         DisabledBranch => 'Branch',          # (optional) disable all elements of this branch (use string or arrayref)
         Max            => 100,               # (optional) default 100 max size of the shown value
         HTMLQuote      => 0,                 # (optional) default 1 (0|1) disable html quote
-        Title          => 'Tooltip Text',    # (optional) string will be shown as Tooltip on mouseover
+        Title          => 'C<Tooltip> Text',    # (optional) string will be shown as c<Tooltip> on c<mouseover>
         OptionTitle    => 1,                 # (optional) default 0 (0|1) show title attribute (the option value) on every option element
 
         Filters => {                         # (optional) filter data, used by InputFields
@@ -2317,7 +2268,7 @@ sub NoPermission {
 
     if ( !$Param{Message} ) {
         $Param{Message} = $Self->{LanguageObject}->Translate(
-            'We are sorry, you do not have permissions anymore to access this ticket in its current state. You can take one of the following actions:'
+            "This ticket does not exist, or you don't have permissions to access it in its current state. You can take one of the following actions:"
         );
     }
 
@@ -2393,16 +2344,16 @@ sub Permission {
     # No access restriction?
     if (
         ref $Config->{GroupRo} eq 'ARRAY'
-        && @{ $Config->{GroupRo} }
+        && !scalar @{ $Config->{GroupRo} }
         && ref $Config->{Group} eq 'ARRAY'
-        && @{ $Config->{Group} }
+        && !scalar @{ $Config->{Group} }
         )
     {
         return 1;
     }
 
     # Array access restriction.
-    elsif ( $Item && ref $Item eq 'ARRAY' ) {
+    elsif ( IsArrayRefWithData($Item) ) {
         for my $GroupName ( @{$Item} ) {
             return 1 if $GroupObject->PermissionCheck(
                 UserID    => $Self->{UserID},
@@ -2410,6 +2361,11 @@ sub Permission {
                 Type      => $Param{Type},
             );
         }
+    }
+
+    # Allow access if there is no configuration for module group permission.
+    elsif ( !IsArrayRefWithData( $Config->{GroupRo} ) && !IsArrayRefWithData( $Config->{Group} ) ) {
+        return 1;
     }
 
     return 0;
@@ -2472,12 +2428,13 @@ sub ReturnValue {
 returns browser output to display/download a attachment
 
     $HTML = $LayoutObject->Attachment(
-        Type        => 'inline',        # optional, default: attachment, possible: inline|attachment
-        Filename    => 'FileName.png',  # optional
-        ContentType => 'image/png',
-        Content     => $Content,
-        Sandbox     => 1,               # optional, default 0; use content security policy to prohibit external
-                                        #   scripts, flash etc.
+        Type             => 'inline',          # optional, default: attachment, possible: inline|attachment
+        Filename         => 'FileName.png',    # optional
+        AdditionalHeader => $AdditionalHeader, # optional
+        ContentType      => 'image/png',
+        Content          => $Content,
+        Sandbox          => 1,                 # optional, default 0; use content security policy to prohibit external
+                                               #   scripts, flash etc.
     );
 
     or for AJAX html snippets
@@ -2549,15 +2506,21 @@ sub Attachment {
 
         # Disallow external and inline scripts, active content, frames, but keep allowing inline styles
         #   as this is a common use case in emails.
-        # Also disallow referrer headers to prevent referrer leaks.
         # img-src:    allow external and inline (data:) images
         # script-src: block all scripts
         # object-src: allow 'self' so that the browser can load plugins for PDF display
         # frame-src:  block all frames
         # style-src:  allow inline styles for nice email display
-        # referrer:   don't send referrers to prevent referrer-leak attacks
         $Output
-            .= "Content-Security-Policy: default-src *; img-src * data:; script-src 'none'; object-src 'self'; frame-src 'none'; style-src 'unsafe-inline'; referrer no-referrer;\n";
+            .= "Content-Security-Policy: default-src *; img-src * data:; script-src 'none'; object-src 'self'; frame-src 'none'; style-src 'unsafe-inline';\n";
+
+        # Use Referrer-Policy header to suppress referrer information in modern browsers
+        #   (to prevent referrer-leak attacks).
+        $Output .= "Referrer-Policy: no-referrer\n";
+    }
+
+    if ( $Param{AdditionalHeader} ) {
+        $Output .= $Param{AdditionalHeader} . "\n";
     }
 
     if ( $Param{Charset} ) {
@@ -2665,13 +2628,12 @@ sub PageNavBar {
             my $BaselinkAll = $Baselink
                 . "StartWindow=$WindowStart;StartHit="
                 . ( ( ( $i - 1 ) * $Param{PageShown} ) + 1 );
-            my $SelectedPage = "";
+            my $SelectedPage = '';
             my $PageNumber   = $i;
 
             if ( $Page == $i ) {
-                $SelectedPage = " class=\"Selected\"";
+                $SelectedPage = 'Selected';
             }
-
             if ( $Param{AJAXReplace} ) {
 
                 $PaginationData{$PageNumber} = {
@@ -2837,30 +2799,53 @@ sub NavigationBar {
 
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
-    # create menu items
+    # Create menu items.
     my %NavBar;
 
-    my $Config               = $ConfigObject->Get('Frontend::Module');
-    my $FrontendModuleConfig = $ConfigObject->Get('Frontend::Navigation');
+    my $FrontendRegistration = $ConfigObject->Get('Frontend::Module');
+    my $FrontendNavigation   = $ConfigObject->Get('Frontend::Navigation');
+
+    my $GroupObject = $Kernel::OM->Get('Kernel::System::Group');
 
     MODULE:
-    for my $Module ( sort keys %{$FrontendModuleConfig} ) {
+    for my $Module ( sort keys %{$FrontendNavigation} ) {
 
-        # skip if module is disabled in Frontend registration
-        next MODULE if !IsHashRefWithData( $Config->{$Module} );
+        # Skip if module is disabled in frontend registration.
+        next MODULE if !IsHashRefWithData( $FrontendRegistration->{$Module} );
 
-        my %Hash = %{ $FrontendModuleConfig->{$Module} };
+        # Top-level frontend navigation configuration should always be a hash.
+        next MODULE if !IsHashRefWithData( $FrontendNavigation->{$Module} );
+
+        my @ModuleNavigationConfigs;
+
+        # Go through all defined navigation configurations for the module and sort them by the key (00#-Module).
+        NAVIGATION_CONFIG:
+        for my $Key ( sort keys %{ $FrontendNavigation->{$Module} || {} } ) {
+            next NAVIGATION_CONFIG if $Key !~ m{^\d+};
+
+            # FIXME: Support both old (HASH) and new (ARRAY of HASH) navigation configurations, for reasons of backwards
+            #   compatibility. Once we are sure everything has been migrated correctly, support for HASH-only
+            #   configuration can be dropped in future major release.
+            if ( IsHashRefWithData( $FrontendNavigation->{$Module}->{$Key} ) ) {
+                push @ModuleNavigationConfigs, $FrontendNavigation->{$Module}->{$Key};
+            }
+            elsif ( IsArrayRefWithData( $FrontendNavigation->{$Module}->{$Key} ) ) {
+                push @ModuleNavigationConfigs, @{ $FrontendNavigation->{$Module}->{$Key} };
+            }
+
+            # Skip incompatible configuration.
+            else {
+                next NAVIGATION_CONFIG;
+            }
+        }
 
         ITEM:
-        for my $Key ( sort keys %Hash ) {
-            next ITEM if $Key !~ m{^\d+$};
-
-            my $Item = $Hash{$Key};
-
+        for my $Item (@ModuleNavigationConfigs) {
             next ITEM if !$Item->{NavBar};
+
             $Item->{CSS} = '';
 
-            # highlight active area link
+            # Highlight active area link.
             if (
                 ( $Item->{Type} && $Item->{Type} eq 'Menu' )
                 && ( $Item->{NavBar} && $Item->{NavBar} eq $Param{Type} )
@@ -2869,25 +2854,25 @@ sub NavigationBar {
                 $Item->{CSS} .= ' Selected';
             }
 
-            # get permissions from module if no permissions are defined for the icon
+            my $InheritPermissions = 0;
+
+            # Inherit permissions from frontend registration if no permissions were defined for the navigation entry.
             if ( !$Item->{GroupRo} && !$Item->{Group} ) {
-                if ( $Hash{GroupRo} ) {
-                    $Item->{GroupRo} = $Hash{GroupRo};
+                if ( $FrontendRegistration->{GroupRo} ) {
+                    $Item->{GroupRo} = $FrontendRegistration->{GroupRo};
                 }
-                if ( $Hash{Group} ) {
-                    $Item->{Group} = $Hash{Group};
+                if ( $FrontendRegistration->{Group} ) {
+                    $Item->{Group} = $FrontendRegistration->{Group};
                 }
+                $InheritPermissions = 1;
             }
 
-            # check shown permission
             my $Shown = 0;
-
-            my $GroupObject = $Kernel::OM->Get('Kernel::System::Group');
 
             PERMISSION:
             for my $Permission (qw(GroupRo Group)) {
 
-                # no access restriction
+                # No access restriction.
                 if (
                     ref $Item->{GroupRo} eq 'ARRAY'
                     && !scalar @{ $Item->{GroupRo} }
@@ -2899,7 +2884,7 @@ sub NavigationBar {
                     last PERMISSION;
                 }
 
-                # array access restriction
+                # Array access restriction.
                 elsif ( $Item->{$Permission} && ref $Item->{$Permission} eq 'ARRAY' ) {
                     GROUP:
                     for my $Group ( @{ $Item->{$Permission} } ) {
@@ -2915,6 +2900,56 @@ sub NavigationBar {
                             last PERMISSION;
                         }
                     }
+                }
+            }
+
+            # If we passed the initial permission check and didn't inherit permissions from the module registration,
+            #   make sure to also check access to the module, since navigation item might be out of sync.
+            if ( $Shown && !$InheritPermissions ) {
+                my $ModulePermission;
+
+                PERMISSION:
+                for my $Permission (qw(GroupRo Group)) {
+
+                    # No access restriction.
+                    if (
+                        ref $FrontendRegistration->{$Module}->{GroupRo} eq 'ARRAY'
+                        && !scalar @{ $FrontendRegistration->{$Module}->{GroupRo} }
+                        && ref $FrontendRegistration->{$Module}->{Group} eq 'ARRAY'
+                        && !scalar @{ $FrontendRegistration->{$Module}->{Group} }
+                        )
+                    {
+
+                        $ModulePermission = 1;
+                        last PERMISSION;
+                    }
+
+                    # Array access restriction.
+                    elsif (
+                        $FrontendRegistration->{$Module}->{$Permission}
+                        && ref $FrontendRegistration->{$Module}->{$Permission} eq 'ARRAY'
+                        )
+                    {
+                        GROUP:
+                        for my $Group ( @{ $FrontendRegistration->{$Module}->{$Permission} } ) {
+                            next GROUP if !$Group;
+                            my $HasPermission = $GroupObject->PermissionCheck(
+                                UserID    => $Self->{UserID},
+                                GroupName => $Group,
+                                Type      => $Permission eq 'GroupRo' ? 'ro' : 'rw',
+
+                            );
+                            if ($HasPermission) {
+                                $ModulePermission = 1;
+                                last PERMISSION;
+                            }
+                        }
+                    }
+                }
+
+                # Hide item if no permission was granted to access the module.
+                if ( !$ModulePermission ) {
+                    $Shown = 0;
                 }
             }
 
@@ -3025,8 +3060,42 @@ sub NavigationBar {
         Value => $NavbarOrderItems,
     );
 
+    my $FrontendSearch = $ConfigObject->Get('Frontend::Search') || {};
+
+    my $SearchAdded;
+
     # show search icon if any search router is configured
-    if ( IsHashRefWithData( $ConfigObject->Get('Frontend::Search') ) ) {
+    if ( IsHashRefWithData($FrontendSearch) ) {
+
+        KEY:
+        for my $Key ( sort keys %{$FrontendSearch} ) {
+            next KEY if !IsHashRefWithData( $FrontendSearch->{$Key} );
+
+            for my $Regex ( sort keys %{ $FrontendSearch->{$Key} } ) {
+                next KEY if !$Regex;
+
+                # Check if regex matches current action.
+                if ( $Self->{Action} =~ m{$Regex}g ) {
+
+                    # Extract Action from the configuration.
+                    my ($Action) = $FrontendSearch->{$Key}->{$Regex} =~ m{Action=(.*?)(;.*)?$};
+
+                    # Do not show Search icon if action is not registered.
+                    next KEY if !$FrontendRegistration->{$Action};
+
+                    $Self->Block(
+                        Name => 'SearchIcon',
+                    );
+
+                    $SearchAdded = 1;
+                    last KEY;
+                }
+            }
+        }
+    }
+
+    # If Search icon is not added, check if AgentTicketSearch is enabled and add it.
+    if ( !$SearchAdded && $FrontendRegistration->{AgentTicketSearch} ) {
         $Self->Block(
             Name => 'SearchIcon',
         );
@@ -3035,7 +3104,7 @@ sub NavigationBar {
     # create & return output
     my $Output = $Self->Output(
         TemplateFile => 'AgentNavigationBar',
-        Data         => \%Param
+        Data         => \%Param,
     );
 
     # run nav bar output modules
@@ -3207,6 +3276,7 @@ sub BuildDateSelection {
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
     my $DateInputStyle = $ConfigObject->Get('TimeInputFormat');
+    my $MinuteStep     = $ConfigObject->Get('TimeInputMinutesStep');
     my $Prefix         = $Param{Prefix} || '';
     my $DiffTime       = $Param{DiffTime} || 0;
     my $Format         = defined( $Param{Format} ) ? $Param{Format} : 'DateInputFormatLong';
@@ -3229,13 +3299,28 @@ sub BuildDateSelection {
     my $ValidateDateBeforePrefix = $Param{ValidateDateBeforePrefix} || '';
     my $ValidateDateBeforeValue  = $Param{ValidateDateBeforeValue}  || '';
 
-    my ( $s, $m, $h, $D, $M, $Y ) = $Self->{UserTimeObject}->SystemTime2Date(
-        SystemTime => $Self->{UserTimeObject}->SystemTime() + $DiffTime,
-    );
+    my $GetCurSysDTUnitFromLowest = sub {
+        my %Param = @_;
 
-    my ( $Cs, $Cm, $Ch, $CD, $CM, $CY ) = $Self->{UserTimeObject}->SystemTime2Date(
-        SystemTime => $Self->{UserTimeObject}->SystemTime(),
+        my $DateTimeObject = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                TimeZone => $Self->{UserTimeZone}
+                }
+        );
+        if ( $Param{AddSeconds} ) {
+            $DateTimeObject->Add( Seconds => $Param{AddSeconds} );
+        }
+
+        my %Details = %{ $DateTimeObject->Get() };
+
+        return map { $Details{$_} } (qw(Second Minute Hour Day Month Year));
+    };
+
+    my ( $s, $m, $h, $D, $M, $Y ) = $GetCurSysDTUnitFromLowest->(
+        AddSeconds => $DiffTime,
     );
+    my ( $Cs, $Cm, $Ch, $CD, $CM, $CY ) = $GetCurSysDTUnitFromLowest->();
 
     # time zone translation
     if (
@@ -3429,13 +3514,14 @@ sub BuildDateSelection {
 
         # minute
         if ( $DateInputStyle eq 'Option' ) {
-            my %Minute = map { $_ => sprintf( "%02d", $_ ); } ( 0 .. 59 );
+            my %Minute
+                = map { $_ => sprintf( "%02d", $_ ); } map { $_ * $MinuteStep } ( 0 .. ( 60 / $MinuteStep - 1 ) );
             $Param{Minute} = $Self->BuildSelection(
                 Name       => $Prefix . 'Minute',
                 Data       => \%Minute,
                 SelectedID => defined( $Param{ $Prefix . 'Minute' } )
                 ? int( $Param{ $Prefix . 'Minute' } )
-                : int($m),
+                : int( $m - $m % $MinuteStep ),
                 Translation => 0,
                 Class       => $Validate ? ( 'Validate_DateMinute ' . $Class ) : $Class,
                 Title       => $Self->{LanguageObject}->Translate('Minutes'),
@@ -3534,6 +3620,95 @@ sub BuildDateSelection {
     return $Output;
 }
 
+=head2 HumanReadableDataSize()
+
+Produces human readable data size.
+
+    my $SizeStr = $MainObject->HumanReadableDataSize(
+        Size => 123,  # size in bytes
+    );
+
+Returns
+
+    $SizeStr = '123 B';         # example with decimal point: 123.4 MB
+
+=cut
+
+sub HumanReadableDataSize {
+    my ( $Self, %Param ) = @_;
+
+    # Use simple string concatenation to format real number. "sprintf" uses dot (.) as decimal separator unless
+    #   locale and POSIX (LC_NUMERIC) is used. Even in this case, you are not allowed to use custom separator
+    #   (as defined in language files).
+
+    my $FormatSize = sub {
+        my ($Number) = @_;
+
+        my $ReadableSize;
+
+        if ( IsInteger($Number) ) {
+            $ReadableSize = $Number;
+        }
+        else {
+
+            # Get integer and decimal parts.
+            my ( $Integer, $Float ) = split( m{\.}, sprintf( "%.1f", $Number ) );
+
+            my $Separator = $Self->{LanguageObject}->{DecimalSeparator} || '.';
+
+            # Format size with provided decimal separator.
+            $ReadableSize = $Integer . $Separator . $Float;
+        }
+
+        return $ReadableSize;
+    };
+
+    if ( !defined( $Param{Size} ) ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => 'Need Size!',
+        );
+        return;
+    }
+
+    if ( !IsPositiveInteger( $Param{Size} ) ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => 'Size must be integer!',
+        );
+        return;
+    }
+
+    # Use convention described on https://en.wikipedia.org/wiki/File_size
+    my ( $SizeStr, $ReadableSize );
+
+    if ( $Param{Size} >= ( 1024**4 ) ) {
+
+        $ReadableSize = $FormatSize->( $Param{Size} / ( 1024**4 ) );
+        $SizeStr = $Self->{LanguageObject}->Translate( '%s TB', $ReadableSize );
+    }
+    elsif ( $Param{Size} >= ( 1024**3 ) ) {
+
+        $ReadableSize = $FormatSize->( $Param{Size} / ( 1024**3 ) );
+        $SizeStr = $Self->{LanguageObject}->Translate( '%s GB', $ReadableSize );
+    }
+    elsif ( $Param{Size} >= ( 1024**2 ) ) {
+
+        $ReadableSize = $FormatSize->( $Param{Size} / ( 1024**2 ) );
+        $SizeStr = $Self->{LanguageObject}->Translate( '%s MB', $ReadableSize );
+    }
+    elsif ( $Param{Size} >= 1024 ) {
+
+        $ReadableSize = $FormatSize->( $Param{Size} / 1024 );
+        $SizeStr = $Self->{LanguageObject}->Translate( '%s KB', $ReadableSize );
+    }
+    else {
+        $SizeStr = $Self->{LanguageObject}->Translate( '%s B', $Param{Size} );
+    }
+
+    return $SizeStr;
+}
+
 sub CustomerLogin {
     my ( $Self, %Param ) = @_;
 
@@ -3547,29 +3722,7 @@ sub CustomerLogin {
 
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
-    if ( $ConfigObject->Get('SessionUseCookie') ) {
-
-        # always set a cookie, so that at the time the user submits
-        # the password, we know already if the browser supports cookies.
-        # ( the session cookie isn't available at that time ).
-        my $CookieSecureAttribute = 0;
-        if ( $ConfigObject->Get('HttpType') eq 'https' ) {
-
-            # Restrict Cookie to HTTPS if it is used.
-            $CookieSecureAttribute = 1;
-        }
-        $Self->{SetCookies}->{OTRSBrowserHasCookie} = $Kernel::OM->Get('Kernel::System::Web::Request')->SetCookie(
-            Key      => 'OTRSBrowserHasCookie',
-            Value    => 1,
-            Expires  => '1y',
-            Path     => $ConfigObject->Get('ScriptAlias'),
-            Secure   => $CookieSecureAttribute,
-            HttpOnly => 1,
-        );
-    }
-
-    # add cookies if exists
-    if ( $Self->{SetCookies} && $ConfigObject->Get('SessionUseCookie') ) {
+    if ( $Self->{SetCookies} ) {
         for ( sort keys %{ $Self->{SetCookies} } ) {
             $Output .= "Set-Cookie: $Self->{SetCookies}->{$_}\n";
         }
@@ -3588,6 +3741,10 @@ sub CustomerLogin {
     $Self->LoaderCreateCustomerJSCalls();
     $Self->LoaderCreateJavaScriptTranslationData();
     $Self->LoaderCreateJavaScriptTemplateData();
+
+    my $OTRSBusinessObject = $Kernel::OM->Get('Kernel::System::OTRSBusiness');
+    $Param{OTRSBusinessIsInstalled} = $OTRSBusinessObject->OTRSBusinessIsInstalled();
+    $Param{OTRSSTORMIsInstalled}    = $OTRSBusinessObject->OTRSSTORMIsInstalled();
 
     $Self->AddJSData(
         Key   => 'Baselink',
@@ -3737,9 +3894,8 @@ sub CustomerHeader {
 
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
-    # add cookies if exists
     my $Output = '';
-    if ( $Self->{SetCookies} && $ConfigObject->Get('SessionUseCookie') ) {
+    if ( $Self->{SetCookies} ) {
         for ( sort keys %{ $Self->{SetCookies} } ) {
             $Output .= "Set-Cookie: $Self->{SetCookies}->{$_}\n";
         }
@@ -3906,7 +4062,9 @@ sub CustomerFooter {
 
     # don't check for business package if the database was not yet configured (in the installer)
     if ( $ConfigObject->Get('SecureMode') ) {
-        $Param{OTRSBusinessIsInstalled} = $Kernel::OM->Get('Kernel::System::OTRSBusiness')->OTRSBusinessIsInstalled();
+        my $OTRSBusinessObject = $Kernel::OM->Get('Kernel::System::OTRSBusiness');
+        $Param{OTRSBusinessIsInstalled} = $OTRSBusinessObject->OTRSBusinessIsInstalled();
+        $Param{OTRSSTORMIsInstalled}    = $OTRSBusinessObject->OTRSSTORMIsInstalled();
     }
 
     # AutoComplete-Config
@@ -3917,10 +4075,6 @@ sub CustomerFooter {
             = $Self->{LanguageObject}->Translate( $AutocompleteConfig->{$ConfigElement}{ButtonText} );
     }
 
-    my $AutocompleteConfigJSON = $Self->JSONEncode(
-        Data => $AutocompleteConfig,
-    );
-
     # add JS data
     my %JSConfig = (
         Baselink                 => $Self->{Baselink},
@@ -3928,7 +4082,6 @@ sub CustomerFooter {
         WebPath                  => $ConfigObject->Get('Frontend::WebPath'),
         Action                   => $Self->{Action},
         Subaction                => $Self->{Subaction},
-        SessionIDCookie          => $Self->{SessionIDCookie},
         SessionName              => $Self->{SessionName},
         SessionID                => $Self->{SessionID},
         ChallengeToken           => $Self->{UserChallengeToken},
@@ -3936,9 +4089,11 @@ sub CustomerFooter {
         UserLanguage             => $Self->{UserLanguage},
         CheckEmailAddresses      => $ConfigObject->Get('CheckEmailAddresses'),
         OTRSBusinessIsInstalled  => $Param{OTRSBusinessIsInstalled},
+        OTRSSTORMIsInstalled     => $Param{OTRSSTORMIsInstalled},
         InputFieldsActivated     => $ConfigObject->Get('ModernizeCustomerFormFields'),
-        Autocomplete             => $AutocompleteConfigJSON,
+        Autocomplete             => $AutocompleteConfig,
         VideoChatEnabled         => $Param{VideoChatEnabled},
+        WebMaxFileUpload         => $ConfigObject->Get('WebMaxFileUpload'),
     );
 
     for my $Config ( sort keys %JSConfig ) {
@@ -3993,22 +4148,58 @@ sub CustomerNavigationBar {
     MODULE:
     for my $Module ( sort keys %{$NavigationConfig} ) {
 
-        my %Hash = %{ $NavigationConfig->{$Module} };
+        # Skip if module is disabled in frontend registration.
+        next MODULE if !IsHashRefWithData( $FrontendModule->{$Module} );
+
+        # Top-level frontend navigation configuration should always be a hash.
+        next MODULE if !IsHashRefWithData( $NavigationConfig->{$Module} );
+
+        my @ModuleNavigationConfigs;
+
+        # Go through all defined navigation configurations for the module and sort them by the key (00#-Module).
+        NAVIGATION_CONFIG:
+        for my $Key ( sort keys %{ $NavigationConfig->{$Module} || {} } ) {
+            next NAVIGATION_CONFIG if $Key !~ m{^\d+};
+
+            # FIXME: Support both old (HASH) and new (ARRAY of HASH) navigation configurations, for reasons of backwards
+            #   compatibility. Once we are sure everything has been migrated correctly, support for HASH-only
+            #   configuration can be dropped in future major release.
+            if ( IsHashRefWithData( $NavigationConfig->{$Module}->{$Key} ) ) {
+                push @ModuleNavigationConfigs, $NavigationConfig->{$Module}->{$Key};
+            }
+            elsif ( IsArrayRefWithData( $NavigationConfig->{$Module}->{$Key} ) ) {
+                push @ModuleNavigationConfigs, @{ $NavigationConfig->{$Module}->{$Key} };
+            }
+
+            # Skip incompatible configuration.
+            else {
+                next NAVIGATION_CONFIG;
+            }
+        }
 
         ITEM:
-        for my $Key ( sort keys %Hash ) {
-            my $Item = $Hash{$Key};
+        for my $Item (@ModuleNavigationConfigs) {
+            next ITEM if !$Item->{NavBar};
 
-            next ITEM if !$Item;
+            my $InheritPermissions = 0;
 
-            # check permissions
+            # Inherit permissions from frontend registration if no permissions were defined for the navigation entry.
+            if ( !$Item->{GroupRo} && !$Item->{Group} ) {
+                if ( $FrontendModule->{GroupRo} ) {
+                    $Item->{GroupRo} = $FrontendModule->{GroupRo};
+                }
+                if ( $FrontendModule->{Group} ) {
+                    $Item->{Group} = $FrontendModule->{Group};
+                }
+                $InheritPermissions = 1;
+            }
+
             my $Shown = 0;
 
-            # check shown permission
             PERMISSION:
             for my $Permission (qw(GroupRo Group)) {
 
-                # no access restriction
+                # No access restriction.
                 if (
                     ref $Item->{GroupRo} eq 'ARRAY'
                     && !scalar @{ $Item->{GroupRo} }
@@ -4020,14 +4211,13 @@ sub CustomerNavigationBar {
                     last PERMISSION;
                 }
 
-                # array access restriction
+                # Array access restriction.
                 elsif ( $Item->{$Permission} && ref $Item->{$Permission} eq 'ARRAY' ) {
                     for my $Group ( @{ $Item->{$Permission} } ) {
                         my $HasPermission = $GroupObject->PermissionCheck(
                             UserID    => $Self->{UserID},
                             GroupName => $Group,
                             Type      => $Permission eq 'GroupRo' ? 'ro' : 'rw',
-
                         );
                         if ($HasPermission) {
                             $Shown = 1;
@@ -4037,27 +4227,76 @@ sub CustomerNavigationBar {
                 }
             }
 
+            # If we passed the initial permission check and didn't inherit permissions from the module registration,
+            #   make sure to also check access to the module, since navigation item might be out of sync.
+            if ( $Shown && !$InheritPermissions ) {
+                my $ModulePermission;
+
+                PERMISSION:
+                for my $Permission (qw(GroupRo Group)) {
+
+                    # No access restriction.
+                    if (
+                        ref $FrontendModule->{$Module}->{GroupRo} eq 'ARRAY'
+                        && !scalar @{ $FrontendModule->{$Module}->{GroupRo} }
+                        && ref $FrontendModule->{$Module}->{Group} eq 'ARRAY'
+                        && !scalar @{ $FrontendModule->{$Module}->{Group} }
+                        )
+                    {
+
+                        $ModulePermission = 1;
+                        last PERMISSION;
+                    }
+
+                    # Array access restriction.
+                    elsif (
+                        $FrontendModule->{$Module}->{$Permission}
+                        && ref $FrontendModule->{$Module}->{$Permission} eq 'ARRAY'
+                        )
+                    {
+                        GROUP:
+                        for my $Group ( @{ $FrontendModule->{$Module}->{$Permission} } ) {
+                            next GROUP if !$Group;
+                            my $HasPermission = $GroupObject->PermissionCheck(
+                                UserID    => $Self->{UserID},
+                                GroupName => $Group,
+                                Type      => $Permission eq 'GroupRo' ? 'ro' : 'rw',
+
+                            );
+                            if ($HasPermission) {
+                                $ModulePermission = 1;
+                                last PERMISSION;
+                            }
+                        }
+                    }
+                }
+
+                # Hide item if no permission was granted to access the module.
+                if ( !$ModulePermission ) {
+                    $Shown = 0;
+                }
+            }
+
             next ITEM if !$Shown;
 
             # set prio of item
-            my $Key = sprintf( "%07d", $Item->{Prio} );
+            my $Key = ( $Item->{Block} || '' ) . sprintf( "%07d", $Item->{Prio} );
             COUNT:
             for ( 1 .. 51 ) {
                 last COUNT if !$NavBarModule{$Key};
 
                 $Item->{Prio}++;
+                $Key = ( $Item->{Block} || '' ) . sprintf( "%07d", $Item->{Prio} );
             }
 
+            # Show as main menu.
             if ( $Item->{Type} eq 'Menu' ) {
-                $NavBarModule{ sprintf( "%07d", $Item->{Prio} ) } = $Item;
+                $NavBarModule{$Key} = $Item;
             }
 
             # show as sub of main menu
             elsif ( $Item->{Type} eq 'Submenu' ) {
-                $NavBarModule{Sub}->{ $Item->{NavBar} }->{ sprintf( "%07d", $Item->{Prio} ) } = $Item;
-            }
-            else {
-                $NavBarModule{ sprintf( "%07d", $Item->{Prio} ) } = $Item;
+                $NavBarModule{Sub}->{ $Item->{NavBar} }->{$Key} = $Item;
             }
         }
     }
@@ -4504,19 +4743,19 @@ sub _RichTextReplaceLinkOfInlineContent {
 
 =head2 RichTextDocumentServe()
 
-serve a rich text (HTML) document for local view inside of an C<iframe> in correct charset and with correct
-links for inline documents.
+Serve a rich text (HTML) document for local view inside of an C<iframe> in correct charset and with correct links for
+inline documents.
 
-By default, all inline/active content (such as C<script>, C<object>, C<applet> or C<embed> tags)
-will be stripped. If there are external images, they will be stripped too,
-but a message will be shown allowing the user to reload the page showing the external images.
+By default, all inline/active content (such as C<script>, C<object>, C<applet> or C<embed> tags) will be stripped. If
+there are external images, they will be stripped too, but a message will be shown allowing the user to reload the page
+showing the external images.
 
     my %HTMLFile = $LayoutObject->RichTextDocumentServe(
         Data => {
             Content     => $HTMLBodyRef,
             ContentType => 'text/html; charset="iso-8859-1"',
         },
-        URL               => 'AgentTicketAttachment;Subaction=HTMLView;ArticleID=123;FileID=',
+        URL               => 'AgentTicketAttachment;Subaction=HTMLView;TicketID=123;ArticleID=123;FileID=',
         Attachments       => \%AttachmentListOfInlineAttachments,
 
         LoadInlineContent => 0,     # Serve the document including all inline content. WARNING: This might be dangerous.
@@ -4541,7 +4780,7 @@ sub RichTextDocumentServe {
         }
     }
 
-    # get charset and convert content to internal charset
+    # Get charset from passed content type parameter.
     my $Charset;
     if ( $Param{Data}->{ContentType} =~ m/.+?charset=("|'|)(.+)/ig ) {
         $Charset = $2;
@@ -4552,7 +4791,7 @@ sub RichTextDocumentServe {
         $Param{Data}->{ContentType} .= '; charset="us-ascii"';
     }
 
-    # convert charset
+    # Convert to internal charset.
     if ($Charset) {
         $Param{Data}->{Content} = $Kernel::OM->Get('Kernel::System::Encode')->Convert(
             Text  => $Param{Data}->{Content},
@@ -4561,9 +4800,14 @@ sub RichTextDocumentServe {
             Check => 1,
         );
 
-        # replace charset in content
+        # Replace charset in content type and content.
         $Param{Data}->{ContentType} =~ s/\Q$Charset\E/utf-8/gi;
-        $Param{Data}->{Content} =~ s/(<meta[^>]+charset=("|'|))\Q$Charset\E/$1utf-8/gi;
+        if ( !( $Param{Data}->{Content} =~ s/(<meta[^>]+charset=("|'|))\Q$Charset\E/$1utf-8/gi ) ) {
+
+            # Add explicit charset if missing.
+            $Param{Data}->{Content}
+                =~ s/(<meta [^>]+ http-equiv=("|')?Content-Type("|')? [^>]+ content=("|')?[^;"'>]+)/$1; charset=utf-8/ixms;
+        }
     }
 
     # add html links
@@ -4629,12 +4873,6 @@ sub RichTextDocumentServe {
         }
     }
 
-    # build base url for inline images
-    my $SessionID = '';
-    if ( $Self->{SessionID} && !$Self->{SessionIDCookie} ) {
-        $SessionID = ';' . $Self->{SessionName} . '=' . $Self->{SessionID};
-    }
-
     # replace inline images in content with runtime url to images
     my $AttachmentLink = $Self->{Baselink} . $Param{URL};
     $Param{Data}->{Content} =~ s{
@@ -4657,7 +4895,7 @@ sub RichTextDocumentServe {
         ATTACHMENT_ID:
         for my $AttachmentID (  sort keys %{ $Param{Attachments} }) {
             next ATTACHMENT_ID if lc $Param{Attachments}->{$AttachmentID}->{ContentID} ne lc "<$ContentID>";
-            $ContentID = $AttachmentLink . $AttachmentID . $SessionID;
+            $ContentID = $AttachmentLink . $AttachmentID;
             last ATTACHMENT_ID;
         }
 
@@ -4697,7 +4935,7 @@ sub RichTextDocumentServe {
         }
 
         # return new runtime url
-        $ContentID = $AttachmentLink . $AttachmentID . $SessionID;
+        $ContentID = $AttachmentLink . $AttachmentID;
         $Start . $ContentID . $End;
     }egxi;
     }
@@ -4943,14 +5181,14 @@ sub _BuildSelectionDataRefCreate {
 
     # dclone $Param{Data} because the subroutine unfortunately modifies
     # the original data ref
-    my $DataLocal = Storable::dclone( $Param{Data} );
+    my $DataLocal = $Kernel::OM->Get('Kernel::System::Storable')->Clone( Data => $Param{Data} );
 
     # if HashRef was given
     if ( ref $DataLocal eq 'HASH' ) {
 
         # get missing parents and mark them for disable later
         if ( $OptionRef->{Sort} eq 'TreeView' ) {
-            my %List = reverse %{$DataLocal};
+            my %List = reverse %{ $DataLocal || {} };
 
             # get each data value
             for my $Key ( sort keys %List ) {
@@ -5013,8 +5251,10 @@ sub _BuildSelectionDataRefCreate {
 
             # add suffix for correct sorting
             my %SortHash;
-            for ( sort keys %{$DataLocal} ) {
-                $SortHash{$_} = $DataLocal->{$_} . '::';
+            KEY:
+            for my $Key ( sort keys %{$DataLocal} ) {
+                next KEY if !defined $DataLocal->{$Key};
+                $SortHash{$Key} = $DataLocal->{$Key} . '::';
             }
             @SortKeys = sort { lc $SortHash{$a} cmp lc $SortHash{$b} } ( keys %SortHash );
         }
@@ -5033,7 +5273,10 @@ sub _BuildSelectionDataRefCreate {
             # already done before the translation
         }
         else {
-            @SortKeys = sort { lc $DataLocal->{$a} cmp lc $DataLocal->{$b} } ( keys %{$DataLocal} );
+            @SortKeys = sort {
+                lc( $DataLocal->{$a} // '' )
+                    cmp lc( $DataLocal->{$b} // '' )
+            } ( keys %{$DataLocal} );
             $OptionRef->{Sort} = 'AlphanumericValue';
         }
 
@@ -5221,7 +5464,7 @@ sub _BuildSelectionDataRefCreate {
         )
     {
         for my $Row ( @{$DataRef} ) {
-            if ( $DisabledElements{ $Row->{Value} } ) {
+            if ( defined $Row->{Value} && $DisabledElements{ $Row->{Value} } ) {
                 $Row->{Key}      = '-';
                 $Row->{Disabled} = 1;
             }
@@ -5244,10 +5487,21 @@ sub _BuildSelectionDataRefCreate {
         for my $Row ( @{$DataRef} ) {
             if (
                 (
-                    $OptionRef->{SelectedID}->{ $Row->{Key} }
-                    || $OptionRef->{SelectedValue}->{ $Row->{Value} }
+                    (
+                        defined $Row->{Key}
+                        && $OptionRef->{SelectedID}->{ $Row->{Key} }
+                    )
+                    ||
+                    (
+                        defined $Row->{Value}
+                        && $OptionRef->{SelectedValue}->{ $Row->{Value} }
+                    )
                 )
-                && !$DisabledElements{ $Row->{Value} }
+                &&
+                (
+                    defined $Row->{Value}
+                    && !$DisabledElements{ $Row->{Value} }
+                )
                 )
             {
                 $Row->{Selected} = 1;
@@ -5590,13 +5844,6 @@ sub WrapPlainText {
     return $WorkString;
 }
 
-#COMPAT: to 3.0.x and lower (can be removed later)
-sub TransfromDateSelection {
-    my $Self = shift;
-
-    return $Self->TransformDateSelection(@_);
-}
-
 =head2 SetRichTextParameters()
 
 set properties for rich text editor and send them to JS via AddJSData()
@@ -5628,16 +5875,23 @@ sub SetRichTextParameters {
     # get needed variables
     my $ScreenRichTextHeight = $Param{Data}->{RichTextHeight} || $ConfigObject->Get("Frontend::RichTextHeight");
     my $ScreenRichTextWidth  = $Param{Data}->{RichTextWidth}  || $ConfigObject->Get("Frontend::RichTextWidth");
+    my $RichTextType         = $Param{Data}->{RichTextType}   || '';
     my $PictureUploadAction = $Param{Data}->{RichTextPictureUploadAction} || '';
-    my $TextDir             = $Self->{TextDirection}                      || '';
-    my $SpellChecker        = $Self->{BrowserSpellCheckerInline}          || '';
+    my $TextDir = $Self->{TextDirection} || '';
     my $EditingAreaCSS = 'body.cke_editable { ' . $ConfigObject->Get("Frontend::RichText::DefaultCSS") . ' }';
 
     # decide if we need to use the enhanced mode (with tables)
     my @Toolbar;
     my @ToolbarWithoutImage;
 
-    if ( $ConfigObject->Get("Frontend::RichText::EnhancedMode") == '1' ) {
+    if ( $RichTextType eq 'CodeMirror' ) {
+        @Toolbar = @ToolbarWithoutImage = [
+            [ 'autoFormat', 'CommentSelectedRange', 'UncommentSelectedRange', 'AutoComplete' ],
+            [ 'Find', 'Replace', '-', 'SelectAll' ],
+            ['Maximize'],
+        ];
+    }
+    elsif ( $ConfigObject->Get("Frontend::RichText::EnhancedMode") == '1' ) {
         @Toolbar = [
             [
                 'Bold',   'Italic',       'Underline',    'Strike',        'Subscript',    'Superscript',
@@ -5648,7 +5902,7 @@ sub SetRichTextParameters {
             '/',
             [
                 'Image',   'HorizontalRule', 'PasteText', 'PasteFromWord', 'SplitQuote', 'RemoveQuote',
-                '-',       '-',              'Find',      'Replace',       'SpellCheck', 'TextColor',
+                '-',       '-',              'Find',      'Replace',       'TextColor',
                 'BGColor', 'RemoveFormat',   '-',         'ShowBlocks',    'Source',     'SpecialChar',
                 '-',       'Maximize'
             ],
@@ -5664,7 +5918,7 @@ sub SetRichTextParameters {
             '/',
             [
                 'HorizontalRule', 'PasteText', 'PasteFromWord', 'SplitQuote', 'RemoveQuote', '-',
-                '-',              'Find',      'Replace',       'SpellCheck', 'TextColor',   'BGColor',
+                '-',              'Find',      'Replace',       'TextColor',  'BGColor',
                 'RemoveFormat',   '-',         'ShowBlocks',    'Source',     'SpecialChar', '-',
                 'Maximize'
             ],
@@ -5678,7 +5932,7 @@ sub SetRichTextParameters {
                 'BulletedList',  '-',            'Outdent',        'Indent', '-',    'JustifyLeft',
                 'JustifyCenter', 'JustifyRight', 'JustifyBlock',   '-',      'Link', 'Unlink',
                 '-',             'Image',        'HorizontalRule', '-',      'Undo', 'Redo',
-                '-',             'Find',         'SpellCheck'
+                '-',             'Find'
             ],
             '/',
             [
@@ -5695,7 +5949,7 @@ sub SetRichTextParameters {
                 'JustifyCenter', 'JustifyRight', 'JustifyBlock', '-',
                 'Link',          'Unlink',       '-',            'HorizontalRule',
                 '-',             'Undo',         'Redo',         '-',
-                'Find',          'SpellCheck'
+                'Find'
             ],
             '/',
             [
@@ -5713,7 +5967,6 @@ sub SetRichTextParameters {
             Height         => $ScreenRichTextHeight,
             Width          => $ScreenRichTextWidth,
             TextDir        => $TextDir,
-            SpellChecker   => $SpellChecker,
             EditingAreaCSS => $EditingAreaCSS,
             Lang           => {
                 SplitQuote  => $LanguageObject->Translate('Split Quote'),
@@ -5722,8 +5975,11 @@ sub SetRichTextParameters {
             Toolbar             => $Toolbar[0],
             ToolbarWithoutImage => $ToolbarWithoutImage[0],
             PictureUploadAction => $PictureUploadAction,
-            }
+            Type                => $RichTextType,
+        },
     );
+
+    return 1;
 }
 
 =head2 CustomerSetRichTextParameters()
@@ -5757,7 +6013,6 @@ sub CustomerSetRichTextParameters {
     my $ScreenRichTextHeight = $ConfigObject->Get("Frontend::RichTextHeight");
     my $ScreenRichTextWidth  = $ConfigObject->Get("Frontend::RichTextWidth");
     my $TextDir              = $Self->{TextDirection} || '';
-    my $SpellChecker         = $Self->{BrowserSpellCheckerInline} || '';
     my $PictureUploadAction  = $Param{Data}->{RichTextPictureUploadAction} || '';
     my $EditingAreaCSS       = 'body { ' . $ConfigObject->Get("Frontend::RichText::DefaultCSS") . ' }';
 
@@ -5776,7 +6031,7 @@ sub CustomerSetRichTextParameters {
             '/',
             [
                 'Image',   'HorizontalRule', 'PasteText', 'PasteFromWord', 'SplitQuote', 'RemoveQuote',
-                '-',       '-',              'Find',      'Replace',       'SpellCheck', 'TextColor',
+                '-',       '-',              'Find',      'Replace',       'TextColor',
                 'BGColor', 'RemoveFormat',   '-',         'ShowBlocks',    'Source',     'SpecialChar',
                 '-',       'Maximize'
             ],
@@ -5792,7 +6047,7 @@ sub CustomerSetRichTextParameters {
             '/',
             [
                 'HorizontalRule', 'PasteText', 'PasteFromWord', 'SplitQuote', 'RemoveQuote', '-',
-                '-',              'Find',      'Replace',       'SpellCheck', 'TextColor',   'BGColor',
+                '-',              'Find',      'Replace',       'TextColor',  'BGColor',
                 'RemoveFormat',   '-',         'ShowBlocks',    'Source',     'SpecialChar', '-',
                 'Maximize'
             ],
@@ -5806,7 +6061,7 @@ sub CustomerSetRichTextParameters {
                 'BulletedList',  '-',            'Outdent',        'Indent', '-',    'JustifyLeft',
                 'JustifyCenter', 'JustifyRight', 'JustifyBlock',   '-',      'Link', 'Unlink',
                 '-',             'Image',        'HorizontalRule', '-',      'Undo', 'Redo',
-                '-',             'Find',         'SpellCheck'
+                '-',             'Find'
             ],
             '/',
             [
@@ -5823,7 +6078,7 @@ sub CustomerSetRichTextParameters {
                 'JustifyCenter', 'JustifyRight', 'JustifyBlock', '-',
                 'Link',          'Unlink',       '-',            'HorizontalRule',
                 '-',             'Undo',         'Redo',         '-',
-                'Find',          'SpellCheck'
+                'Find'
             ],
             '/',
             [
@@ -5841,7 +6096,6 @@ sub CustomerSetRichTextParameters {
             Height         => $ScreenRichTextHeight,
             Width          => $ScreenRichTextWidth,
             TextDir        => $TextDir,
-            SpellChecker   => $SpellChecker,
             EditingAreaCSS => $EditingAreaCSS,
             Lang           => {
                 SplitQuote => $LanguageObject->Translate('Split Quote'),
@@ -5849,9 +6103,61 @@ sub CustomerSetRichTextParameters {
             Toolbar             => $Toolbar[0],
             ToolbarWithoutImage => $ToolbarWithoutImage[0],
             PictureUploadAction => $PictureUploadAction,
-            }
+        },
     );
 
+    return 1;
+}
+
+=head2 UserInitialsGet()
+
+Get initials from a full name of a user.
+
+    my $UserInitials = $LayoutObject->UserInitialsGet(
+        Fullname => 'John Doe',
+    );
+
+Returns string of exactly two uppercase characters that represent user initials:
+
+    $UserInitials = 'JD';
+
+Please note that this function will return 'O' if invalid name (without any word characters) was supplied.
+
+=cut
+
+sub UserInitialsGet {
+    my ( $Self, %Param ) = @_;
+
+    # Fallback in case name is invalid.
+    my $UserInitials = 'O';
+    return $UserInitials if !$Param{Fullname};
+
+    # Remove anything found in brackets (email address, etc).
+    my $Fullname = $Param{Fullname} =~ s/[<[{(].*[>\]})]//r;
+
+    # Split full name by whitespace.
+    my @UserNames = split /\s+/, $Fullname;
+    if (@UserNames) {
+
+        # Cleanup unnecessary characters.
+        my $FirstName = $UserNames[0] =~ s/\W//gr;
+        return $UserInitials if !$FirstName;
+
+        # Get first character of first name.
+        $UserInitials = uc substr $FirstName, 0, 1;
+
+        if ( @UserNames > 1 ) {
+
+            # Cleanup unnecessary characters.
+            my $LastName = $UserNames[-1] =~ s/\W//gr;
+            return $UserInitials if !$LastName;
+
+            # Get first character of last name.
+            $UserInitials .= uc substr $LastName, 0, 1;
+        }
+    }
+
+    return $UserInitials;
 }
 
 1;

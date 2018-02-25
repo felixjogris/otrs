@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,6 +13,7 @@ use utf8;
 use vars (qw($Self));
 
 use Kernel::Config;
+use Kernel::System::AsynchronousExecutor;
 
 # get helper object
 my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
@@ -131,6 +132,7 @@ package $PackageName;
 use strict;
 use warnings;
 ## nofilter(TidyAll::Plugin::OTRS::Perl::TestSubs)
+sub Load {} # no-op, avoid warning logs
 sub $SubroutineName {
     return 'Hello, world!';
 }
@@ -166,6 +168,42 @@ $Self->Is(
     scalar $ConfigObject->Get('nonexisting_dummy'),
     $Value,
     "Runtime config still has the changed value, it will be destroyed at the end of every test",
+);
+
+# Disable scheduling of asynchronous executor tasks.
+$Helper->DisableAsyncCalls();
+
+# Create a new task for the scheduler daemon using AsyncCall method.
+my $Success = Kernel::System::AsynchronousExecutor->AsyncCall(
+    ObjectName               => 'scripts::test::sample::AsynchronousExecutor::TestAsynchronousExecutor',
+    FunctionName             => 'Execute',
+    FunctionParams           => {},
+    MaximumParallelInstances => 1,
+);
+$Self->True(
+    $Success,
+    'Created an asynchronous task'
+);
+
+my $SchedulerDBObject = $Kernel::OM->Get('Kernel::System::Daemon::SchedulerDB');
+
+# Check if scheduled asynchronous task is present in DB.
+my @TaskIDs;
+my @AllTasks = $SchedulerDBObject->TaskList(
+    Type => 'AsynchronousExecutor',
+);
+
+# Filter test tasks only!
+for my $Task (@AllTasks) {
+    if ( $Task->{Name} eq 'scripts::test::sample::AsynchronousExecutor::TestAsynchronousExecutor-Execute()' ) {
+        push @TaskIDs, $Task->{TaskID};
+    }
+}
+
+# Our asynchronous task should not be present.
+$Self->False(
+    scalar @TaskIDs,
+    'Asynchronous task not scheduled'
 );
 
 1;

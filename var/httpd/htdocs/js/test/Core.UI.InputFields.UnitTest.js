@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -195,7 +195,7 @@ Core.UI.InputFields = (function (Namespace) {
                     // Wait for everything to be closed and resettet
                     window.setTimeout(function () {
                         $InputContainerObj.find('.InputField_Selection .Remove a').click();
-                        Assert.equal($SelectObj.val(), '', 'Check if empty selection matches');
+                        Assert.equal($SelectObj.val(), [], 'Check if empty selection matches');
                         Done2();
                     }, 100);
                 });
@@ -264,7 +264,7 @@ Core.UI.InputFields = (function (Namespace) {
                 // Wait for everything to be closed and resettet
                 window.setTimeout(function () {
                     $InputContainerObj.find('.InputField_Selection .Remove a').click();
-                    Assert.equal($SelectObj.val(), '', 'Check if empty selection matches');
+                    Assert.equal($SelectObj.val(), [], 'Check if empty selection matches');
                     Done2();
                 }, 100);
             });

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -7,7 +7,16 @@
 # --
 
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
-    <h1>[% Translate("Admin Notification") | html %]</h1>
+    <h1 class="InvisibleText">[% Translate("Admin Message") | html %]</h1>
+
+    [% BreadcrumbPath = [
+            {
+                Name => Translate('Admin Message'),
+            },
+        ]
+    %]
+
+    [% INCLUDE "Breadcrumb.tt" Path = BreadcrumbPath %]
 
     <div class="SidebarColumn">
         <div class="WidgetSimple">
@@ -36,7 +45,7 @@
 [% RenderBlockEnd("Sent") %]
 
 [% RenderBlockStart("Form") %]
-                <form action="[% Env("CGIHandle") %]" method="post" name="compose" class="Validate">
+                <form action="[% Env("CGIHandle") %]" method="post" name="compose" class="Validate PreventMultipleSubmits">
                     <input type="hidden" name="Action" value="[% Env("Action") %]"/>
                     <input type="hidden" name="Subaction" value="Send"/>
 

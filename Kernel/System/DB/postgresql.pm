@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,9 +13,9 @@ use warnings;
 
 our @ObjectDependencies = (
     'Kernel::Config',
+    'Kernel::System::DateTime',
     'Kernel::System::Log',
     'Kernel::System::Main',
-    'Kernel::System::Time',
 );
 
 sub new {
@@ -55,7 +55,7 @@ sub LoadPreferences {
     # our results: "PostgreSQL 9.2.4", "PostgreSQL 9.1.9".
     $Self->{'DB::Version'} = "SELECT SUBSTRING(VERSION(), 'PostgreSQL [0-9\.]*')";
 
-    $Self->{'DB::ListTables'} = <<'EOF',
+    $Self->{'DB::ListTables'} = <<'EOF';
 SELECT
     table_name
 FROM
@@ -66,8 +66,8 @@ WHERE
 ORDER BY table_name
 EOF
 
-        # dbi attributes
-        $Self->{'DB::Attribute'} = {};
+    # dbi attributes
+    $Self->{'DB::Attribute'} = {};
 
     # set current time stamp if different to "current_timestamp"
     $Self->{'DB::CurrentTimestamp'} = '';
@@ -81,7 +81,7 @@ EOF
     $Self->{'DB::ShellConnect'} = 'SET standard_conforming_strings TO ON';
 
     # init sql setting on db connect
-    $Self->{'DB::Connect'} = "SET standard_conforming_strings TO ON;\n SET NAMES 'utf8';";
+    $Self->{'DB::Connect'} = "SET standard_conforming_strings TO ON;\n SET datestyle TO 'iso';\n SET NAMES 'utf8';";
     return 1;
 }
 
@@ -290,31 +290,27 @@ sub TableCreate {
     $SQL .= "\n";
     push @Return, $SQLStart . $SQL . $SQLEnd;
 
-    # add indexs
+    # add indexes
     for my $Name ( sort keys %Index ) {
-        push(
-            @Return,
+        push @Return,
             $Self->IndexCreate(
-                TableName => $TableName,
-                Name      => $Name,
-                Data      => $Index{$Name},
-            ),
-        );
+            TableName => $TableName,
+            Name      => $Name,
+            Data      => $Index{$Name},
+            );
     }
 
     # add foreign keys
     for my $ForeignKey ( sort keys %Foreign ) {
         my @Array = @{ $Foreign{$ForeignKey} };
         for ( 0 .. $#Array ) {
-            push(
-                @{ $Self->{Post} },
+            push @{ $Self->{Post} },
                 $Self->ForeignKeyCreate(
-                    LocalTableName   => $TableName,
-                    Local            => $Array[$_]->{Local},
-                    ForeignTableName => $ForeignKey,
-                    Foreign          => $Array[$_]->{Foreign},
-                ),
-            );
+                LocalTableName   => $TableName,
+                Local            => $Array[$_]->{Local},
+                ForeignTableName => $ForeignKey,
+                Foreign          => $Array[$_]->{Foreign},
+                );
         }
     }
     return @Return;
@@ -358,6 +354,10 @@ sub TableAlter {
     my @Reference     = ();
     my $Table         = '';
 
+    # put two literal dollar characters in a string
+    # this is needed for the postgres 'do' statement
+    my $DollarDollar = '$$';
+
     TAG:
     for my $Tag (@Param) {
 
@@ -373,7 +373,36 @@ sub TableAlter {
 
             # rename table
             if ( $Tag->{NameOld} && $Tag->{NameNew} ) {
+
+                # PostgreSQL uses sequences for primary key value generation. These are global
+                #   entities and not renamed when tables are renamed. Rename them also to keep
+                #   them consistent with new systems.
                 push @SQL, $SQLStart . "ALTER TABLE $Tag->{NameOld} RENAME TO $Tag->{NameNew}";
+
+                my $OldSequence = $Self->_SequenceName(
+                    TableName => $Tag->{NameOld},
+                );
+
+                my $NewSequence = $Self->_SequenceName(
+                    TableName => $Tag->{NameNew},
+                );
+
+                # Build SQL to rename sequence (only if a sequence exists).
+                my $RenameSequenceSQL = <<"EOF";
+DO $DollarDollar
+BEGIN
+IF EXISTS (
+    SELECT 1
+    FROM pg_class
+    WHERE relkind = 'S' and relname = '$OldSequence'
+    ) THEN
+    ALTER SEQUENCE $OldSequence RENAME TO $NewSequence;
+    END IF;
+END$DollarDollar;
+EOF
+
+                push @SQL, $SQLStart . $RenameSequenceSQL;
+
             }
             $SQLStart .= "ALTER TABLE $Table";
         }
@@ -439,8 +468,8 @@ sub TableAlter {
             # if there is an AutoIncrement column no other changes are needed
             next TAG if $Tag->{AutoIncrement} && $Tag->{AutoIncrement} =~ /^true$/i;
 
-            # remove possible default
-            push @SQL, "ALTER TABLE $Table ALTER $Tag->{NameNew} DROP DEFAULT";
+            # set default as null
+            push @SQL, "ALTER TABLE $Table ALTER $Tag->{NameNew} DROP NOT NULL";
 
             # investigate the default value
             my $Default = '';
@@ -532,23 +561,37 @@ sub IndexCreate {
             return;
         }
     }
-    my $SQL   = "CREATE INDEX $Param{Name} ON $Param{TableName} (";
-    my @Array = @{ $Param{Data} };
+    my $CreateIndexSQL = "CREATE INDEX $Param{Name} ON $Param{TableName} (";
+    my @Array          = @{ $Param{Data} };
     for ( 0 .. $#Array ) {
         if ( $_ > 0 ) {
-            $SQL .= ', ';
+            $CreateIndexSQL .= ', ';
         }
-        $SQL .= $Array[$_]->{Name};
-        if ( $Array[$_]->{Size} ) {
-
-            #           $SQL .= "($Array[$_]->{Size})";
-        }
+        $CreateIndexSQL .= $Array[$_]->{Name};
     }
-    $SQL .= ')';
+    $CreateIndexSQL .= ')';
+
+    # put two literal dollar characters in a string
+    # this is needed for the postgres 'do' statement
+    my $DollarDollar = '$$';
+
+    # build SQL to create index within a "try/catch block"
+    # to prevent errors if index exists already
+    $CreateIndexSQL = <<"EOF";
+DO $DollarDollar
+BEGIN
+IF NOT EXISTS (
+    SELECT 1
+    FROM pg_indexes
+    WHERE LOWER(indexname) = LOWER('$Param{Name}')
+    ) THEN
+    $CreateIndexSQL;
+END IF;
+END$DollarDollar;
+EOF
 
     # return SQL
-    return ($SQL);
-
+    return ($CreateIndexSQL);
 }
 
 sub IndexDrop {
@@ -559,13 +602,35 @@ sub IndexDrop {
         if ( !$Param{$_} ) {
             $Kernel::OM->Get('Kernel::System::Log')->Log(
                 Priority => 'error',
-                Message  => "Need $_!"
+                Message  => "Need $_!",
             );
             return;
         }
     }
-    my $SQL = 'DROP INDEX ' . $Param{Name};
-    return ($SQL);
+    my $DropIndexSQL = 'DROP INDEX ' . $Param{Name};
+
+    # put two literal dollar characters in a string
+    # this is needed for the postgres 'do' statement
+    my $DollarDollar = '$$';
+
+    # build SQL to drop index within a "try/catch block"
+    # to prevent errors if index does not exist
+    $DropIndexSQL = <<"EOF";
+DO $DollarDollar
+BEGIN
+IF EXISTS (
+    SELECT 1
+    FROM pg_indexes
+    WHERE LOWER(indexname) = LOWER('$Param{Name}')
+    ) THEN
+    $DropIndexSQL;
+END IF;
+END$DollarDollar;
+EOF
+
+    # return SQL
+    return ($DropIndexSQL);
+
 }
 
 sub ForeignKeyCreate {
@@ -576,7 +641,7 @@ sub ForeignKeyCreate {
         if ( !$Param{$_} ) {
             $Kernel::OM->Get('Kernel::System::Log')->Log(
                 Priority => 'error',
-                Message  => "Need $_!"
+                Message  => "Need $_!",
             );
             return;
         }
@@ -594,10 +659,30 @@ sub ForeignKeyCreate {
     }
 
     # add foreign key
-    my $SQL = "ALTER TABLE $Param{LocalTableName} ADD CONSTRAINT $ForeignKey FOREIGN KEY "
+    my $CreateForeignKeySQL = "ALTER TABLE $Param{LocalTableName} ADD CONSTRAINT $ForeignKey FOREIGN KEY "
         . "($Param{Local}) REFERENCES $Param{ForeignTableName} ($Param{Foreign})";
 
-    return ($SQL);
+    # put two literal dollar characters in a string
+    # this is needed for the postgres 'do' statement
+    my $DollarDollar = '$$';
+
+    # build SQL to create foreign key within a "try/catch block"
+    # to prevent errors if foreign key exists already
+    $CreateForeignKeySQL = <<"EOF";
+DO $DollarDollar
+BEGIN
+IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE LOWER(conname) = LOWER('$ForeignKey')
+    ) THEN
+    $CreateForeignKeySQL;
+END IF;
+END$DollarDollar;
+EOF
+
+    # return SQL
+    return ($CreateForeignKeySQL);
 }
 
 sub ForeignKeyDrop {
@@ -626,9 +711,29 @@ sub ForeignKeyDrop {
     }
 
     # drop foreign key
-    my $SQL = "ALTER TABLE $Param{LocalTableName} DROP CONSTRAINT $ForeignKey";
+    my $DropForeignKeySQL = "ALTER TABLE $Param{LocalTableName} DROP CONSTRAINT $ForeignKey";
 
-    return ($SQL);
+    # put two literal dollar characters in a string
+    # this is needed for the postgres 'do' statement
+    my $DollarDollar = '$$';
+
+    # build SQL to drop foreign key within a "try/catch block"
+    # to prevent errors if foreign key does not exist
+    $DropForeignKeySQL = <<"EOF";
+DO $DollarDollar
+BEGIN
+IF EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE LOWER(conname) = LOWER('$ForeignKey')
+    ) THEN
+    $DropForeignKeySQL;
+END IF;
+END$DollarDollar;
+EOF
+
+    # return SQL
+    return ($DropForeignKeySQL);
 }
 
 sub UniqueCreate {
@@ -644,19 +749,37 @@ sub UniqueCreate {
             return;
         }
     }
-    my $SQL   = "ALTER TABLE $Param{TableName} ADD CONSTRAINT $Param{Name} UNIQUE (";
-    my @Array = @{ $Param{Data} };
+    my $CreateUniqueSQL = "ALTER TABLE $Param{TableName} ADD CONSTRAINT $Param{Name} UNIQUE (";
+    my @Array           = @{ $Param{Data} };
     for ( 0 .. $#Array ) {
         if ( $_ > 0 ) {
-            $SQL .= ', ';
+            $CreateUniqueSQL .= ', ';
         }
-        $SQL .= $Array[$_]->{Name};
+        $CreateUniqueSQL .= $Array[$_]->{Name};
     }
-    $SQL .= ')';
+    $CreateUniqueSQL .= ')';
+
+    # put two literal dollar characters in a string
+    # this is needed for the postgres 'do' statement
+    my $DollarDollar = '$$';
+
+    # build SQL to create unique constraint within a "try/catch block"
+    # to prevent errors if unique constraint does already exist
+    $CreateUniqueSQL = <<"EOF";
+DO $DollarDollar
+BEGIN
+IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE LOWER(conname) = LOWER('$Param{Name}')
+    ) THEN
+    $CreateUniqueSQL;
+END IF;
+END$DollarDollar;
+EOF
 
     # return SQL
-    return ($SQL);
-
+    return ($CreateUniqueSQL);
 }
 
 sub UniqueDrop {
@@ -672,16 +795,37 @@ sub UniqueDrop {
             return;
         }
     }
-    my $SQL = "ALTER TABLE $Param{TableName} DROP CONSTRAINT $Param{Name}";
-    return ($SQL);
+    my $DropUniqueSQL = "ALTER TABLE $Param{TableName} DROP CONSTRAINT $Param{Name}";
+
+    # put two literal dollar characters in a string
+    # this is needed for the postgres 'do' statement
+    my $DollarDollar = '$$';
+
+    # build SQL to drop unique constraint within a "try/catch block"
+    # to prevent errors if unique constraint does not exist
+    $DropUniqueSQL = <<"EOF";
+DO $DollarDollar
+BEGIN
+IF EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE LOWER(conname) = LOWER('$Param{Name}')
+    ) THEN
+    $DropUniqueSQL;
+END IF;
+END$DollarDollar;
+EOF
+
+    # return SQL
+    return ($DropUniqueSQL);
 }
 
 sub Insert {
     my ( $Self, @Param ) = @_;
 
     # get needed objects
-    my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-    my $TimeObject   = $Kernel::OM->Get('Kernel::System::Time');
+    my $ConfigObject   = $Kernel::OM->Get('Kernel::Config');
+    my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
 
     my $SQL    = '';
     my @Keys   = ();
@@ -749,7 +893,7 @@ sub Insert {
                 $Value .= $Tmp;
             }
             else {
-                my $Timestamp = $TimeObject->CurrentTimestamp();
+                my $Timestamp = $DateTimeObject->ToString();
                 $Value .= '\'' . $Timestamp . '\'';
             }
         }
@@ -783,6 +927,23 @@ sub _TypeTranslation {
         $Tag->{Type} = 'DECIMAL (' . $Tag->{Size} . ')';
     }
     return $Tag;
+}
+
+sub _SequenceName {
+    my ( $Self, %Param ) = @_;
+
+    # check needed stuff
+    if ( !$Param{TableName} ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "Need TableName!",
+        );
+        return;
+    }
+
+    my $Sequence = $Param{TableName} . '_id_seq';
+
+    return $Sequence;
 }
 
 1;

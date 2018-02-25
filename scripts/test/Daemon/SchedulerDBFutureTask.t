@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -22,7 +22,7 @@ my $PreviousDaemonStatus = `$Daemon status`;
 
 # stop daemon if it was already running before this test
 if ( $PreviousDaemonStatus =~ m{Daemon running}i ) {
-    `$Daemon stop`;
+    `$^X $Daemon stop`;
 
     my $SleepTime = 2;
 
@@ -53,7 +53,7 @@ my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 $Helper->FixedTimeSet();
 
 # get current time stamp
-my $TimeStamp = $Kernel::OM->Get('Kernel::System::Time')->CurrentTimestamp();
+my $TimeStamp = $Kernel::OM->Create('Kernel::System::DateTime')->ToString();
 
 # FutureTaskAdd()
 my @Tests = (
@@ -564,7 +564,7 @@ for my $Test (@Tests) {
 
 # start daemon if it was already running before this test
 if ( $PreviousDaemonStatus =~ m{Daemon running}i ) {
-    system("$Daemon start");
+    system("$^X $Daemon start");
 }
 
 # cleanup is done by RestoreDatabase.

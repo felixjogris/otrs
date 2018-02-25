@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,15 +12,14 @@ use utf8;
 
 use vars (qw($Self));
 
-# get selenium object
 my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 
 $Selenium->RunTest(
     sub {
 
-        my $Helper        = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
-        my $TicketObject  = $Kernel::OM->Get('Kernel::System::Ticket');
-        my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+        my $Helper               = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+        my $TicketObject         = $Kernel::OM->Get('Kernel::System::Ticket');
+        my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article::Backend::Email');
 
         # Do not check email addresses.
         $Helper->ConfigSettingChange(
@@ -67,11 +66,11 @@ $Selenium->RunTest(
         );
 
         # Create test tickets.
-        my $NumberOfTickets = 3;
         my @Tickets;
-        for my $Count ( 1 .. $NumberOfTickets ) {
+        for my $Count ( 1 .. 3 ) {
+            my $Title    = $Count . '-SeleniumTicket-' . $RandomNumber;
             my $TicketID = $TicketObject->TicketCreate(
-                Title        => $Count . '-SeleniumTicket-' . $RandomNumber,
+                Title        => $Title,
                 Queue        => 'Raw',
                 Lock         => 'unlock',
                 Priority     => '3 normal',
@@ -85,22 +84,18 @@ $Selenium->RunTest(
                 $TicketID,
                 "TicketID $TicketID is created",
             );
-            my %Ticket = $TicketObject->TicketGet(
-                TicketID => $TicketID,
-            );
 
-            # Create test email article.
-            my $ArticleID = $ArticleObject->ArticleCreate(
-                TicketID       => $TicketID,
-                ArticleType    => 'email-external',
-                SenderType     => 'customer',
-                Subject        => 'some short description',
-                Body           => 'the message text',
-                Charset        => 'ISO-8859-15',
-                MimeType       => 'text/plain',
-                HistoryType    => 'EmailCustomer',
-                HistoryComment => 'Some free text!',
-                UserID         => 1,
+            my $ArticleID = $ArticleBackendObject->ArticleCreate(
+                TicketID             => $TicketID,
+                IsVisibleForCustomer => 1,
+                SenderType           => 'customer',
+                Subject              => 'some short description',
+                Body                 => 'the message text',
+                Charset              => 'ISO-8859-15',
+                MimeType             => 'text/plain',
+                HistoryType          => 'EmailCustomer',
+                HistoryComment       => 'Some free text!',
+                UserID               => 1,
             );
             $Self->True(
                 $ArticleID,
@@ -108,7 +103,8 @@ $Selenium->RunTest(
             );
 
             push @Tickets, {
-                %Ticket,
+                Title     => $Title,
+                TicketID  => $TicketID,
                 ArticleID => $ArticleID,
             };
         }
@@ -124,7 +120,6 @@ $Selenium->RunTest(
             Password => $TestUserLogin,
         );
 
-        # Get script alias.
         my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
 
         my @Tests = (
@@ -142,130 +137,56 @@ $Selenium->RunTest(
             },
         );
 
-        my $TicketsLastIndex = scalar @Tickets - 1;
         for my $Test (@Tests) {
             $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=$Test->{Screen}");
 
             if ( $Test->{FieldID} ne 'CustomerAutoComplete' ) {
 
-                # Choose customer user and wait until customer history table appears.
+                $Selenium->WaitFor(
+                    JavaScript =>
+                        'return typeof($) === "function" && $("#' . $Test->{FieldID} . '").length'
+                );
+
                 $Selenium->find_element( "#" . $Test->{FieldID}, 'css' )->clear();
                 $Selenium->find_element( "#" . $Test->{FieldID}, 'css' )->send_keys($CustomerUserLogin);
                 $Selenium->WaitFor(
-                    JavaScript => 'return typeof($) === "function" && $("li.ui-menu-item:visible").length'
+                    JavaScript =>
+                        "return typeof(\$) === 'function' && \$('li.ui-menu-item:contains($CustomerUserLogin):visible').length"
                 );
-
-                $Self->Is(
-                    $Selenium->execute_script(
-                        'return typeof($) === "function" && $("li.ui-menu-item:visible").length'
-                    ),
-                    1,
-                    "Check search result count",
-                );
-
-                $Self->Is(
-                    $Selenium->execute_script('return $("li.ui-menu-item:nth-child(1) a").html()'),
-                    "\"<strong>$TestUser</strong> $TestUser\" &lt;$TestUser\@example.com&gt; ($TestUser)",
-                    "Check link html.",
-                );
-
-                $Selenium->find_element( "li.ui-menu-item:nth-child(1) a", 'css' )->VerifiedClick();
-                $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $(".OverviewBox").length' );
+                $Selenium->execute_script("\$('li.ui-menu-item:contains($CustomerUserLogin)').click()");
             }
 
             $Selenium->WaitFor(
                 JavaScript =>
-                    'return typeof($) === "function" && $("a[name=OverviewControl][href*=\'View=Preview\']:visible").length'
+                    'return typeof($) === "function" && $("a.Large").length'
             );
 
             # Go to 'Large' view because all of events could be checked there.
-            $Selenium->find_element("//a[\@name='OverviewControl'][contains(\@href, \'View=Preview')]")->click();
-            $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("#TicketOverviewLarge").length' );
-
-            # wait for JavaScript to be executed completely (event bindings etc.)
-            sleep 1;
-
-            # Check sorting by title, ascending.
-            $Selenium->execute_script("\$('#SortBy').val('Title|Up').trigger('change');");
-            $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("#SortBy").val() === "Title|Up"' );
-
-            # Get first and last ticket ID.
-            my $FirstTicketID = $Tickets[0]->{TicketID};
-            my $LastTicketID  = $Tickets[ $NumberOfTickets - 1 ]->{TicketID};
-
-            # Wait until sorting is finished.
+            $Selenium->find_element( ".Large", 'css' )->click();
             $Selenium->WaitFor(
                 JavaScript =>
-                    "return typeof(\$) === 'function' && \$('#TicketOverviewLarge > li:eq(0)').attr('id') === 'TicketID_$FirstTicketID'"
+                    'return typeof($) === "function" && $("#TicketOverviewLarge > li").length === 3'
             );
+            sleep 2;
 
-            # wait for JavaScript to be executed completely (event bindings etc.)
-            sleep 1;
-
-            my $Count = 0;
             for my $Ticket (@Tickets) {
                 my $TicketID = $Ticket->{TicketID};
-                $Self->Is(
-                    $Selenium->execute_script("return \$('#TicketOverviewLarge > li:eq($Count)').attr('id');"),
-                    "TicketID_$TicketID",
-                    "$Test->{Screen} - TicketID $TicketID is found in expected row",
-                );
-                $Count++;
-            }
-
-            # Check sorting by title, descending and Reply action.
-            $Selenium->execute_script(
-                "\$('#SortBy').val('Title|Down').trigger('change');"
-            );
-            $Selenium->WaitFor(
-                JavaScript => 'return typeof($) === "function" && $("#SortBy").val() === "Title|Down"'
-            );
-
-            # Wait until sorting is finished.
-            $Selenium->WaitFor(
-                JavaScript =>
-                    "return typeof(\$) === 'function' && \$('#TicketOverviewLarge > li:eq(0)').attr('id') === 'TicketID_$LastTicketID'"
-            );
-
-            $Count = $TicketsLastIndex;
-            for my $Ticket (@Tickets) {
-                my $TicketID  = $Ticket->{TicketID};
-                my $ArticleID = $Ticket->{ArticleID};
-
-                $Self->Is(
-                    $Selenium->execute_script("return \$('#TicketOverviewLarge > li:eq($Count)').attr('id');"),
-                    "TicketID_$TicketID",
-                    "$Test->{Screen} - TicketID $TicketID is found in expected row",
-                );
-                $Count--;
-
-                # Reply action.
-                $Selenium->execute_script(
-                    "\$('#ResponseID$ArticleID').val('1').trigger('redraw.InputField').trigger('change');"
-                );
-
-                # Switch to compose window.
-                $Selenium->WaitFor( WindowCount => 2 );
-                my $Handles = $Selenium->get_window_handles();
-                $Selenium->switch_to_window( $Handles->[1] );
-
-                $Selenium->WaitFor(
-                    JavaScript => 'return typeof($) === "function" && $("div.Header p.AsteriskExplanation").length'
-                );
-
                 $Self->True(
-                    $Selenium->execute_script("return \$('h1:contains(\"$Ticket->{Title}\")').length;"),
-                    "$Test->{Screen} - Ticket title is correct",
+                    $Selenium->execute_script(
+                        "return \$('#TicketOverviewLarge > li[id=\"TicketID_$TicketID\"]').length === 1"
+                    ),
+                    "$Test->{Screen} - TicketID $TicketID is found in the table",
                 );
-
-                # Close popup.
-                $Selenium->close();
-                $Selenium->WaitFor( WindowCount => 1 );
-                $Selenium->switch_to_window( $Handles->[0] );
             }
 
             # Check master action link.
-            $Selenium->find_element( ".MasterAction[id=TicketID_$Tickets[0]->{TicketID}]", 'css' )->VerifiedClick();
+            $Selenium->execute_script(
+                "\$('.MasterAction[id=TicketID_$Tickets[0]->{TicketID}]').trigger('click');"
+            );
+            $Selenium->WaitFor(
+                JavaScript =>
+                    'return typeof($) === "function" && $(".Cluster").length'
+            );
 
             $Self->True(
                 index( $Selenium->get_current_url(), 'Action=AgentTicketZoom;TicketID=' . $Tickets[0]->{TicketID} )
@@ -283,6 +204,15 @@ $Selenium->RunTest(
                 TicketID => $Ticket->{TicketID},
                 UserID   => 1,
             );
+
+            # Ticket deletion could fail if apache still writes to ticket history. Try again in this case.
+            if ( !$Success ) {
+                sleep 3;
+                $Success = $TicketObject->TicketDelete(
+                    TicketID => $Ticket->{TicketID},
+                    UserID   => 1,
+                );
+            }
             $Self->True(
                 $Success,
                 "Ticket $Ticket->{TicketID} is deleted"

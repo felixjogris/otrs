@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU AFFERO General Public License as published by
@@ -25,7 +25,7 @@ use SOAP::Lite;
 
 my $User = 'some_user';
 my $Pw   = 'some_pass';
-my $RPC  = new SOAP::Lite(
+my $RPC  = SOAP::Lite->new(
     proxy => 'http://127.0.0.1/otrs/rpc.pl',
     uri   => 'http://localhost/Core'
 );

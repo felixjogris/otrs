@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -24,7 +24,7 @@ my $PreviousDaemonStatus = `$Daemon status`;
 
 # Stop daemon if it was already running before this test.
 if ( $PreviousDaemonStatus =~ m{Daemon running}i ) {
-    `$Daemon stop`;
+    `$^X $Daemon stop`;
 
     my $SleepTime = 2;
 
@@ -235,11 +235,9 @@ $Self->False(
 );
 
 my @TicketIDs = $TicketObject->TicketSearch(
-    Result  => 'ARRAY',
-    From    => '%skywalker@otrs.org%',
-    To      => '%darthvader@otrs.org%',
-    Subject => '%test 1%',
-    UserID  => 1,
+    Result         => 'ARRAY',
+    CustomerUserID => 'skywalker@otrs.org',
+    UserID         => 1,
 );
 
 for my $TicketID ( @TicketIDs, $GATicketID ) {
@@ -275,7 +273,7 @@ $Self->True(
 
 # Start daemon if it was already running before this test.
 if ( $PreviousDaemonStatus =~ m{Daemon running}i ) {
-    system("$Daemon start");
+    system("$^X $Daemon start");
 }
 
 1;

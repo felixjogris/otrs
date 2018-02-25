@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -14,6 +14,8 @@
             <input type="hidden" name="FormID" value="[% Data.FormID | html %]" />
             <input type="hidden" name="FromChatID" value="[% Data.FromChatID | html %]" />
             <fieldset>
+
+            <p class="AsteriskExplanation">[% Translate("All fields marked with an asterisk (*) are mandatory.") | html %]</p>
 
 [% RenderBlockStart("TicketType") %]
                 <div>
@@ -95,17 +97,12 @@
                     <div class="Clear"></div>
                 </div>
                 <div>
-                    <label for="Attachment">[% Translate("Attachment") | html %]:</label>
-                    <input name="file_upload" id="Attachment" title="[% Translate("Attachment") | html %]" type="file" size="40" />
-                    <input type="hidden" id="AttachmentUpload" name="AttachmentUpload" value="0" />
-[% RenderBlockStart("Attachment") %]
-                    <div class="Attachment" title="[% Data.Filename | html %] - [% Data.Filesize | html %]">
-                        [% Data.Filename | html %] ([% Data.Filesize | html %])
-                        <button type="button" id="AttachmentDeleteButton[% Data.FileID | html %]" name="AttachmentDeleteButton[% Data.FileID | html %]" value="[% Translate("Delete") | html %]">[% Translate("Delete") | html %]</button>
-                        <input type="hidden" id="AttachmentDelete[% Data.FileID | html %]" name="AttachmentDelete[% Data.FileID | html %]" />
+                <label>[% Translate("Attachments") | html %]:</label>
+                    <div class="Field">
+                        <div class="DnDUploadBox">
+[% INCLUDE "FormElements/AttachmentList.tt" %]
+                        </div>
                     </div>
-[% RenderBlockEnd("Attachment") %]
-
                     <div class="Clear"></div>
                 </div>
 [% RenderBlockStart("ChatArticlePreview") %]
@@ -113,7 +110,7 @@
                     <label>[% Translate("Chat protocol") | html %]:</label>
                     <div class="Field">
                         <div class="ChatProtocol">
-[% INCLUDE "ChatDisplay.tt" %]
+[% INCLUDE "ArticleContent/Chat.tt" %]
                         </div>
                         <p class="FieldExplanation">[% Translate('The chat will be appended as a separate article.') | html %]
                         </div>

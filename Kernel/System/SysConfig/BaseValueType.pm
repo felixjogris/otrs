@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -87,8 +87,8 @@ sub SettingEffectiveValueCheck {
 
     my $Regex = $Value->[0]->{Item}->[0]->{ValueRegex};
 
-    # RegEx check.
-    if ( $Regex && $Param{EffectiveValue} !~ m{$Regex}gsmx ) {
+    # RegEx check - do not use any modifiers for compatibility reasons.
+    if ( $Regex && $Param{EffectiveValue} !~ m{$Regex} ) {
         $Result{Error} = "EffectiveValue not valid - regex '$Regex'!";
         return %Result;
     }
@@ -216,8 +216,7 @@ Extracts the effective value from a XML parsed setting.
 
     my $SettingHTML = $ValueTypeObject->SettingRender(
         Name           => 'SettingName',
-        DefaultID      =>  123,             # (required)
-        EffectiveValue => 'Product 6',
+        EffectiveValue => 'Product 6',      # (optional)
         DefaultValue   => 'Product 5',      # (optional)
         Class          => 'My class'        # (optional)
         Item           => [                 # (optional) XML parsed item
@@ -244,25 +243,24 @@ Returns:
 sub SettingRender {
     my ( $Self, %Param ) = @_;
 
-    for my $Needed (qw(Name EffectiveValue)) {
-        if ( !defined $Param{$Needed} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "Need $Needed",
-            );
-            return;
-        }
+    if ( !defined $Param{Name} ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "Need Name",
+        );
+        return;
     }
 
-    $Param{Class}        //= '';
-    $Param{DefaultValue} //= '';
+    $Param{EffectiveValue} //= '';
+    $Param{Class}          //= '';
+    $Param{DefaultValue}   //= '';
     my $IDSuffix = $Param{IDSuffix} || '';
 
     my $LanguageObject = $Kernel::OM->Get('Kernel::Language');
 
     my $EffectiveValue = $Param{EffectiveValue};
     if (
-        !$EffectiveValue
+        !defined $EffectiveValue
         && $Param{Item}
         && $Param{Item}->[0]->{Content}
         )
@@ -486,6 +484,24 @@ sub ForbiddenValueTypes {
     my ( $Self, %Param ) = @_;
 
     return ();
+}
+
+=head2 AddSettingContent()
+
+Checks if a div with class 'SettingContent' should be added when adding new item to an array/hash in some special cases.
+
+    my $AddSettingContent = $ValueTypeObject->AddSettingContent();
+
+Returns:
+
+    my $AddSettingContent = 1;
+
+=cut
+
+sub AddSettingContent {
+    my ( $Self, %Param ) = @_;
+
+    return 1;
 }
 
 1;

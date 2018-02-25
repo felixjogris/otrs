@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -61,6 +61,7 @@ collect system data
     my %Result = $SupportDataCollectorObject->Collect(
         UseCache   => 1,    # (optional) to get data from cache if any
         WebTimeout => 60,   # (optional)
+        Debug      => 1,    # (optional)
         Hostname   => 'my.test.host:8080' # (optional, for testing purposes)
     );
 
@@ -242,11 +243,13 @@ sub CollectByWebRequest {
         );
     }
 
+    my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
+
     my $Host = $Param{Hostname};
-    $Host ||= $Kernel::OM->Get('Kernel::Config')->Get('SupportDataCollector::HTTPHostname');
+    $Host ||= $ConfigObject->Get('SupportDataCollector::HTTPHostname');
 
     if ( !$Host ) {
-        my $FQDN = $Kernel::OM->Get('Kernel::Config')->Get('FQDN');
+        my $FQDN = $ConfigObject->Get('FQDN');
 
         if ( $FQDN ne 'yourhost.example.com' && gethostbyname($FQDN) ) {
             $Host = $FQDN;
@@ -263,20 +266,20 @@ sub CollectByWebRequest {
     #   we can specify the htaccess login data here,
     #   this is neccessary for the support data collector.
     my $AuthString   = '';
-    my $AuthUser     = $Kernel::OM->Get('Kernel::Config')->Get('PublicFrontend::AuthUser');
-    my $AuthPassword = $Kernel::OM->Get('Kernel::Config')->Get('PublicFrontend::AuthPassword');
+    my $AuthUser     = $ConfigObject->Get('PublicFrontend::AuthUser');
+    my $AuthPassword = $ConfigObject->Get('PublicFrontend::AuthPassword');
     if ( $AuthUser && $AuthPassword ) {
         $AuthString = $AuthUser . ':' . $AuthPassword . '@';
     }
 
     # Prepare web service config for the internal web request.
     my $URL =
-        $Kernel::OM->Get('Kernel::Config')->Get('HttpType')
+        $ConfigObject->Get('HttpType')
         . '://'
         . $AuthString
         . $Host
         . '/'
-        . $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias')
+        . $ConfigObject->Get('ScriptAlias')
         . 'public.pl';
 
     my $WebUserAgentObject = Kernel::System::WebUserAgent->new(
@@ -299,11 +302,12 @@ sub CollectByWebRequest {
             ChallengeToken => $ChallengeToken,
         },
         SkipSSLVerification => 1,
+        NoLog               => $Param{Debug} ? 0 : 1,
     );
 
     if ( $Response{Status} ne '200 OK' ) {
 
-        if ( $Self->{Debug} ) {
+        if ( $Param{Debug} ) {
             $Kernel::OM->Get('Kernel::System::Log')->Log(
                 Priority => 'notice',
                 Message  => "SupportDataCollector - Can't connect to server - $Response{Status}",
@@ -316,7 +320,7 @@ sub CollectByWebRequest {
     # check if we have content as a scalar ref
     if ( !$Response{Content} || ref $Response{Content} ne 'SCALAR' ) {
 
-        if ( $Self->{Debug} ) {
+        if ( $Param{Debug} ) {
             $Kernel::OM->Get('Kernel::System::Log')->Log(
                 Priority => 'notice',
                 Message  => "SupportDataCollector - No content received.",
@@ -331,7 +335,7 @@ sub CollectByWebRequest {
     # Discard HTML responses (error pages etc.).
     if ( substr( ${ $Response{Content} }, 0, 1 ) eq '<' ) {
 
-        if ( $Self->{Debug} ) {
+        if ( $Param{Debug} ) {
             $Kernel::OM->Get('Kernel::System::Log')->Log(
                 Priority => 'notice',
                 Message  => "SupportDataCollector - Response looks like HTML instead of JSON.",
@@ -347,7 +351,7 @@ sub CollectByWebRequest {
     );
     if ( !$ResponseData || ref $ResponseData ne 'HASH' ) {
 
-        if ( $Self->{Debug} ) {
+        if ( $Param{Debug} ) {
             $Kernel::OM->Get('Kernel::System::Log')->Log(
                 Priority => 'error',
                 Message  => "SupportDataCollector - Can't decode JSON: '" . ${ $Response{Content} } . "'!",

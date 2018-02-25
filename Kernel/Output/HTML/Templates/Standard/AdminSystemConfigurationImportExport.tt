@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,7 +8,13 @@
 
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
 
-    <h1>[% Translate("System configuration") | html %]</h1>
+    <h1 class="InvisibleText">[% Translate("System configuration") | html %]</h1>
+
+    [% IF Config("ConfigImportAllowed") %]
+        [% ImportExportName = Translate('Import & Export') %]
+    [% ELSE %]
+        [% ImportExportName = Translate('Export') %]
+    [% END %]
 
     [% BreadcrumbPath = [
             {
@@ -16,7 +22,7 @@
                 Link => 'AdminSystemConfiguration',
             },
             {
-                Name => Translate('Import & Export'),
+                Name => ImportExportName,
                 Link => Env("Action") _ ';Subaction=' _ Env("Subaction")
             },
         ]
@@ -40,6 +46,7 @@
     </div>
 
     <div class="ContentColumn LayoutGrid ColumnsWithSpacing">
+        [% IF Config("ConfigImportAllowed") %]
         <div class="Size1of2">
             <div class="WidgetSimple">
                 <div class="Header">
@@ -57,7 +64,7 @@
                             <input name="FileUpload" id="FileUpload" type="file" size="18" class="Fixed W100pc Validate_Required [% Data.FileUploadInvalid | html %]"/>
                             <div id="FileUploadError" class="TooltipErrorMessage"><p>[% Translate("This field is required.") | html %]</p></div>
                             <div id="FileUploadServerError" class="TooltipErrorMessage"><p>[% Translate("This field is required.") | html %]</p></div>
-                            <button class="CallForAction" type="submit" value="[% Translate("Upload system configuration") | html %]">
+                            <button id="ImportButton" class="CallForAction" type="submit" value="[% Translate("Upload system configuration") | html %]">
                                 <span><i class="fa fa-upload"></i>&nbsp; [% Translate("Import system configuration") | html %]</span>
                             </button>
                         </fieldset>
@@ -65,6 +72,7 @@
                 </div>
             </div>
         </div>
+        [% END %]
         <div class="Size1of2">
             <div class="WidgetSimple">
                 <div class="Header">
@@ -78,7 +86,14 @@
                             <p class="FieldExplanation">
                                 [% Translate("Download current configuration settings of your system in a .yml file.") | html %]
                             </p>
-                            <button class="CallForAction" type="submit" value="[% Translate("Upload system configuration") | html %]">
+
+                            [% IF Data.OTRSBusinessIsInstalled %]
+                            <input type="checkbox" id="SkipUserSettings" name="SkipUserSettings" value="1" checked="checked" />
+                            <label for="SkipUserSettings">[% Translate("Include user settings") | html %]</label>
+                            <div class="Clear"> </div>
+                            [% END %]
+
+                            <button id="ExportButton" class="CallForAction" type="submit" value="[% Translate("Upload system configuration") | html %]">
                                 <span><i class="fa fa-download"></i>&nbsp; [% Translate("Export current configuration") | html %]</span>
                             </button>
                         </fieldset>

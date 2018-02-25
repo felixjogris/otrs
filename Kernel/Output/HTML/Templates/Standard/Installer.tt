@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -28,7 +28,7 @@
 
 [% RenderBlockStart("Steps") %]
     <div class="Center">
-        <ul id="ProgressBar" class="ProgressBarElements[% Data.Steps | html %]" SpacingTop SpacingBottom">
+        <ul id="ProgressBar" class="ProgressBarElements[% Data.Steps | html %] SpacingTop SpacingBottom">
 [% RenderBlockStart("StepLicense") %]
             <li class="First [% Data.Highlight | html %] [% Data.Active | html %]">
                 <span>
@@ -88,7 +88,7 @@
                 <div class="Size1of2">
                     <h4>Mexico</h4>
                     <p>OTRS S.A. de C.V.</p>
-                    <p>Av. Insurgentes Sur 863, Piso 7, Col. Nápoles</p>
+                    <p>Av. Insurgentes Sur 863, Piso 7 Of 01, Col. Nápoles</p>
                     <p>03810 Mexico, D.F.</p>
                     <p>[% Translate("Phone") | html %]: <a href="tel:+525511689664">+52 55 1168 9664</a></p>
                 </div>
@@ -103,11 +103,11 @@
             <div class="Clear"></div>
             <div class="LayoutGrid Content">
                 <div class="Size1of2">
-                    <h4>Malaysia</h4>
-                    <p>OTRS Solution Shd. Bdn.</p>
-                    <p>No 17-1B, Jalan Puteri 2/7, Bandar Puteri, 47100 Puchong</p>
-                    <p>Selangor</p>
-                    <p>[% Translate("Phone") | html %]: <a href="tel:+60327258088">+603 2725 8088</a></p>
+                    <h4>Singapore</h4>
+                    <p>OTRS ASIA Pte. Ltd.</p>
+                    <p>7 Temasek Blvd#44-01, The Penthouse, Suntec Tower One</p>
+                    <p>Singapore 038987</p>
+                    <p>[% Translate("Phone") | html %]: <a href="tel:+6564306756 ">+65 6430 6756</a></p>
                 </div>
                 <div class="Size1of2">
                     <h4>Hong Kong</h4>

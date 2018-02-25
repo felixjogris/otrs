@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -30,6 +30,31 @@ $Kernel::OM->ObjectParamAdd(
 );
 my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
+# Disable email addresses checking.
+$Helper->ConfigSettingChange(
+    Key   => 'CheckEmailAddresses',
+    Value => 0,
+);
+
+my $SendEmails = sub {
+    my %Param = @_;
+
+    my $MailQueueObj = $Kernel::OM->Get('Kernel::System::MailQueue');
+
+    # Get last item in the queue.
+    my $Items = $MailQueueObj->List();
+    my @ToReturn;
+    for my $Item (@$Items) {
+        $MailQueueObj->Send( %{$Item} );
+        push @ToReturn, $Item->{Message};
+    }
+
+    # Clean the mail queue
+    $MailQueueObj->Delete();
+
+    return @ToReturn;
+};
+
 my $HomeDir = $ConfigObject->Get('Home');
 
 # create directory for certificates and private keys
@@ -49,6 +74,32 @@ $ConfigObject->Set(
 );
 
 my $OpenSSLBin = $ConfigObject->Get('SMIME::Bin');
+
+# check if openssl is located there
+if ( !$OpenSSLBin || !( -e $OpenSSLBin ) ) {
+
+    # maybe it's a mac with macport
+    if ( -e '/opt/local/bin/openssl' ) {
+        $ConfigObject->Set(
+            Key   => 'SMIME::Bin',
+            Value => '/opt/local/bin/openssl',
+        );
+    }
+
+    # Try to guess using system 'which'
+    else {    # try to guess
+        my $OpenSSLBin = `which openssl`;
+        chomp $OpenSSLBin;
+        if ($OpenSSLBin) {
+            $ConfigObject->Set(
+                Key   => 'SMIME::Bin',
+                Value => $OpenSSLBin,
+            );
+        }
+    }
+}
+
+$OpenSSLBin = $ConfigObject->Get('SMIME::Bin');
 
 # get the openssl version string, e.g. OpenSSL 0.9.8e 23 Feb 2007
 my $OpenSSLVersionString = qx{$OpenSSLBin version};
@@ -129,18 +180,6 @@ $ConfigObject->Set(
     Key   => 'NotificationSenderEmail',
     Value => 'unittest@example.org',
 );
-
-# check if openssl is located there
-if ( !-e $ConfigObject->Get('SMIME::Bin') ) {
-
-    # maybe it's a mac with macport
-    if ( -e '/opt/local/bin/openssl' ) {
-        $ConfigObject->Set(
-            Key   => 'SMIME::Bin',
-            Value => '/opt/local/bin/openssl',
-        );
-    }
-}
 
 # create crypt object
 my $SMIMEObject = $Kernel::OM->Get('Kernel::System::Crypt::SMIME');
@@ -360,19 +399,19 @@ $Self->True(
     "TicketCreate() successful for Ticket ID $TicketID",
 );
 
-my $ArticleID = $ArticleObject->ArticleCreate(
-    TicketID       => $TicketID,
-    ArticleType    => 'webrequest',
-    SenderType     => 'customer',
-    From           => 'customerOne@example.com',
-    To             => 'Some Agent A <agent-a@example.com>',
-    Subject        => 'some short description',
-    Body           => 'the message text',
-    Charset        => 'utf8',
-    MimeType       => 'text/plain',
-    HistoryType    => 'OwnerUpdate',
-    HistoryComment => 'Some free text!',
-    UserID         => $UserID,
+my $ArticleID = $Kernel::OM->Get('Kernel::System::Ticket::Article::Backend::Internal')->ArticleCreate(
+    TicketID             => $TicketID,
+    IsVisibleForCustomer => 1,
+    SenderType           => 'customer',
+    From                 => 'customerOne@example.com',
+    To                   => 'Some Agent A <agent-a@example.com>',
+    Subject              => 'some short description',
+    Body                 => 'the message text',
+    Charset              => 'utf8',
+    MimeType             => 'text/plain',
+    HistoryType          => 'OwnerUpdate',
+    HistoryComment       => 'Some free text!',
+    UserID               => $UserID,
 );
 
 # sanity check
@@ -402,11 +441,6 @@ $Self->True(
 
 my $NotificationEventObject      = $Kernel::OM->Get('Kernel::System::NotificationEvent');
 my $EventNotificationEventObject = $Kernel::OM->Get('Kernel::System::Ticket::Event::NotificationEvent');
-
-# get article types email-notification-int ID
-my $ArticleTypeIntID = $ArticleObject->ArticleTypeLookup(
-    ArticleType => 'email-notification-int',
-);
 
 my @Tests = (
     {
@@ -553,6 +587,8 @@ for my $Test (@Tests) {
         UserID => $UserID,
     );
 
+    $SendEmails->();
+
     my $Emails = $TestEmailObject->EmailsGet();
     if ( $Test->{Success} ) {
 
@@ -570,20 +606,17 @@ for my $Test (@Tests) {
         );
     }
 
-    # get ticket articles
-    my @ArticleIDs = $ArticleObject->ArticleIndex(
+    # get last ticket article
+    my @Articles = $ArticleObject->ArticleList(
         TicketID => $TicketID,
+        OnlyLast => 1,
     );
-
-    my $LastArticleID = pop @ArticleIDs;
-
-    my %Article = $ArticleObject->ArticleGet(
-        TicketID  => $TicketID,
-        ArticleID => $LastArticleID,
-    );
-
+    my %Article;
+    if ( scalar @Articles && $Articles[0] ) {
+        %Article = %{ $Articles[0] };
+    }
     my $CheckObject = Kernel::Output::HTML::ArticleCheck::SMIME->new(
-        ArticleID => $LastArticleID,
+        ArticleID => $Article{ArticleID},
         UserID    => $UserID,
     );
 

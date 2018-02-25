@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -29,31 +29,13 @@ Core.Agent.TicketForward = (function (TargetNS) {
      */
     TargetNS.Init = function () {
 
-        var $Form,
-            FieldID,
-            ArticleComposeOptions = Core.Config.Get('ArticleComposeOptions'),
+        var ArticleComposeOptions = Core.Config.Get('ArticleComposeOptions'),
             DynamicFieldNames = Core.Config.Get('DynamicFieldNames');
 
         // remove a customer ticket entry
         $('.CustomerTicketRemove').on('click', function () {
             Core.Agent.CustomerSearch.RemoveCustomerTicket($(this));
             return false;
-        });
-
-        // delete attachment
-        $('button[id*=AttachmentDeleteButton]').on('click', function () {
-            $Form = $(this).closest('form');
-            FieldID = $(this).attr('id').split('AttachmentDeleteButton')[1];
-            $('#AttachmentDelete' + FieldID).val(1);
-            Core.Form.Validate.DisableValidation($Form);
-            $Form.trigger('submit');
-        });
-
-        // choose attachment
-        $('#FileUpload').on('change', function () {
-            $Form = $(this).closest('form');
-            Core.Form.Validate.DisableValidation($Form);
-            $Form.find('#AttachmentUpload').val('1').end().submit();
         });
 
         // update dynamic fields in form

@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -167,16 +167,12 @@ Core.AJAX = (function (TargetNS) {
      * @name GetSessionInformation
      * @memberof Core.AJAX
      * @function
-     * @returns {Object} Hash with session data, if needed.
+     * @returns {Object} Hash with session data.
      * @description
      *      Collects session data in a hash if available.
      */
     function GetSessionInformation() {
         var Data = {};
-        if (!Core.Config.Get('SessionIDCookie')) {
-            Data[Core.Config.Get('SessionName')] = Core.Config.Get('SessionID');
-            Data[Core.Config.Get('CustomerPanelSessionName')] = Core.Config.Get('SessionID');
-        }
         Data.ChallengeToken = Core.Config.Get('ChallengeToken');
         return Data;
     }
@@ -202,37 +198,36 @@ Core.AJAX = (function (TargetNS) {
      * @name UpdateTicketAttachments
      * @memberof Core.AJAX
      * @function
-     * @param {Object} Value - Array of hashes, each hash have the needed attachment information.
+     * @param {Object} Attachments - Array of hashes, each hash have the needed attachment information.
      * @description
-     *      Removes all shown attachments on the screen and adds the ones that are sent in
-     *      the Value parmeter.
+     *      Removes all selected attachments and adds the ones passed in the Attachments object.
      */
-    function UpdateTicketAttachments(Value) {
-        var FileID,
-            ButtonStrg,
-            InputStrg;
+    function UpdateTicketAttachments(Attachments) {
 
-        // sync the attachment list with the attachments in the UploadCache
-        // 1st: delete the current attachment list
-        $('#FileUpload').parent().siblings('li').remove();
+        // delete existing attachments
+        $('.AttachmentList tbody').empty();
 
-        // 2nd: add all files based on the metadata from Value
-        $(Value).each(function() {
-            FileID = this.FileID;
-            ButtonStrg = '<button type="button" id="AttachmentDeleteButton' + FileID + '" name="AttachmentDeleteButton' + FileID + '" value="Delete" class="SpacingLeft">' + Core.Language.Translate('Delete') + '</button>';
-            InputStrg = '<input type="hidden" id="AttachmentDelete' + this.FileID + '" name="AttachmentDelete' + this.FileID + '" />';
-            $('#FileUpload').parent().before(
-                '<li>' + this.Filename + ' (' + this.Filesize + ')' + ButtonStrg + InputStrg + '</li>'
-            );
+        // go through all attachments and append them to the attachment table
+        $(Attachments).each(function() {
 
-            //3rd: set form submit and disable validation on attachment delete
-            $('#AttachmentDeleteButton' + FileID).on('click', function () {
-                var $Form = $(this).closest('form');
-                $(this).next('input[type=hidden]').val(1);
-                Core.Form.Validate.DisableValidation($Form);
-                $Form.trigger('submit');
+            var AttachmentItem = Core.Template.Render('AjaxDnDUpload/AttachmentItem', {
+                'Filename' : this.Filename,
+                'Filetype' : this.ContentType,
+                'Filesize' : this.Filesize,
+                'FileID'   : this.FileID,
             });
+
+            $(AttachmentItem).prependTo($('.AttachmentList tbody')).fadeIn();
         });
+
+        // make sure to display the attachment table only if any attachments
+        // are actually in it.
+        if ($('.AttachmentList tbody tr').length) {
+            $('.AttachmentList').show();
+        }
+        else {
+            $('.AttachmentList').hide();
+        }
     }
 
     /**
@@ -403,7 +398,7 @@ Core.AJAX = (function (TargetNS) {
             OldUrl = location.href,
             NewUrl = Core.Config.Get('Baselink') + "RequestedURL=" + encodeURIComponent(OldUrl);
 
-        if (Headers.match(/X-OTRS-Login: /)) {
+        if (Headers.match(/X-OTRS-Login: /i)) {
             location.href = NewUrl;
             return true;
         }

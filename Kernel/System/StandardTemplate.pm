@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -79,7 +79,7 @@ sub StandardTemplateAdd {
     if ( $Self->NameExistsCheck( Name => $Param{Name} ) ) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => "A standard template with name '$Param{Name}' already exists!"
+            Message  => "A standard template with the name '$Param{Name}' already exists.",
         );
         return;
     }
@@ -279,7 +279,7 @@ sub StandardTemplateUpdate {
     {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => "A standard template with name '$Param{Name}' already exists!"
+            Message  => "A standard template with the name '$Param{Name}' already exists.",
         );
         return;
     }

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -30,12 +30,12 @@ $Selenium->RunTest(
             },
             {
                 Key           => 'Action',
-                ExpectedValue => 'AgentHTMLReference',
+                ExpectedValue => 'AgentTicketPhone',
                 Environment   => 1,
             },
             {
                 Key           => 'Subaction',
-                ExpectedValue => 'Overview',
+                ExpectedValue => undef,
                 Environment   => 1,
             },
             {
@@ -49,17 +49,8 @@ $Selenium->RunTest(
                 ExpectedValue => 'OTRSUTValue',
             },
             {
-                Key           => 'SpellChecker',
-                ExpectedValue => '3',
-            },
-            {
                 Key           => 'CheckEmailAddresses',
                 ExpectedValue => '3',
-            },
-            {
-                Key           => 'Ticket::Frontend::NeedSpellCheck',
-                JSKey         => 'NeedSpellCheck',
-                ExpectedValue => '4',
             },
             {
                 Key           => 'Frontend::RichText',
@@ -122,7 +113,7 @@ $Selenium->RunTest(
         my $ScriptAlias = $ConfigObject->Get('ScriptAlias');
 
         # go to some dummy page
-        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentHTMLReference;Subaction=Overview");
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentTicketPhone");
 
         for my $Test (@Tests) {
 

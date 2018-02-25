@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -77,6 +77,16 @@ Core.Customer = (function (TargetNS) {
                 + Core.Language.Translate('Please see the documentation or ask your admin for further information.')
             );
         }
+
+        // check if we're on a touch device and on the regular resolution (non-mobile). If that's the case,
+        // don't allow triggering the link on "parent" elements directly, they should only expand the sub menu
+        Core.App.Responsive.CheckIfTouchDevice();
+        $('#Navigation > ul > li > a').on('click', function(Event) {
+            if (Core.App.Responsive.IsTouchDevice() && $(this).next('ul:visible').length && Core.App.Responsive.GetScreenSize() === 'ScreenXL') {
+                Event.preventDefault();
+                Event.stopPropagation();
+            }
+        });
 
         // unveil full error details only on click
         $('.TriggerFullErrorDetails').on('click', function() {

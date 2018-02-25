@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -57,7 +57,7 @@ Core.Agent.Admin = Core.Agent.Admin || {};
                     true,
                     [
                         {
-                            Label: Core.Language.Translate('Close'),
+                            Label: Core.Language.Translate('Close this dialog'),
                             Class: 'Primary',
                             Function: function () {
                                 Core.UI.Dialog.CloseDialog($('.SendUpdateResultDialog'));
@@ -100,7 +100,7 @@ Core.Agent.Admin = Core.Agent.Admin || {};
                         true,
                         [
                             {
-                                Label: Core.Language.Translate('Close'),
+                                Label: Core.Language.Translate('Close this dialog'),
                                 Class: 'Primary',
                                 Function: function () {
                                     Core.UI.Dialog.CloseDialog($('.NoSupportBunle'));
@@ -119,7 +119,7 @@ Core.Agent.Admin = Core.Agent.Admin || {};
                         true,
                         [
                             {
-                                Label: Core.Language.Translate("Close"),
+                                Label: Core.Language.Translate("Close this dialog"),
                                 Class: 'Primary',
                                 Function: function () {
                                     Core.UI.Dialog.CloseDialog($('#SupportBundleOptionsDialog'));

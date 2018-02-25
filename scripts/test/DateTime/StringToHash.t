@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -72,11 +72,75 @@ my @TestConfigs = (
     },
     {
         String         => '2014-1-2 15:4:25',
-        ExpectedResult => undef,
+        ExpectedResult => {
+            Year   => 2014,
+            Month  => 1,
+            Day    => 2,
+            Hour   => 15,
+            Minute => 4,
+            Second => 25,
+        },
     },
     {
         String         => '2014-INVALID-01-01 00:07:45',
         ExpectedResult => undef,
+    },
+    {
+        String         => '2017-05-09T07:00:09+00:00',
+        ExpectedResult => {
+            Year   => 2017,
+            Month  => 5,
+            Day    => 9,
+            Hour   => 7,
+            Minute => 0,
+            Second => 9,
+        },
+    },
+    {
+        String         => '2017-05-09T07:00:09+01:00',
+        ExpectedResult => {
+            Year   => 2017,
+            Month  => 5,
+            Day    => 9,
+            Hour   => 6,
+            Minute => 0,
+            Second => 9,
+        },
+    },
+    {
+        String         => '2017-05-09T07:00:09+0100',
+        ExpectedResult => {
+            Year   => 2017,
+            Month  => 5,
+            Day    => 9,
+            Hour   => 6,
+            Minute => 0,
+            Second => 9,
+        },
+    },
+    {
+        String         => '2017-05-09T07:00:09 GMT',
+        ExpectedResult => {
+            Year     => 2017,
+            Month    => 5,
+            Day      => 9,
+            Hour     => 7,
+            Minute   => 0,
+            Second   => 9,
+            TimeZone => 'GMT',
+        },
+    },
+    {
+        String         => '2017-05-09T07:00:09Europe/Berlin',
+        ExpectedResult => {
+            Year     => 2017,
+            Month    => 5,
+            Day      => 9,
+            Hour     => 7,
+            Minute   => 0,
+            Second   => 9,
+            TimeZone => 'Europe/Berlin',
+        },
     },
 );
 

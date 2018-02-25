@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -23,7 +23,7 @@ our @ObjectDependencies = (
     'Kernel::System::Registration',
     'Kernel::System::SupportDataCollector',
     'Kernel::System::SysConfig',
-    'Kernel::System::Time',
+    'Kernel::System::DateTime',
 );
 
 =head1 NAME
@@ -218,15 +218,8 @@ sub Generate {
         }
     }
 
-    # get time object
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
-
-    ## no critic
-    my ( $s, $m, $h, $D, $M, $Y, $wd, $yd, $dst ) = $TimeObject->SystemTime2Date(
-        SystemTime => $TimeObject->SystemTime(),
-    );
-    ## use critic
-    my $Filename = "SupportBundle_$Y-$M-$D" . '_' . "$h-$m";
+    my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+    my $Filename = "SupportBundle_" . $DateTimeObject->Format( Format => "%Y-%m-%d_%H-%M" );
 
     # add files to the tar archive
     my $Archive   = $TempDir . '/' . $Filename;
@@ -341,24 +334,31 @@ sub GenerateCustomFilesArchive {
     my $HomeWithoutSlash = $Self->{Home};
     $HomeWithoutSlash =~ s{\A\/}{};
 
-    # Mask Passwords in files
+    # Mask passwords in Config files.
     CONFIGFILE:
-    for my $FilePath (qw(/Kernel/Config.pm /Kernel/Config/Files/ZZZAAuto.pm /Kernel/Config/Files/ZZZAuto.pm)) {
+    for my $ConfigFile ( $TarObject->list_files() ) {
 
-        my $FullFilePath = $HomeWithoutSlash . $FilePath;
-        my $FileString   = $TarObject->get_content($FullFilePath);
+        my $File = $ConfigFile;
+        $File =~ s{$HomeWithoutSlash/}{}g;
+        my $FullFilePath = $HomeWithoutSlash . '/' . $File;
 
-        if ( !$FileString ) {
+        next CONFIGFILE if ( $File !~ 'Kernel/Config.pm' && $File !~ 'Kernel/Config/Files' );
+
+        my $Content = $TarObject->get_content($FullFilePath);
+
+        if ( !$Content ) {
             $Kernel::OM->Get('Kernel::System::Log')->Log(
                 Priority => 'error',
-                Message  => "$FilePath was not found in the modified files!",
+                Message  => "$File was not found in the modified files!",
             );
             next CONFIGFILE;
         }
 
-        $FileString = $Self->_MaskPasswords( StringToMask => $FileString );
+        $Content = $Self->_MaskPasswords(
+            StringToMask => $Content,
+        );
 
-        $TarObject->replace_content( $FullFilePath, $FileString );
+        $TarObject->replace_content( $FullFilePath, $Content );
     }
 
     my $Write = $TarObject->write( $CustomFilesArchive, 0 );
@@ -543,7 +543,12 @@ Returns:
 sub GenerateSupportData {
     my ( $Self, %Param ) = @_;
 
-    my %SupportData = $Kernel::OM->Get('Kernel::System::SupportDataCollector')->Collect();
+    my $SupportDataCollectorWebTimeout
+        = $Kernel::OM->Get('Kernel::Config')->Get('SupportDataCollector::WebUserAgent::Timeout');
+
+    my %SupportData = $Kernel::OM->Get('Kernel::System::SupportDataCollector')->Collect(
+        WebTimeout => $SupportDataCollectorWebTimeout,
+    );
 
     my $JSONContent = $Kernel::OM->Get('Kernel::System::JSON')->Encode(
         Data => \%SupportData,
@@ -610,7 +615,7 @@ sub _GetCustomFileList {
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
     # article directory
-    my $ArticleDir = $ConfigObject->Get('ArticleDir');
+    my $ArticleDir = $ConfigObject->Get('Ticket::Article::Backend::MIMEBase::ArticleDataDir');
 
     # cleanup file name
     $ArticleDir =~ s/\/\//\//g;
@@ -702,30 +707,15 @@ sub _MaskPasswords {
 
     my $StringToMask = $Param{StringToMask};
 
-    my @TrimAction = qw(
-        DatabasePw
-        SearchUserPw
-        UserPw
-        SendmailModule::AuthPassword
-        AuthModule::Radius::Password
-        PGP::Key::Password
-        Customer::AuthModule::DB::CustomerPassword
-        Customer::AuthModule::Radius::Password
-        PublicFrontend::AuthPassword
-    );
+    # Trim any passswords.
+    # Simple settings like $Self->{'DatabasePw'} or $Self->{'AuthModule::LDAP::SearchUserPw1'}.
+    $StringToMask =~ s/(\$Self->\{'*[^']+(?:Password|Pw)\d*'*\}\s*=\s*)\'.*?\'/$1\'xxx\'/mg;
 
-    STRING:
-    for my $String (@TrimAction) {
-        next STRING if !$String;
-        if ( !$Param{YAML} ) {
-            $StringToMask =~ s/(^\s*\$Self.*?$String.*?=.*?)\'.*?\';/$1\'xxx\';/mg;
-        }
-        else {
-            $StringToMask =~ s/($String:.*?EffectiveValue:).*?\n/$1 xxx \n/sxg;
-        }
-    }
-
-    $StringToMask =~ s/(^\s+Password.*?=>.*?)\'.*?\',/$1\'xxx\',/mg;
+    # Complex settings like:
+    #     $Self->{CustomerUser1} = {
+    #         Params => {
+    #             UserPw => 'xxx',
+    $StringToMask =~ s/((?:Password|Pw)\d*\s*=>\s*)\'.*?\'/$1\'xxx\'/mg;
 
     return $StringToMask;
 

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -100,13 +100,13 @@ sub Run {
 
         # get single params
         for my $Parameter (
-            qw(TicketNumber Title From To Cc Subject Body CustomerID
+            qw(TicketNumber Title MIMEBase_From MIMEBase_To MIMEBase_Cc MIMEBase_Subject MIMEBase_Body CustomerID
             CustomerUserLogin Agent SearchInArchive
             NewTitle
             NewCustomerID NewPendingTime NewPendingTimeType NewCustomerUserLogin
             NewStateID NewQueueID NewPriorityID NewOwnerID NewResponsibleID
             NewTypeID NewServiceID NewSLAID
-            NewNoteFrom NewNoteSubject NewNoteBody NewArticleType NewNoteTimeUnits NewModule
+            NewNoteFrom NewNoteSubject NewNoteBody NewNoteIsVisibleForCustomer NewNoteTimeUnits NewModule
             NewParamKey1 NewParamKey2 NewParamKey3 NewParamKey4
             NewParamValue1 NewParamValue2 NewParamValue3 NewParamValue4
             NewParamKey5 NewParamKey6 NewParamKey7 NewParamKey8
@@ -250,11 +250,11 @@ sub Run {
 
         # Check if ticket selection contains stop words
         my %StopWordsServerErrors = $Self->_StopWordsServerErrorsGet(
-            From    => $GetParam{From},
-            To      => $GetParam{To},
-            Cc      => $GetParam{Cc},
-            Subject => $GetParam{Subject},
-            Body    => $GetParam{Body},
+            MIMEBase_From    => $GetParam{MIMEBase_From},
+            MIMEBase_To      => $GetParam{MIMEBase_To},
+            MIMEBase_Cc      => $GetParam{MIMEBase_Cc},
+            MIMEBase_Subject => $GetParam{MIMEBase_Subject},
+            MIMEBase_Body    => $GetParam{MIMEBase_Body},
         );
         %Errors = ( %Errors, %StopWordsServerErrors );
 
@@ -752,11 +752,11 @@ sub _MaskUpdate {
     my %StopWordsServerErrors;
     if ( !$Param{StopWordsAlreadyChecked} ) {
         %StopWordsServerErrors = $Self->_StopWordsServerErrorsGet(
-            From    => $JobData{From},
-            To      => $JobData{To},
-            Cc      => $JobData{Cc},
-            Subject => $JobData{Subject},
-            Body    => $JobData{Body},
+            MIMEBase_From    => $JobData{MIMEBase_From},
+            MIMEBase_To      => $JobData{MIMEBase_To},
+            MIMEBase_Cc      => $JobData{MIMEBase_Cc},
+            MIMEBase_Subject => $JobData{MIMEBase_Subject},
+            MIMEBase_Body    => $JobData{MIMEBase_Body},
         );
     }
 
@@ -1154,19 +1154,13 @@ sub _MaskUpdate {
 
         # refresh event list for each event type
 
-        # hide inactive event lists
-        my $EventListHidden = '';
-        if ( $Type ne $SelectedEventType ) {
-            $EventListHidden = 'Hidden';
-        }
-
         # paint each selector
         my $EventStrg = $LayoutObject->BuildSelection(
             Data => $RegisteredEvents{$Type} || [],
             Name => $Type . 'Event',
             Sort => 'AlphanumericValue',
             PossibleNone => 0,
-            Class        => 'EventList GenericInterfaceSpacing ' . $EventListHidden,
+            Class        => 'Modernize EventList GenericInterfaceSpacing',
             Title        => $LayoutObject->{LanguageObject}->Translate('Event'),
         );
 
@@ -1180,27 +1174,6 @@ sub _MaskUpdate {
         push @EventTypeList, $Type;
     }
 
-    my %ArticleTypeData = (
-        'note-internal' => 'note-internal',
-        'note-external' => 'note-external',
-    );
-
-    my $NewArticleType = $LayoutObject->BuildSelection(
-        Data        => \%ArticleTypeData,
-        Name        => 'NewArticleType',
-        Multiple    => 0,
-        Size        => 2,
-        Translation => 1,
-        SelectedID  => $JobData{NewArticleType} || 'note-internal',
-        Class       => 'Modernize',
-    );
-    $LayoutObject->Block(
-        Name => 'NewArticleType',
-        Data => {
-            NewArticleType => $NewArticleType,
-        },
-    );
-
     # create event type selector
     my $EventTypeStrg = $LayoutObject->BuildSelection(
         Data          => \@EventTypeList,
@@ -1208,7 +1181,7 @@ sub _MaskUpdate {
         Sort          => 'AlphanumericValue',
         SelectedValue => $SelectedEventType,
         PossibleNone  => 0,
-        Class         => '',
+        Class         => 'Modernize',
         Title         => $LayoutObject->{LanguageObject}->Translate('Type'),
     );
     $LayoutObject->Block(
@@ -1354,7 +1327,7 @@ sub _MaskRun {
             Data => {
                 Counter  => $Counter,
                 RunLimit => $RunLimit,
-                }
+            },
         );
     }
 
@@ -1364,22 +1337,26 @@ sub _MaskRun {
         );
         for my $TicketID (@TicketIDs) {
 
-            # get first article data
-            my %Data = $ArticleObject->ArticleFirstArticle(
+            # Get ticket data.
+            my %Ticket = $TicketObject->TicketGet(
                 TicketID      => $TicketID,
                 DynamicFields => 0,
             );
 
-            # Fall-back for tickets without articles
-            if ( !%Data ) {
+            # Get article data.
+            my @Articles = $ArticleObject->ArticleList(
+                TicketID  => $TicketID,
+                OnlyFirst => 1,
+            );
+            my %Article;
+            for my $Article (@Articles) {
+                %Article = $ArticleObject->BackendForArticle( %{$Article} )->ArticleGet( %{$Article} );
+            }
 
-                # get ticket data instead
-                %Data = $TicketObject->TicketGet(
-                    TicketID      => $TicketID,
-                    DynamicFields => 0,
-                );
+            my %Data = ( %Ticket, %Article );
 
-                # set missing information
+            # Set missing information for tickets without articles.
+            if ( !%Article ) {
                 $Data{Subject} = $Data{Title};
             }
 
@@ -1395,7 +1372,7 @@ sub _MaskRun {
             );
             $Data{UserLastname}  = $UserInfo{UserLastname};
             $Data{UserFirstname} = $UserInfo{UserFirstname};
-
+            $Data{UserFullname}  = $UserInfo{UserFullname};
             $LayoutObject->Block(
                 Name => 'Ticket',
                 Data => \%Data,
@@ -1433,8 +1410,10 @@ sub _StopWordsServerErrorsGet {
         );
     }
 
+    my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+
     my %StopWordsServerErrors;
-    if ( !$Kernel::OM->Get('Kernel::System::Ticket')->SearchStringStopWordsUsageWarningActive() ) {
+    if ( !$ArticleObject->SearchStringStopWordsUsageWarningActive() ) {
         return %StopWordsServerErrors;
     }
 
@@ -1450,8 +1429,8 @@ sub _StopWordsServerErrorsGet {
 
     if (%SearchStrings) {
 
-        my $StopWords = $Kernel::OM->Get('Kernel::System::Ticket')->SearchStringStopWordsFind(
-            SearchStrings => \%SearchStrings
+        my $StopWords = $ArticleObject->SearchStringStopWordsFind(
+            SearchStrings => \%SearchStrings,
         );
 
         FIELD:

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,16 +12,13 @@ use utf8;
 
 use vars (qw($Self));
 
-# get selenium object
 my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 
 $Selenium->RunTest(
     sub {
 
-        # get helper object
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
-        # get needed variable
         my $RandomID = $Helper->GetRandomID();
 
         # set generic agent run limit
@@ -38,29 +35,16 @@ $Selenium->RunTest(
             Value => 1,
         );
 
-        # disable modernize fields
-        $Helper->ConfigSettingChange(
-            Key   => 'ModernizeFormFields',
-            Value => 0,
-        );
-
-        # create test user and login
+        # Create test user.
         my $TestUserLogin = $Helper->TestUserCreate(
             Groups => [ 'admin', 'users' ],
         ) || die "Did not get test user";
-
-        $Selenium->Login(
-            Type     => 'Agent',
-            User     => $TestUserLogin,
-            Password => $TestUserLogin,
-        );
 
         # get test user ID
         my $UserID = $Kernel::OM->Get('Kernel::System::User')->UserLookup(
             UserLogin => $TestUserLogin,
         );
 
-        # get dynamic field object
         my $DynamicFieldObject = $Kernel::OM->Get('Kernel::System::DynamicField');
 
         # create test dynamic field of type date
@@ -141,7 +125,13 @@ $Selenium->RunTest(
 
         }
 
-        # get script alias
+        # Login as test user.
+        $Selenium->Login(
+            Type     => 'Agent',
+            User     => $TestUserLogin,
+            Password => $TestUserLogin,
+        );
+
         my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
 
         # navigate to AdminGenericAgent screen
@@ -181,8 +171,10 @@ $Selenium->RunTest(
         # Toggle widgets
         $Selenium->execute_script('$(".WidgetSimple.Collapsed .WidgetAction.Toggle a").click();');
 
-        # test AddEvent() JS function
-        $Selenium->find_element( "#AddEvent", 'css' )->click();
+        # Add test event.
+        $Selenium->execute_script(
+            "\$('#TicketEvent').val('EscalationResponseTimeStart').trigger('redraw.InputField').trigger('change');"
+        );
 
         $Self->Is(
             $Selenium->execute_script(
@@ -192,8 +184,12 @@ $Selenium->RunTest(
             'JS function AddEvent() is success',
         );
 
-        # try to add same event, test ShowDuplicatedDialog() JS function
-        $Selenium->find_element( "#AddEvent", 'css' )->click();
+        # Try to add same event, it should result in an error.
+        for my $Event (qw(EscalationResponseTimeNotifyBefore EscalationResponseTimeStart)) {
+            $Selenium->execute_script(
+                "\$('#TicketEvent').val('$Event').trigger('redraw.InputField').trigger('change');"
+            );
+        }
 
         # wait for dialog to show up, if necessary
         $Selenium->WaitFor(
@@ -218,7 +214,7 @@ $Selenium->RunTest(
         );
 
         # click to delete added event, confirmation dialog will appear
-        $Selenium->execute_script("\$('#EventsTable tbody tr:eq(1) #DeleteEvent').click();");
+        $Selenium->execute_script("\$('#EventsTable tbody tr:eq(2) #DeleteEvent').click();");
 
         # wait for dialog to show up, if necessary
         $Selenium->WaitFor(
@@ -242,11 +238,23 @@ $Selenium->RunTest(
         # verify delete action event
         $Self->Is(
             $Selenium->execute_script(
-                "return \$('#EventsTable tbody tr:eq(1)').length"
+                "return \$('#EventsTable tbody tr:eq(2)').length"
             ),
             '0',
             'Added event is deleted',
         );
+
+        # Disable modernize fields to check buttons for clearing selections.
+        $Helper->ConfigSettingChange(
+            Key   => 'ModernizeFormFields',
+            Value => 0,
+        );
+
+        # Refresh the page.
+        $Selenium->VerifiedRefresh();
+
+        # Toggle all widgets.
+        $Selenium->execute_script('$(".WidgetSimple.Collapsed .WidgetAction.Toggle a").click();');
 
         # check AddSelectClearButton() JS function
         $Selenium->find_element( "#PriorityIDs option[value='1']", 'css' )->click();
@@ -277,10 +285,10 @@ $Selenium->RunTest(
         # see bug#12210 for more information
         $Selenium->find_element( "#DynamicField_${DynamicFieldName}Year", 'css' )->send_keys('2015');
 
-        $Selenium->find_element( "#DynamicField_${CheckboxDynamicFieldName}Used1", 'css' )->VerifiedClick();
+        $Selenium->find_element( "#DynamicField_${CheckboxDynamicFieldName}Used1", 'css' )->click();
 
         # save job
-        $Selenium->find_element( "#Profile", 'css' )->VerifiedSubmit();
+        $Selenium->find_element( "#Submit", 'css' )->VerifiedClick();
 
         # check if test job show on AdminGenericAgent
         $Self->True(
@@ -291,7 +299,11 @@ $Selenium->RunTest(
         # verify filter will show no result for invalid input
         my $InvalidName = 'Invalid' . $RandomID;
         $Selenium->find_element( "#FilterGenericAgentJobs", 'css' )->send_keys($InvalidName);
-        sleep 1;
+
+        $Selenium->WaitFor(
+            JavaScript =>
+                "return typeof(\$) === 'function' && \$('table tbody tr td:contains($GenericAgentJob):hidden').length === 1"
+        );
 
         my $CSSDisplay = $Selenium->execute_script(
             "return \$('table tbody tr td:contains($GenericAgentJob)').parent().css('display')"
@@ -306,7 +318,10 @@ $Selenium->RunTest(
         # verify filter show correct result for valid input
         $Selenium->find_element( "#FilterGenericAgentJobs", 'css' )->clear();
         $Selenium->find_element( "#FilterGenericAgentJobs", 'css' )->send_keys($GenericAgentJob);
-        sleep 1;
+        $Selenium->WaitFor(
+            JavaScript =>
+                "return typeof(\$) === 'function' && \$('table tbody tr td:contains($GenericAgentJob):visible').length === 1"
+        );
 
         $CSSDisplay = $Selenium->execute_script(
             "return \$('table tbody tr td:contains($GenericAgentJob)').parent().css('display')"
@@ -344,7 +359,7 @@ $Selenium->RunTest(
         );
 
         $Selenium->execute_script("\$('#NewDelete').val('1').trigger('redraw.InputField').trigger('change');");
-        $Selenium->find_element( "#Profile", 'css' )->VerifiedSubmit();
+        $Selenium->find_element( "#Submit", 'css' )->VerifiedClick();
 
         # run test job
         $Selenium->find_element("//a[contains(\@href, \'Subaction=Run;Profile=$GenericAgentJob' )]")->VerifiedClick();
@@ -421,7 +436,7 @@ $Selenium->RunTest(
         $Selenium->find_element( $GenericAgentJob, 'link_text' )->VerifiedClick();
 
         $Selenium->execute_script("\$('#Valid').val('0').trigger('redraw.InputField').trigger('change');");
-        $Selenium->find_element( "#Profile", 'css' )->VerifiedSubmit();
+        $Selenium->find_element( "#Submit", 'css' )->VerifiedClick();
 
         # check class of invalid generic job in the overview table
         $Self->True(

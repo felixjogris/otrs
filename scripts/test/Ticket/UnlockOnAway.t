@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,10 +12,12 @@ use utf8;
 
 use vars (qw($Self));
 
-my $UserObject    = $Kernel::OM->Get('Kernel::System::User');
-my $TicketObject  = $Kernel::OM->Get('Kernel::System::Ticket');
-my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
-my $TimeObject    = $Kernel::OM->Get('Kernel::System::Time');
+my $UserObject           = $Kernel::OM->Get('Kernel::System::User');
+my $TicketObject         = $Kernel::OM->Get('Kernel::System::Ticket');
+my $DateTimeObject       = $Kernel::OM->Create('Kernel::System::DateTime');
+my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForChannel(
+    ChannelName => 'Internal',
+);
 
 # get helper object
 $Kernel::OM->ObjectParamAdd(
@@ -53,18 +55,18 @@ my $TicketID = $TicketObject->TicketCreate(
 
 $Self->True( $TicketID, 'Could create ticket' );
 
-$ArticleObject->ArticleCreate(
-    TicketID       => $TicketID,
-    ArticleType    => 'note-internal',
-    SenderType     => 'agent',
-    Subject        => 'Should not unlock',
-    Body           => '.',
-    ContentType    => 'text/plain; charset=UTF-8',
-    HistoryComment => 'Just a test',
-    HistoryType    => 'OwnerUpdate',
-    UserID         => 1,
-    NoAgentNotify  => 1,
-    UnlockOnAway   => 1,
+$ArticleBackendObject->ArticleCreate(
+    TicketID             => $TicketID,
+    SenderType           => 'agent',
+    IsVisibleForCustomer => 0,
+    Subject              => 'Should not unlock',
+    Body                 => '.',
+    ContentType          => 'text/plain; charset=UTF-8',
+    HistoryComment       => 'Just a test',
+    HistoryType          => 'OwnerUpdate',
+    UserID               => 1,
+    NoAgentNotify        => 1,
+    UnlockOnAway         => 1,
 );
 my %Ticket = $TicketObject->TicketGet(
     TicketID => $TicketID,
@@ -82,58 +84,56 @@ $UserObject->SetPreferences(
     Value  => 1,
 );
 
-my ( $Sec, $Min, $Hour, $Day, $Month, $Year, $WeekDay ) = $TimeObject->SystemTime2Date(
-    SystemTime => $TimeObject->SystemTime(),
-);
+my $DTValues = $DateTimeObject->Get();
 
 # Special case for leap years. There is no Feb 29 in the next and previous years in this case.
-if ( $Month == 2 && $Day == 29 ) {
-    $Day--;
+if ( $DTValues->{Month} == 2 && $DTValues->{Day} == 29 ) {
+    $DTValues->{Day}--;
 }
 
 $UserObject->SetPreferences(
     UserID => $Ticket{OwnerID},
     Key    => 'OutOfOfficeStartYear',
-    Value  => $Year - 1,
+    Value  => $DTValues->{Year} - 1,
 );
 $UserObject->SetPreferences(
     UserID => $Ticket{OwnerID},
     Key    => 'OutOfOfficeEndYear',
-    Value  => $Year + 1,
+    Value  => $DTValues->{Year} + 1,
 );
 $UserObject->SetPreferences(
     UserID => $Ticket{OwnerID},
     Key    => 'OutOfOfficeStartMonth',
-    Value  => $Month,
+    Value  => $DTValues->{Month},
 );
 $UserObject->SetPreferences(
     UserID => $Ticket{OwnerID},
     Key    => 'OutOfOfficeEndMonth',
-    Value  => $Month,
+    Value  => $DTValues->{Month},
 );
 $UserObject->SetPreferences(
     UserID => $Ticket{OwnerID},
     Key    => 'OutOfOfficeStartDay',
-    Value  => $Day,
+    Value  => $DTValues->{Day},
 );
 $UserObject->SetPreferences(
     UserID => $Ticket{OwnerID},
     Key    => 'OutOfOfficeEndDay',
-    Value  => $Day,
+    Value  => $DTValues->{Day},
 );
 
-$ArticleObject->ArticleCreate(
-    TicketID       => $TicketID,
-    ArticleType    => 'note-internal',
-    SenderType     => 'agent',
-    Subject        => 'Should now unlock',
-    Body           => '.',
-    ContentType    => 'text/plain; charset=UTF-8',
-    HistoryComment => 'Just a test',
-    HistoryType    => 'OwnerUpdate',
-    UserID         => 1,
-    NoAgentNotify  => 1,
-    UnlockOnAway   => 1,
+$ArticleBackendObject->ArticleCreate(
+    TicketID             => $TicketID,
+    SenderType           => 'agent',
+    IsVisibleForCustomer => 0,
+    Subject              => 'Should now unlock',
+    Body                 => '.',
+    ContentType          => 'text/plain; charset=UTF-8',
+    HistoryComment       => 'Just a test',
+    HistoryType          => 'OwnerUpdate',
+    UserID               => 1,
+    NoAgentNotify        => 1,
+    UnlockOnAway         => 1,
 );
 %Ticket = $TicketObject->TicketGet(
     TicketID => $TicketID,

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -47,35 +47,32 @@ return if !$DBObject->Do(
 #
 # Prepare valid config XML and Perl
 #
-my @ValidSettingXML = (
-    <<'EOF',
-<Setting Name="Test1" Required="1" Valid="1">
-    <Description Translatable="1">Test 1.</Description>
-    <Navigation>Core::Ticket</Navigation>
-    <Value>
-        <Item ValueType="String" ValueRegex=".*">Test setting 1</Item>
-    </Value>
-</Setting>
+my $ValidSettingXML = <<'EOF',
+<?xml version="1.0" encoding="utf-8" ?>
+<otrs_config version="2.0" init="Framework">
+    <Setting Name="Test1" Required="1" Valid="1">
+        <Description Translatable="1">Test 1.</Description>
+        <Navigation>Core::Ticket</Navigation>
+        <Value>
+            <Item ValueType="String" ValueRegex=".*">Test setting 1</Item>
+        </Value>
+    </Setting>
+        <<'EOF',
+    <Setting Name="Test2" Required="1" Valid="1">
+        <Description Translatable="1">Test 2.</Description>
+        <Navigation>Core::Ticket</Navigation>
+        <Value>
+            <Item ValueType="File">/usr/bin/gpg</Item>
+        </Value>
+    </Setting>
+</otrs_config>
 EOF
-    <<'EOF',
-<Setting Name="Test2" Required="1" Valid="1">
-    <Description Translatable="1">Test 2.</Description>
-    <Navigation>Core::Ticket</Navigation>
-    <Value>
-        <Item ValueType="File">/usr/bin/gpg</Item>
-    </Value>
-</Setting>
-EOF
-);
 
-my $SysConfigXMLObject = $Kernel::OM->Get('Kernel::System::SysConfig::XML');
-my @ValidSettingXMLAndPerl;
-for my $ValidSettingXML (@ValidSettingXML) {
-    push @ValidSettingXMLAndPerl, {
-        XML  => $ValidSettingXML,
-        Perl => $SysConfigXMLObject->SettingParse( SettingXML => $ValidSettingXML ),
-    };
-}
+    my $SysConfigXMLObject = $Kernel::OM->Get('Kernel::System::SysConfig::XML');
+
+my @DefaultSettingAddParams = $SysConfigXMLObject->SettingListParse(
+    XMLInput => $ValidSettingXML,
+);
 
 my $SysConfigDBObject = $Kernel::OM->Get('Kernel::System::SysConfig::DB');
 
@@ -92,8 +89,8 @@ my $DefaultSettingID1 = $SysConfigDBObject->DefaultSettingAdd(
     HasConfigLevel           => 200,
     UserModificationPossible => 1,
     UserModificationActive   => 1,
-    XMLContentRaw            => $ValidSettingXMLAndPerl[0]->{XML},
-    XMLContentParsed         => $ValidSettingXMLAndPerl[0]->{Perl},
+    XMLContentRaw            => $DefaultSettingAddParams[0]->{XMLContentRaw},
+    XMLContentParsed         => $DefaultSettingAddParams[0]->{XMLContentParsed},
     XMLFilename              => 'UnitTest.xml',
     EffectiveValue           => 'Test setting 1',
     UserID                   => 1,
@@ -111,8 +108,8 @@ my $DefaultSettingID2 = $SysConfigDBObject->DefaultSettingAdd(
     HasConfigLevel           => 200,
     UserModificationPossible => 1,
     UserModificationActive   => 1,
-    XMLContentRaw            => $ValidSettingXMLAndPerl[0]->{XML},
-    XMLContentParsed         => $ValidSettingXMLAndPerl[0]->{Perl},
+    XMLContentRaw            => $DefaultSettingAddParams[0]->{XMLContentRaw},
+    XMLContentParsed         => $DefaultSettingAddParams[0]->{XMLContentParsed},
     XMLFilename              => 'UnitTest.xml',
     EffectiveValue           => 'Test setting 2',
     UserID                   => 1,
@@ -130,8 +127,8 @@ my $DefaultSettingID3 = $SysConfigDBObject->DefaultSettingAdd(
     HasConfigLevel           => 200,
     UserModificationPossible => 1,
     UserModificationActive   => 1,
-    XMLContentRaw            => $ValidSettingXMLAndPerl[0]->{XML},
-    XMLContentParsed         => $ValidSettingXMLAndPerl[0]->{Perl},
+    XMLContentRaw            => $DefaultSettingAddParams[0]->{XMLContentRaw},
+    XMLContentParsed         => $DefaultSettingAddParams[0]->{XMLContentParsed},
     XMLFilename              => 'UnitTest.xml',
     EffectiveValue           => 'Test setting 3',
     UserID                   => 1,
@@ -149,8 +146,8 @@ my $DefaultSettingID4 = $SysConfigDBObject->DefaultSettingAdd(
     HasConfigLevel           => 200,
     UserModificationPossible => 1,
     UserModificationActive   => 1,
-    XMLContentRaw            => $ValidSettingXMLAndPerl[0]->{XML},
-    XMLContentParsed         => $ValidSettingXMLAndPerl[0]->{Perl},
+    XMLContentRaw            => $DefaultSettingAddParams[0]->{XMLContentRaw},
+    XMLContentParsed         => $DefaultSettingAddParams[0]->{XMLContentParsed},
     XMLFilename              => 'UnitTest.xml',
     EffectiveValue           => 'Test setting 4',
     UserID                   => 1,

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,7 +12,7 @@ package var::processes::examples::Application_for_leave_pre;
 use strict;
 use warnings;
 
-use base qw(var::processes::examples::Base);
+use parent qw(var::processes::examples::Base);
 
 our @ObjectDependencies = ();
 

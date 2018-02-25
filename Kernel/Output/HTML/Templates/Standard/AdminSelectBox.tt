@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -7,7 +7,16 @@
 # --
 
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
-    <h1>[% Translate("SQL Box") | html %]</h1>
+    <h1 class="InvisibleText">[% Translate("SQL Box") | html %]</h1>
+
+    [% BreadcrumbPath = [
+            {
+                Name => Translate('SQL Box'),
+            },
+        ]
+    %]
+
+    [% INCLUDE "Breadcrumb.tt" Path = BreadcrumbPath %]
 
     <div class="SidebarColumn">
 [% RenderBlockStart("ResultFilter") %]
@@ -98,7 +107,7 @@
 [% RenderBlockStart("Result") %]
         <div class="WidgetSimple">
             <div class="Header">
-                <h2>[% Data.MatchesFound | html %] [% Translate("Results") | html %]</h2>
+                <h2>[% Translate("%s Results", Data.MatchesFound) | html %]</h2>
             </div>
             <div class="Content">
                 <table class="DataTable" id="Results">

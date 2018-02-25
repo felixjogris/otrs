@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,7 +8,7 @@
 
 package Kernel::Output::HTML::ArticleCompose::Crypt;
 
-use base 'Kernel::Output::HTML::Base';
+use parent 'Kernel::Output::HTML::Base';
 
 use strict;
 use warnings;
@@ -128,8 +128,7 @@ sub Run {
             Value            => $List,
             Invalid          => $InvalidMessage,
             FieldExplanation => Translatable(
-                'Keys/certificates will only be shown for recipients with more than one key/certificate.'
-                    . ' The first found key/certificate will be pre-selected. Please make sure to select the correct one.'
+                'Keys/certificates will only be shown for recipients with more than one key/certificate. The first found key/certificate will be pre-selected. Please make sure to select the correct one.'
             ),
         },
     );

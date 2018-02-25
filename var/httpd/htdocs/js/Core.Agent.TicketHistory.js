@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -28,6 +28,7 @@ Core.Agent.TicketHistory = (function (TargetNS) {
      *      This function initializes the functionality for the TicketHistory screen.
      */
     TargetNS.Init = function () {
+        var $FilterHistory = $('#FilterHistory');
 
         // bind click event on ZoomView link
         $('a.LinkZoomView').on('click', function () {
@@ -37,6 +38,23 @@ Core.Agent.TicketHistory = (function (TargetNS) {
             });
             Core.UI.Popup.ClosePopup();
         });
+
+        $('#ExpandCollapseAll').off('click').on('click', function() {
+            if ($(this).hasClass('Collapsed')) {
+                $('.WidgetSimple:not(.HistoryActions)').removeClass('Collapsed').addClass('Expanded');
+                $(this).removeClass('Collapsed');
+            }
+            else {
+                $('.WidgetSimple:not(.HistoryActions)').removeClass('Expanded').addClass('Collapsed');
+                $(this).addClass('Collapsed');
+            }
+            return false;
+        });
+
+        Core.UI.Table.InitTableFilter($FilterHistory, $('.DataTable'), undefined, true);
+
+        // Focus filter
+        $FilterHistory.trigger('keydown.FilterInput').focus();
     };
 
     Core.Init.RegisterNamespace(TargetNS, 'APP_MODULE');

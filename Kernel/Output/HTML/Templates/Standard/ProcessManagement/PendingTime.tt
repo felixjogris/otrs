@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -19,9 +19,9 @@
     [% Data.Content %]
     <div id="PendingTimeDayError" class="TooltipErrorMessage"><p>[% Data.PendingtTimeDayError | html %]</p></div>
     <div id="PendingTimeHourError" class="TooltipErrorMessage"><p>[% Data.PendingtTimeHourError | html %]</p></div>
-[% RenderBlockStart("rw:Owner:DescriptionShort") %]
+[% RenderBlockStart("rw:PendingTime:DescriptionShort") %]
     <div class="FieldExplanation">[% Data.DescriptionShort | html %]</div>
-[% RenderBlockEnd("rw:Owner:DescriptionShort") %]
+[% RenderBlockEnd("rw:PendingTime:DescriptionShort") %]
 </div>
 <div class="Clear"></div>
 [% RenderBlockEnd("rw:PendingTime") %]

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,45 +12,92 @@ use utf8;
 
 use vars (qw($Self));
 
-# get selenium object
 my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 
 $Selenium->RunTest(
     sub {
 
-        # get helper object
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
-        # create test user and login
+        # Disable check email addresses.
+        $Helper->ConfigSettingChange(
+            Key   => 'CheckEmailAddresses',
+            Value => 0,
+        );
+
+        # Create test user.
         my $TestUserLogin = $Helper->TestUserCreate(
             Groups => [ 'admin', 'users' ],
         ) || die "Did not get test user";
 
-        $Selenium->Login(
-            Type     => 'Agent',
-            User     => $TestUserLogin,
-            Password => $TestUserLogin,
-        );
-
-        # get test user ID
+        # Get test user ID.
         my $TestUserID = $Kernel::OM->Get('Kernel::System::User')->UserLookup(
             UserLogin => $TestUserLogin,
         );
 
-        # create test customer user
+        # Create test customer user.
         my $TestCustomerUserLogin = $Helper->TestCustomerUserCreate(
         ) || die "Did not get test customer user";
 
-        # get test customer user ID
+        # Get test customer user ID.
         my @CustomerIDs = $Kernel::OM->Get('Kernel::System::CustomerUser')->CustomerIDs(
             User => $TestCustomerUserLogin,
         );
-        my $CustomerID = $CustomerIDs[0];
+        my $CustomerID            = $CustomerIDs[0];
+        my $CustomerCompanyObject = $Kernel::OM->Get('Kernel::System::CustomerCompany');
+        my $CustomerUserObject    = $Kernel::OM->Get('Kernel::System::CustomerUser');
 
-        # get needed objects
+        my $RandomID    = $Helper->GetRandomID();
+        my $CompanyRand = 'Customer-Company' . $RandomID;
+
+        my $CustomersID = $CustomerCompanyObject->CustomerCompanyAdd(
+            CustomerID             => $CompanyRand,
+            CustomerCompanyName    => $CompanyRand . ' Inc',
+            CustomerCompanyStreet  => 'Some Street',
+            CustomerCompanyZIP     => '12345',
+            CustomerCompanyCity    => 'Some city',
+            CustomerCompanyCountry => 'USA',
+            CustomerCompanyURL     => 'http://example.com',
+            CustomerCompanyComment => 'some comment',
+            ValidID                => 1,
+            UserID                 => 1,
+        );
+
+        $Self->True(
+            $CustomerID,
+            "CustomerCompanyAdd() - $CustomerID",
+        );
+
+        my @CustomerUserIDs;
+        my @UserEmails;
+        for my $Key ( 1 .. 5 ) {
+            my $UserEmail = 'unittest-' . $Key . $RandomID . '-Email@example.com';
+
+            my $CustomerUserID = $CustomerUserObject->CustomerUserAdd(
+                Source         => 'CustomerUser',
+                UserFirstname  => 'Firstname' . $Key,
+                UserLastname   => 'Lastname' . $Key,
+                UserCustomerID => $CustomerID,
+                UserLogin      => $RandomID . 'CustomerUser' . $Key,
+                UserEmail      => $UserEmail,
+                UserPassword   => 'some_pass',
+                ValidID        => 1,
+                UserID         => 1,
+            );
+
+            $Self->True(
+                $CustomerUserID,
+                "CustomerUserAdd() - $CustomerUserID",
+            );
+
+            push @CustomerUserIDs, $CustomerUserID;
+            push @UserEmails,      $UserEmail;
+
+        }
+
         my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
 
-        # create test data parameters
+        # Create test data parameters.
         my %TicketData = (
             'Open' => {
                 TicketState   => 'open',
@@ -59,16 +106,16 @@ $Selenium->RunTest(
                 TicketIDs     => [],
                 TicketLink    => 'Open',
             },
-            'closed' => {
+            'Closed' => {
                 TicketState   => 'closed successful',
                 TicketCount   => '',
                 TicketNumbers => [],
                 TicketIDs     => [],
-                TicketLink    => 'closed',
+                TicketLink    => 'Closed',
             },
         );
 
-        # create open and closed tickets
+        # Create open and closed tickets.
         for my $TicketCreate ( sort keys %TicketData ) {
             for my $TestTickets ( 1 .. 5 ) {
                 my $TicketNumber = $TicketObject->TicketCreateNumber();
@@ -100,23 +147,41 @@ $Selenium->RunTest(
             $TicketData{$TicketCreate}->{TicketCount} = $TicketCount;
         }
 
-        # get script alias
+        # Login as test user.
+        $Selenium->Login(
+            Type     => 'Agent',
+            User     => $TestUserLogin,
+            Password => $TestUserLogin,
+        );
+
         my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
 
-        # navigate to AdminCustomerInformationCenter screen
+        # Navigate to AdminCustomerInformationCenter screen.
         $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentCustomerInformationCenter");
         $Selenium->WaitFor(
             JavaScript =>
                 'return typeof($) === "function" && $("#AgentCustomerInformationCenterSearchCustomerID").length'
         );
 
-        # input search parameters
+        # Input search parameters for CustomerUser.
+        $Selenium->find_element( "#AgentCustomerInformationCenterSearchCustomerUser", 'css' )
+            ->send_keys( $RandomID . 'CustomerUser' . '*' );
+
+        $Selenium->WaitFor( JavaScript => "return \$('.ui-menu:eq(1) li').length > 0;" );
+
+        $Self->Is(
+            $Selenium->execute_script("return \$('.ui-menu:eq(1) li').length;"), 5,
+            'Check result of customer user search.',
+        );
+        $Selenium->find_element( "#AgentCustomerInformationCenterSearchCustomerUser", 'css' )->clear();
+
+        # Input search parameters CustomerID.
         $Selenium->find_element( "#AgentCustomerInformationCenterSearchCustomerID", 'css' )
             ->send_keys($TestCustomerUserLogin);
         $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("li.ui-menu-item:visible").length' );
-        $Selenium->find_element("//*[text()='$TestCustomerUserLogin']")->VerifiedClick();
+        $Selenium->execute_script("\$('li.ui-menu-item:contains($TestCustomerUserLogin)').click()");
 
-        # check customer information center page
+        # Check customer information center page.
         $Self->True(
             index( $Selenium->get_page_source(), "Customer Information Center" ) > -1,
             "Found looked value on page",
@@ -142,24 +207,24 @@ $Selenium->RunTest(
             "Setting for toggle widgets found on page",
         );
 
-        # check if there is link to CIC search modal dialog from heading (name of the company)
+        # Check if there is link to CIC search modal dialog from heading (name of the company).
         $Self->True(
             $Selenium->find_element( "#CustomerInformationCenterHeading", 'css' ),
             'There is link to customer information center search modal dialog.',
         );
 
-        # test links in Company Status widget
+        # Test links in Company Status widget.
         for my $TestLinks ( sort keys %TicketData ) {
 
-            # click on link
+            # Click on link.
             $Selenium->find_element(
                 "//a[contains(\@href, \'Subaction=Search;StateType=$TicketData{$TestLinks}->{TicketLink};CustomerIDRaw=$TestCustomerUserLogin' )]"
             )->VerifiedClick();
 
-            # wait until page has loaded, if necessary
+            # Wait until page has loaded, if necessary.
             $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("body").length' );
 
-            # check for test ticket numbers on search screen
+            # Check for test ticket numbers on search screen.
             for my $CheckTicketNumbers ( @{ $TicketData{$TestLinks}->{TicketNumbers} } ) {
                 $Self->True(
                     index( $Selenium->get_page_source(), $CheckTicketNumbers ) > -1,
@@ -167,25 +232,85 @@ $Selenium->RunTest(
                 );
             }
 
-            # click on 'Change search option'
+            # Click on 'Change search option'.
             $Selenium->find_element(
                 "//a[contains(\@href, \'AgentTicketSearch;Subaction=LoadProfile' )]"
-            )->VerifiedClick();
+            )->click();
 
-            # wait until search dialog has been loaded
-            $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("#SearchFormSubmit").length' );
+            # Wait until search dialog has been loaded.
+            $Selenium->WaitFor( JavaScript => 'return $("#SearchFormSubmit").length' );
 
-            # verify state search attributes are shown in search screen, see bug #10853
+            # Verify state search attributes are shown in search screen, see bug #10853.
             $Selenium->find_element( "#StateIDs", 'css' );
 
-            # open CIC again for the next test case
+            # Open CIC again for the next test case.
             $Selenium->VerifiedGet(
                 "${ScriptAlias}index.pl?Action=AgentCustomerInformationCenter;CustomerID=$TestCustomerUserLogin"
             );
 
         }
 
-        # delete created test tickets
+        # Create new Email ticket.
+        $Selenium->find_element(
+            "//a[contains(\@href, \"Action=AgentTicketEmail;Subaction=StoreNew;ExpandCustomerName=2;CustomerUser=$CustomerUserIDs[0]\" )]"
+        )->VerifiedClick();
+
+        # Confirm I'm on New Email Ticket screen.
+        $Self->True(
+            index( $Selenium->get_page_source(), "Create New Email Ticket" ) > -1,
+            "Found looked value on page",
+        );
+
+        # Select input field and type inside.
+        $Selenium->find_element( "#ToCustomer", 'css' )->send_keys( $CustomerUserIDs[0] );
+
+        # Click on wanted element in dropdown menu.
+        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("li.ui-menu-item:visible").length' );
+        $Selenium->execute_script("\$('li.ui-menu-item:contains($CustomerUserIDs[0])').click()");
+        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $(".Dialog.Modal").length' );
+
+        $Self->Is(
+            $Selenium->execute_script('return $(".Dialog.Modal .Header h1").text().trim();'),
+            'Duplicated entry',
+            "Warning dialog for entry duplication is found",
+        );
+
+        # Close error message.
+        $Selenium->find_element( "#DialogButton1", 'css' )->click();
+        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && !$(".Dialog.Modal").length' );
+
+        # Go to previous.
+        $Selenium->VerifiedGet(
+            "${ScriptAlias}index.pl?Action=AgentCustomerInformationCenter;CustomerID=$TestCustomerUserLogin"
+        );
+
+        # Create new Phone ticket.
+        $Selenium->find_element(
+            "//a[contains(\@href, \"AgentTicketPhone;Subaction=StoreNew;ExpandCustomerName=2;CustomerUser=$CustomerUserIDs[0]\" )]"
+        )->VerifiedClick();
+
+        # Confirm I'm on New Phone Ticket screen.
+        $Self->True(
+            index( $Selenium->get_page_source(), "Create New Phone Ticket" ) > -1,
+            "Found looked value on page",
+        );
+
+        # Select input field and type inside.
+        $Selenium->find_element( "#FromCustomer", 'css' )->send_keys( $CustomerUserIDs[0] );
+
+        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("li.ui-menu-item:visible").length' );
+        $Selenium->execute_script("\$('li.ui-menu-item:contains($CustomerUserIDs[0])').click()");
+
+        # Error is expected.
+        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $(".Dialog.Modal").length' );
+
+        $Self->Is(
+            $Selenium->execute_script('return $(".Dialog.Modal .Header h1").text().trim();'),
+            'Duplicated entry',
+            "Warning dialog for entry duplication is found",
+        );
+
+        # Delete created test tickets.
         for my $TicketState ( sort keys %TicketData ) {
             for my $TicketID ( @{ $TicketData{$TicketState}->{TicketIDs} } ) {
 
@@ -201,7 +326,29 @@ $Selenium->RunTest(
             }
         }
 
-        # make sure cache is correct
+        # Delete created test customer user and customer company.
+        my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
+        for my $CustomerID (@CustomerUserIDs) {
+            my $Success = $DBObject->Do(
+                SQL  => "DELETE FROM customer_user WHERE login = ?",
+                Bind => [ \$CustomerID ],
+            );
+            $Self->True(
+                $Success,
+                "Deleted Customers - $CustomerID",
+            );
+        }
+
+        my $Success = $DBObject->Do(
+            SQL  => "DELETE FROM customer_company WHERE customer_id = ?",
+            Bind => [ \$CompanyRand ],
+        );
+        $Self->True(
+            $Success,
+            "Deleted CustomerUser - $CustomerID",
+        );
+
+        # make sure cache is correct.
         $Kernel::OM->Get('Kernel::System::Cache')->CleanUp( Type => 'Ticket' );
     }
 );

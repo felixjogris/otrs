@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,7 +8,7 @@
 
 [% RenderBlockStart("Overview") %]
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
-    <h1>[% Translate("S/MIME Management") | html %][% IF Data.Subtitle %]:[% END %] [% Translate(Data.Subtitle) | html %]</h1>
+    <h1 class="InvisibleText">[% Translate("S/MIME Management") | html %][% IF Data.Subtitle %]:[% END %] [% Translate(Data.Subtitle) | html %]</h1>
 
     [% BreadcrumbPath = [
             {
@@ -34,10 +34,8 @@
             </div>
             <div class="Content ActionList">
                 <form action="[% Env("CGIHandle") %]" method="post">
-                    <input type="hidden" name="Action" value="AdminSystemConfiguration"/>
-                    <input type="hidden" name="Subaction" value="Edit"/>
-                    <input type="hidden" name="SysConfigGroup" value="Framework"/>
-                    <input type="hidden" name="SysConfigSubGroup" value="Crypt::SMIME"/>
+                    <input type="hidden" name="Action" value="AdminSystemConfigurationGroup"/>
+                    <input type="hidden" name="RootNavigation" value="Core::Crypt::SMIME"/>
 [% RenderBlockStart("Disabled") %]
                     <h3><span class="Warning">[% Translate("SMIME support is disabled") | html %]<span></h3>
                     <fieldset>
@@ -248,7 +246,7 @@
                     <div class="Clear"></div>
 
                     <div class="Field SpacingTop">
-                        <button class="Primary CallForAction" type="submit" value="[% Translate("Add")%]"><span>[% Translate("Add") | html %]</span></button>
+                        <button class="Primary CallForAction" type="submit" value="[% Translate("Add") | html %]"><span>[% Translate("Add") | html %]</span></button>
                         [% Translate("or") | html %]
                         <a href="[% Env("Baselink") %]Action=[% Env("Action") %]">[% Translate("Cancel") | html %]</a>
                     </div>

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -1009,8 +1009,9 @@ for my $Test (@Tests) {
     next TEST if !$DBSuccess;
 
     # Delete cache to get fresh data.
-    $CacheObject->CleanUp(
-        Type => 'SysConfigInvalid',
+    $CacheObject->Delete(
+        Type => 'SysConfig',
+        Key  => 'ConfigurationInvalidList'
     );
 
     my @InvalidSettings = $SysConfigObject->ConfigurationInvalidList();

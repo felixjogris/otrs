@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -26,7 +26,8 @@ sub new {
     # get parser object
     $Self->{ParserObject} = $Param{ParserObject} || die "Got no ParserObject!";
 
-    $Self->{Debug} = $Param{Debug} || 0;
+    # Get communication log object.
+    $Self->{CommunicationLogObject} = $Param{CommunicationLogObject} || die "Got no CommunicationLogObject!";
 
     return $Self;
 }
@@ -37,9 +38,11 @@ sub Run {
     # check needed stuff
     for (qw(JobConfig GetParam)) {
         if ( !$Param{$_} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "Need $_!"
+            $Self->{CommunicationLogObject}->ObjectLog(
+                ObjectLogType => 'Message',
+                Priority      => 'Error',
+                Key           => 'Kernel::System::PostMaster::Filter::MatchDBSource',
+                Value         => "Need $_!",
             );
             return;
         }
@@ -58,13 +61,13 @@ sub Run {
         # get config options
         my %Config = $PostMasterFilter->FilterGet( Name => $_ );
 
-        my %Match;
-        my %Set;
+        my @Match;
+        my @Set;
         if ( $Config{Match} ) {
-            %Match = %{ $Config{Match} };
+            @Match = @{ $Config{Match} };
         }
         if ( $Config{Set} ) {
-            %Set = %{ $Config{Set} };
+            @Set = @{ $Config{Set} };
         }
         my $StopAfterMatch = $Config{StopAfterMatch} || 0;
         my $Prefix = '';
@@ -76,56 +79,64 @@ sub Run {
         my $Matched       = 0;    # Numbers are required because of the bitwise or in the negation.
         my $MatchedNot    = 0;
         my $MatchedResult = '';
-        for ( sort keys %Match ) {
+        for my $Index ( 0 .. ( scalar @Match ) - 1 ) {
+            my $Key   = $Match[$Index]->{Key};
+            my $Value = $Match[$Index]->{Value};
 
             # match only email addresses
-            if ( defined $Param{GetParam}->{$_} && $Match{$_} =~ /^EMAILADDRESS:(.*)$/ ) {
+            if ( defined $Param{GetParam}->{$Key} && $Value =~ /^EMAILADDRESS:(.*)$/ ) {
                 my $SearchEmail    = $1;
                 my @EmailAddresses = $Self->{ParserObject}->SplitAddressLine(
-                    Line => $Param{GetParam}->{$_},
+                    Line => $Param{GetParam}->{$Key},
                 );
-                my $LocalMatched;
+                my $LocalMatched = 0;
                 RECIPIENT:
                 for my $Recipients (@EmailAddresses) {
+
                     my $Email = $Self->{ParserObject}->GetEmailAddress( Email => $Recipients );
+
                     next RECIPIENT if !$Email;
+
                     if ( $Email =~ /^$SearchEmail$/i ) {
+
                         $LocalMatched = 1;
+
                         if ($SearchEmail) {
                             $MatchedResult = $SearchEmail;
                             $NamedCaptures{email} = $SearchEmail;
                         }
-                        if ( $Self->{Debug} > 1 ) {
-                            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                                Priority => 'debug',
-                                Message =>
-                                    "$Prefix'$Param{GetParam}->{$_}' =~ /$Match{$_}/i matched!",
-                            );
-                        }
+
+                        $Self->{CommunicationLogObject}->ObjectLog(
+                            ObjectLogType => 'Message',
+                            Priority      => 'Debug',
+                            Key           => 'Kernel::System::PostMaster::Filter::MatchDBSource',
+                            Value         => "$Prefix'$Param{GetParam}->{$Key}' =~ /$Value/i matched!",
+                        );
+
                         last RECIPIENT;
                     }
                 }
+
+                # Switch LocalMatched if Config has a negation.
+                if ( $Config{Not}->[$Index]->{Value} ) {
+                    $LocalMatched = !$LocalMatched;
+                }
+
                 if ( !$LocalMatched ) {
                     $MatchedNot = 1;
                 }
                 else {
                     $Matched = 1;
                 }
-
-                # switch MatchedNot and $Matched
-                if ( $Config{Not}->{$_} ) {
-                    $MatchedNot ^= 1;
-                    $Matched    ^= 1;
-                }
             }
 
             # match string
             elsif (
-                defined $Param{GetParam}->{$_} &&
+                defined $Param{GetParam}->{$Key} &&
                 (
-                    ( !$Config{Not}->{$_} && $Param{GetParam}->{$_} =~ m{$Match{$_}}i )
+                    ( !$Config{Not}->[$Index]->{Value} && $Param{GetParam}->{$Key} =~ m{$Value}i )
                     ||
-                    ( $Config{Not}->{$_} && $Param{GetParam}->{$_} !~ m{$Match{$_}}i )
+                    ( $Config{Not}->[$Index]->{Value} && $Param{GetParam}->{$Key} !~ m{$Value}i )
                 )
                 )
             {
@@ -144,46 +155,56 @@ sub Run {
                     @NamedCaptures{@Keys} = @Values;
                 }
 
-                if ( $Self->{Debug} > 1 ) {
-                    my $Op = $Config{Not}->{$_} ? '!' : "=";
+                my $Op = $Config{Not}->[$Index]->{Value} ? '!' : "=";
 
-                    $Kernel::OM->Get('Kernel::System::Log')->Log(
-                        Priority => 'debug',
-                        Message =>
-                            "successful $Prefix'$Param{GetParam}->{$_}' $Op~ /$Match{$_}/i !",
-                    );
-                }
+                $Self->{CommunicationLogObject}->ObjectLog(
+                    ObjectLogType => 'Message',
+                    Priority      => 'Debug',
+                    Key           => 'Kernel::System::PostMaster::Filter::MatchDBSource',
+                    Value         => "successful $Prefix'$Param{GetParam}->{$Key}' $Op~ /$Value/i !",
+                );
             }
             else {
+
                 $MatchedNot = 1;
-                if ( $Self->{Debug} > 1 ) {
-                    $Kernel::OM->Get('Kernel::System::Log')->Log(
-                        Priority => 'debug',
-                        Message  => "$Prefix'$Param{GetParam}->{$_}' =~ /$Match{$_}/i matched NOT!",
-                    );
-                }
+
+                $Self->{CommunicationLogObject}->ObjectLog(
+                    ObjectLogType => 'Message',
+                    Priority      => 'Debug',
+                    Key           => 'Kernel::System::PostMaster::Filter::MatchDBSource',
+                    Value         => "$Prefix'$Param{GetParam}->{$Key}' =~ /$Value/i matched NOT!",
+                );
+
             }
         }
 
         # should I ignore the incoming mail?
         if ( $Matched && !$MatchedNot ) {
-            for ( sort keys %Set ) {
-                $Set{$_} =~ s/\[\*\*\*\]/$MatchedResult/;
-                $Set{$_} =~ s/\[\*\* \\(\w+) \*\*\]/$NamedCaptures{$1}/xmsg;
+            for my $SetItem (@Set) {
+                my $Key   = $SetItem->{Key};
+                my $Value = $SetItem->{Value};
 
-                $Param{GetParam}->{$_} = $Set{$_};
-                $Kernel::OM->Get('Kernel::System::Log')->Log(
-                    Priority => 'notice',
-                    Message  => $Prefix
-                        . "Set param '$_' to '$Set{$_}' (Message-ID: $Param{GetParam}->{'Message-ID'}) ",
+                $Value =~ s/\[\*\*\*\]/$MatchedResult/;
+                $Value =~ s/\[\*\* \\(\w+) \*\*\]/$NamedCaptures{$1}/xmsg;
+
+                $Param{GetParam}->{$Key} = $Value;
+
+                $Self->{CommunicationLogObject}->ObjectLog(
+                    ObjectLogType => 'Message',
+                    Priority      => 'Notice',
+                    Key           => 'Kernel::System::PostMaster::Filter::MatchDBSource',
+                    Value         => $Prefix
+                        . "Set param '$Key' to '$Value' (Message-ID: $Param{GetParam}->{'Message-ID'}) ",
                 );
             }
 
             # stop after match
             if ($StopAfterMatch) {
-                $Kernel::OM->Get('Kernel::System::Log')->Log(
-                    Priority => 'notice',
-                    Message  => $Prefix
+                $Self->{CommunicationLogObject}->ObjectLog(
+                    ObjectLogType => 'Message',
+                    Priority      => 'Notice',
+                    Key           => 'Kernel::System::PostMaster::Filter::MatchDBSource',
+                    Value         => $Prefix
                         . "Stopped filter processing because of used 'StopAfterMatch' (Message-ID: $Param{GetParam}->{'Message-ID'}) ",
                 );
                 return 1;

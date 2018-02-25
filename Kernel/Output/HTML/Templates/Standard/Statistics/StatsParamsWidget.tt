@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -71,10 +71,10 @@
     <label>[% Translate(Data.Name) | html %]:</label>
     <div class="Value">
 [% RenderBlockStart("TimePeriodFixed") %]
-        [% Translate("Between") | html %] [% Data.TimeStart %] [% Translate("and") | html %] [% Data.TimeStop %]<br/>
+        [% Translate("Between %s and %s") | html | ReplacePlaceholders(Data.TimeStart, Data.TimeStop) %]<br/>
 [% RenderBlockEnd("TimePeriodFixed") %]
 [% RenderBlockStart("TimeRelativeFixed") %]
-        [% Translate("The past complete %s and the current+upcoming complete %s %s", Data.TimeRelativeCount, Data.TimeRelativeUpcomingCount, Data.TimeRelativeUnit) %]<br/>
+        [% Translate("The past complete %s and the current+upcoming complete %s %s") | html | ReplacePlaceholders(Data.TimeRelativeCount, Data.TimeRelativeUpcomingCount, Data.TimeRelativeUnit) %]<br/>
 [% RenderBlockEnd("TimeRelativeFixed") %]
 [% RenderBlockStart("TimeScaleFixed") %]
         [% Translate("Scale") | html %]: [% Data.Count %] [% Translate(Data.Scale) | html %]
@@ -98,7 +98,7 @@
         [% Data.SelectField %]
 [% RenderBlockEnd("SelectField") %]
 [% RenderBlockStart("InputField") %]
-        <input type="text" name="[% Data.Key | html %]" value="[% Data.Value | html %]" class="W25pc"/>
+        <input type="text" id="[% Data.Key | html %]" name="[% Data.Key | html %]" value="[% Data.Value | html %]" class="W25pc [% Data.CSSClass | html %]"[% FOR DataAttribute IN Data.HTMLDataAttributes.keys.sort %] data-[% DataAttribute | html %]="[% Data.HTMLDataAttributes.$DataAttribute | html %]"[% END %]/>
 [% RenderBlockEnd("InputField") %]
     </div>
     <div class="Clear"></div>
@@ -107,7 +107,7 @@
     <label><em>[% Translate("Absolute period") | html %]</em>:</label>
     <div class="Value">
         <p>
-            [% Translate('Between') | html %] [% Data.TimeStart %] [% Translate("and") | html %] [% Data.TimeStop %]<br/>
+            [% Translate("Between %s and %s") | html | ReplacePlaceholders(Data.TimeStart, Data.TimeStop) %]<br/>
         </p>
     </div>
     <div class="Clear"></div>
@@ -127,7 +127,7 @@
 [% RenderBlockStart("TimePeriodRelative") %]
     <label><em>[% Translate("Relative period") | html %]</em>:</label>
     <div class="Value">
-        [% Translate("The past complete %s and the current+upcoming complete %s %s", Data.TimeRelativeCount, Data.TimeRelativeUpcomingCount, Data.TimeRelativeUnit) %]
+        [% Translate("The past complete %s and the current+upcoming complete %s %s") | html | ReplacePlaceholders(Data.TimeRelativeCount, Data.TimeRelativeUpcomingCount, Data.TimeRelativeUnit) %]
     </div>
     <div class="Clear"></div>
 [% RenderBlockEnd("TimePeriodRelative") %]

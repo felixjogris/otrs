@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -82,8 +82,8 @@ $Selenium->RunTest(
         $Selenium->find_element( "#HostAdd",     'css' )->send_keys("pop3.example.com");
         $Selenium->execute_script("\$('#Trusted').val('0').trigger('redraw.InputField').trigger('change');");
         $Selenium->execute_script("\$('#DispatchingBy').val('Queue').trigger('redraw.InputField').trigger('change');");
-        $Selenium->find_element( "#Comment",  'css' )->send_keys("Selenium test AdminMailAccount");
-        $Selenium->find_element( "#LoginAdd", 'css' )->VerifiedSubmit();
+        $Selenium->find_element( "#Comment", 'css' )->send_keys("Selenium test AdminMailAccount");
+        $Selenium->find_element( "#Submit",  'css' )->VerifiedClick();
 
         # check if test mail account is present
         my $TestMailHost = "pop3.example.com / $RandomID";
@@ -138,9 +138,15 @@ $Selenium->RunTest(
             'Password after adding',    # make sure real password was stored
         );
 
-        # Save current screen and verify that the password is not changed even though it was not sent to the user.
-        $Selenium->find_element( "#LoginEdit", 'css' )->VerifiedSubmit();
+        # Save current screen.
+        $Selenium->find_element( "#Submit", 'css' )->VerifiedClick();
 
+        # Discard the instance of cache object, because of in-memory cache.
+        $Kernel::OM->ObjectsDiscard(
+            Objects => ['Kernel::System::Cache'],
+        );
+
+        # Verify that the password is not changed even though it was not sent to the user.
         $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AdminMailAccount;Subaction=Update;ID=$MailAccountID");
         %MailAccount = $Kernel::OM->Get('Kernel::System::MailAccount')->MailAccountGet( ID => $MailAccountID );
         $Self->Is(
@@ -152,7 +158,12 @@ $Selenium->RunTest(
         # Update password and verify that it is changed in DB.
         $Selenium->find_element( "#PasswordEdit", 'css' )->clear();
         $Selenium->find_element( "#PasswordEdit", 'css' )->send_keys("SomePassword2");
-        $Selenium->find_element( "#LoginEdit",    'css' )->VerifiedSubmit();
+        $Selenium->find_element( "#Submit",       'css' )->VerifiedClick();
+
+        # Discard the instance of cache object, because of in-memory cache.
+        $Kernel::OM->ObjectsDiscard(
+            Objects => ['Kernel::System::Cache'],
+        );
 
         %MailAccount = $Kernel::OM->Get('Kernel::System::MailAccount')->MailAccountGet( ID => $MailAccountID );
         $Self->Is(
@@ -167,7 +178,7 @@ $Selenium->RunTest(
         $Selenium->find_element( "#HostEdit", 'css' )->clear();
         $Selenium->find_element( "#HostEdit", 'css' )->send_keys("pop3edit.example.com");
         $Selenium->execute_script("\$('#ValidID').val('2').trigger('redraw.InputField').trigger('change');");
-        $Selenium->find_element( "#LoginEdit", 'css' )->VerifiedSubmit();
+        $Selenium->find_element( "#Submit", 'css' )->VerifiedClick();
 
         # check class of invalid EmailAccount in the overview table
         $Self->True(

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -31,6 +31,7 @@ sub Run {
     my $ParamObject = $Kernel::OM->Get('Kernel::System::Web::Request');
 
     # get ArticleID
+    my $TicketID  = $ParamObject->GetParam( Param => 'TicketID' );
     my $ArticleID = $ParamObject->GetParam( Param => 'ArticleID' );
     my $FileID    = $ParamObject->GetParam( Param => 'FileID' );
 
@@ -39,50 +40,50 @@ sub Run {
     my $LogObject    = $Kernel::OM->Get('Kernel::System::Log');
 
     # check params
-    if ( !$FileID || !$ArticleID ) {
+    if ( !$FileID || !$ArticleID || !$TicketID ) {
         $LogObject->Log(
-            Message  => 'FileID and ArticleID are needed!',
+            Message  => 'FileID, TicketID and ArticleID are needed!',
             Priority => 'error',
         );
         return $LayoutObject->ErrorScreen();
     }
+
+    my $TicketNumber = $Kernel::OM->Get('Kernel::System::Ticket')->TicketNumberLookup(
+        TicketID => $TicketID,
+    );
 
     # get needed objects
-    my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+    my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForArticle(
+        TicketID  => $TicketID,
+        ArticleID => $ArticleID,
+    );
 
     # check permissions
-    my %Article = $ArticleObject->ArticleGet(
+    my %Article = $ArticleBackendObject->ArticleGet(
+        TicketID      => $TicketID,
         ArticleID     => $ArticleID,
         DynamicFields => 0,
-        UserID        => $Self->{UserID},
     );
-    if ( !$Article{TicketID} ) {
-        $LogObject->Log(
-            Message  => "No TicketID for ArticleID ($ArticleID)!",
-            Priority => 'error',
-        );
-        return $LayoutObject->ErrorScreen();
-    }
 
     # check permissions
     my $Access = $Kernel::OM->Get('Kernel::System::Ticket')->TicketPermission(
         Type     => 'ro',
-        TicketID => $Article{TicketID},
-        UserID   => $Self->{UserID}
+        TicketID => $TicketID,
+        UserID   => $Self->{UserID},
     );
     if ( !$Access ) {
+
         return $LayoutObject->NoPermission( WithHeader => 'yes' );
     }
 
     # get a attachment
-    my %Data = $ArticleObject->ArticleAttachment(
+    my %Data = $ArticleBackendObject->ArticleAttachment(
         ArticleID => $ArticleID,
         FileID    => $FileID,
-        UserID    => $Self->{UserID},
     );
     if ( !%Data ) {
         $LogObject->Log(
-            Message  => "No such attacment ($FileID)! May be an attack!!!",
+            Message  => "No such attachment ($FileID).",
             Priority => 'error',
         );
         return $LayoutObject->ErrorScreen();
@@ -145,86 +146,6 @@ sub Run {
             Content     => $Content,
             Type        => 'inline',
             Sandbox     => 1,
-        );
-    }
-
-    # view attachment for html email
-    if ( $Self->{Subaction} eq 'HTMLView' ) {
-
-        # set download type to inline
-        $ConfigObject->Set(
-            Key   => 'AttachmentDownloadType',
-            Value => 'inline'
-        );
-
-        # just return for non-html attachment (e. g. images)
-        if ( $Data{ContentType} !~ /text\/html/i ) {
-            return $LayoutObject->Attachment(
-                %Data,
-                Sandbox => 1,
-            );
-        }
-
-        # set filename for inline viewing
-        $Data{Filename} = "Ticket-$Article{TicketNumber}-ArticleID-$Article{ArticleID}.html";
-
-        my $LoadExternalImages = $ParamObject->GetParam(
-            Param => 'LoadExternalImages'
-        ) || 0;
-
-        # safety check only on customer article
-        if ( !$LoadExternalImages && $Article{SenderType} ne 'customer' ) {
-            $LoadExternalImages = 1;
-        }
-
-        # generate base url
-        my $URL = 'Action=AgentTicketAttachment;Subaction=HTMLView'
-            . ";ArticleID=$ArticleID;FileID=";
-
-        # replace links to inline images in html content
-        my %AtmBox = $ArticleObject->ArticleAttachmentIndex(
-            ArticleID => $ArticleID,
-            UserID    => $Self->{UserID},
-        );
-
-        # reformat rich text document to have correct charset and links to
-        # inline documents
-        %Data = $LayoutObject->RichTextDocumentServe(
-            Data               => \%Data,
-            URL                => $URL,
-            Attachments        => \%AtmBox,
-            LoadExternalImages => $LoadExternalImages,
-        );
-
-        # if there is unexpectedly pgp decrypted content in the html email (OE),
-        # we will use the article body (plain text) from the database as fall back
-        # see bug#9672
-        if (
-            $Data{Content} =~ m{
-            ^ .* -----BEGIN [ ] PGP [ ] MESSAGE-----  .* $      # grep PGP begin tag
-            .+                                                  # PGP parts may be nested in html
-            ^ .* -----END [ ] PGP [ ] MESSAGE-----  .* $        # grep PGP end tag
-        }xms
-            )
-        {
-
-            # html quoting
-            $Article{Body} = $LayoutObject->Ascii2Html(
-                NewLine        => $ConfigObject->Get('DefaultViewNewLine'),
-                Text           => $Article{Body},
-                VMax           => $ConfigObject->Get('DefaultViewLines') || 5000,
-                HTMLResultMode => 1,
-                LinkFeature    => 1,
-            );
-
-            # use the article body as content, because pgp was definitly descrypted if possible
-            $Data{Content} = $Article{Body};
-        }
-
-        # return html attachment
-        return $LayoutObject->Attachment(
-            %Data,
-            Sandbox => 1,
         );
     }
 

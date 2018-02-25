@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -302,6 +302,18 @@ sub Run {
 
     # otherwise use Preview as default as in LayoutTicket
     $View ||= 'Preview';
+
+    # Check if selected view is available.
+    my $Backends = $ConfigObject->Get('Ticket::Frontend::Overview');
+    if ( !$Backends->{$View} ) {
+
+        # Try to find fallback, take first configured view mode.
+        KEY:
+        for my $Key ( sort keys %{$Backends} ) {
+            $View = $Key;
+            last KEY;
+        }
+    }
 
     # get personal page shown count
     my $PageShownPreferencesKey = 'UserTicketOverview' . $View . 'PageShown';

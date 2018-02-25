@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -1623,6 +1623,7 @@ sub _ShowOverview {
         $Key =~ s{^.*/([^/]+)$}{$1}smx;
         my $Value = $Key;
         $Value =~ s{^(.+).yml}{$1}smx;
+        $Value =~ s{_}{ }smxg;
         $ExampleProcessData{$Key} = $Value;
     }
 
@@ -2054,11 +2055,6 @@ sub _PushSessionScreen {
     );
 
     return 1;
-}
-
-sub _GetFullProcessConfig {
-    my ( $Self, %Param )
-
 }
 
 sub _GetProcessData {

@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -41,30 +41,31 @@ Core.Agent.LinkObject.SearchForm = (function (TargetNS) {
         }
 
         $('#TargetIdentifier').on('change', function () {
-            $('#SubmitSelect').addClass('gotclicked');
+            $('#LinkSearchForm').addClass('SkipFieldCheck');
+            Core.UI.Dialog.ShowWaitingDialog(undefined, Core.Language.Translate("Please wait..."));
             $(this).closest('form').submit();
         });
 
         // Two submits in this form
         // if SubmitSelect or AddLinks button was clicked,
-        // add "gotclicked" class to this button
-        $('#SubmitSelect, #AddLinks').on('click.Submit', function () {
-           $('#SubmitSelect').addClass('gotclicked');
+        // add "SkipFieldCheck" class to this button
+        $('#AddLinks').on('click.Submit', function () {
+           $('#LinkSearchForm').addClass('SkipFieldCheck');
         });
 
         $('#LinkSearchForm').submit(function () {
 
             // If SubmitSelect button was clicked,
-            // "gotclicked" was added as class to the button
+            // "SkipFieldCheck" was added as class to the button
             // remove the class and do the search
-            if ($('#SubmitSelect').hasClass('gotclicked')) {
-                $('#SubmitSelect').removeClass('gotclicked');
+            if ($('#LinkSearchForm').hasClass('SkipFieldCheck')) {
+                $('#LinkSearchForm').removeClass('SkipFieldCheck');
                 return true;
             }
 
             SearchValueFlag = false;
             $('#LinkSearchForm input, #LinkSearchForm select').each(function () {
-                if ($(this).attr('name') && $(this).attr('name').match(/^SEARCH\:\:/)) {
+                if ($(this).attr('name') && $(this).attr('name').match(/^SEARCH::/)) {
                     if ($(this).val() && $(this).val().length) {
                         SearchValueFlag = true;
                     }

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,7 +12,6 @@ use utf8;
 
 use vars (qw($Self));
 
-use Kernel::System::ObjectManager;
 use Kernel::System::VariableCheck qw(:all);
 
 my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
@@ -27,10 +26,10 @@ $ConfigObject->Set(
     Value => 1,
 );
 
+my $CacheObject               = $Kernel::OM->Get('Kernel::System::Cache');
 my $StatsObject               = $Kernel::OM->Get('Kernel::System::Stats');
 my $QueueObject               = $Kernel::OM->Get('Kernel::System::Queue');
 my $TicketObject              = $Kernel::OM->Get('Kernel::System::Ticket');
-my $TimeObject                = $Kernel::OM->Get('Kernel::System::Time');
 my $DynamicFieldObject        = $Kernel::OM->Get('Kernel::System::DynamicField');
 my $DynamicFieldBackendObject = $Kernel::OM->Get('Kernel::System::DynamicField::Backend');
 
@@ -307,9 +306,12 @@ for my $Ticket (@Tickets) {
         next TICKET;
     }
 
-    my $SystemTime = $TimeObject->TimeStamp2SystemTime(
-        String => $Ticket->{TimeStamp},
-    );
+    my $SystemTime = $Kernel::OM->Create(
+        'Kernel::System::DateTime',
+        ObjectParams => {
+            String => $Ticket->{TimeStamp},
+        },
+    )->ToEpoch();
 
     # set the fixed time
     $Helper->FixedTimeSet($SystemTime);
@@ -355,6 +357,10 @@ my %StateList = $Kernel::OM->Get('Kernel::System::State')->StateList(
 my %LookupStateList = map { $StateList{$_} => $_ } sort keys %StateList;
 
 # set the language to 'en' before the StatsRun
+$Kernel::OM->ObjectsDiscard(
+    Objects => ['Kernel::Language'],
+);
+
 $Kernel::OM->ObjectParamAdd(
     'Kernel::Language' => {
         UserLanguage => 'en',
@@ -434,8 +440,7 @@ my @Tests = (
     # Y-Axis: 'OrderBy' - Age, 'SortSequence' - Up
     # Restrictions: 'QueueIDs' to select only the created tickets for the test
     {
-        Description =>
-            "Test dynamic list stat with 'Age' column, expecting result in human readable format",
+        Description => "Test dynamic list stat with 'Age' column, expecting result in human readable format",
         TimeStamp   => '2015-09-11 04:35:00',
         Language    => 'en',
         StatsUpdate => {
@@ -544,6 +549,105 @@ my @Tests = (
                 10,
                 $TicketIDs[7]->{TicketNumber},
                 '10 h 35 m',
+            ],
+        ],
+    },
+
+    # Test dynamic list stat with some columns and a restriction for 'StateIDsHistoric' (to test ticket history sql)
+    # Fixed TimeStamp: '2015-09-11 04:35:00'
+    # TimeZone: -
+    # X-Axis: 'TicketAttributes' - Number, TicketNumber, Age
+    # Y-Axis: 'OrderBy' - TicketNumber, 'SortSequence' - Up
+    # Restrictions: 'QueueIDs' to select only the created tickets for the test
+    #               'StateIDsHistoric' => 'open'
+    {
+        Description =>
+            "Test dynamic list stat with some columns and a restriction for 'StateIDsHistoric' (to test ticket history sql)",
+        TimeStamp   => '2015-09-11 20:00:00',
+        Language    => 'en',
+        StatsUpdate => {
+            StatID => $DynamicListStatID,
+            Hash   => {
+                UseAsXvalue => [
+                    {
+                        'Element'        => 'TicketAttributes',
+                        'Block'          => 'MultiSelectField',
+                        'Selected'       => 1,
+                        'Fixed'          => 1,
+                        'SelectedValues' => [
+                            'Number',
+                            'TicketNumber',
+                            'Title',
+                            'Created',
+                            'Queue',
+                        ],
+                    },
+                ],
+                UseAsValueSeries => [
+                    {
+                        'Element'        => 'OrderBy',
+                        'Block'          => 'SelectField',
+                        'Selected'       => 1,
+                        'Fixed'          => 1,
+                        'SelectedValues' => [
+                            'TicketNumber',
+                        ],
+                    },
+                    {
+                        'Element'        => 'SortSequence',
+                        'Block'          => 'SelectField',
+                        'Selected'       => 1,
+                        'Fixed'          => 1,
+                        'SelectedValues' => [
+                            'Up',
+                        ],
+                    },
+                ],
+                UseAsRestriction => [
+                    {
+                        'Element'        => 'QueueIDs',
+                        'Block'          => 'MultiSelectField',
+                        'Selected'       => 1,
+                        'Fixed'          => 1,
+                        'SelectedValues' => \@QueueIDs,
+                    },
+                    {
+                        'Element'        => 'StateIDsHistoric',
+                        'Block'          => 'MultiSelectField',
+                        'Selected'       => 1,
+                        'Fixed'          => 1,
+                        'SelectedValues' => [
+                            $LookupStateList{'open'},
+                        ],
+                    }
+                ],
+            },
+            UserID => 1,
+        },
+        ReferenceResultData => [
+            [
+                'Title for result tests',
+            ],
+            [
+                'Number',
+                'Ticket#',
+                'Title',
+                'Created',
+                'Queue',
+            ],
+            [
+                1,
+                $TicketIDs[0]->{TicketNumber},
+                $TicketIDs[0]->{Title},
+                $TicketIDs[0]->{Created},
+                $TicketIDs[0]->{Queue},
+            ],
+            [
+                2,
+                $TicketIDs[6]->{TicketNumber},
+                $TicketIDs[6]->{Title},
+                $TicketIDs[6]->{Created},
+                $TicketIDs[6]->{Queue},
             ],
         ],
     },
@@ -3385,7 +3489,7 @@ my @Tests = (
                 'Title for result tests 2015-08-08 00:00:00-2015-08-14 23:59:59',
             ],
             [
-                'Number',    # TODO ad the moment Number is not translatable
+                'Nummer',
                 'Ticket#',
                 'Titel',
                 'Erstellt',
@@ -3781,6 +3885,13 @@ for my $Test (@Tests) {
                 UserLanguage => $Test->{Language},
             },
         );
+
+        my $LanguageObject = $Kernel::OM->Get('Kernel::Language');
+
+        $Self->True(
+            1,
+            "Test $TestCount: Set the language to '$Test->{Language}'.",
+        );
     }
 
     # check ContractAdd attribute
@@ -3794,10 +3905,24 @@ for my $Test (@Tests) {
         next TEST;
     }
 
+    # Since we created tickets on different date and jumped to another, TicketGet() cache can be outdated.
+    for my $Ticket (@TicketIDs) {
+        my $TicketID = $Ticket->{TicketID};
+
+        # Clean cache.
+        $CacheObject->Delete(
+            Type => 'Ticket',
+            Key  => "Cache::GetTicket${TicketID}::0::0",
+        );
+    }
+
     # set the fixed time
-    my $SystemTime = $TimeObject->TimeStamp2SystemTime(
-        String => $Test->{TimeStamp},
-    );
+    my $SystemTime = $Kernel::OM->Create(
+        'Kernel::System::DateTime',
+        ObjectParams => {
+            String => $Test->{TimeStamp},
+        },
+    )->ToEpoch();
     $Helper->FixedTimeSet($SystemTime);
 
     # print test case description

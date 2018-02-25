@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -231,9 +231,9 @@ sending them out to the network.
 
 =cut
 
-package Kernel::GenericInterface::Transport::HTTP::Test::CustomHTTPProtocol;
+package Kernel::GenericInterface::Transport::HTTP::Test::CustomHTTPProtocol;    ## no critic
 
-use base qw(LWP::Protocol);
+use parent qw(LWP::Protocol);
 
 sub new {
     my $Class = shift;
@@ -241,7 +241,7 @@ sub new {
     return $Class->SUPER::new(@_);
 }
 
-sub request {    ## no critic
+sub request {                                                                   ## no critic
     my $Self = shift;
 
     my ( $Request, $Proxy, $Arg, $Size, $Timeout ) = @_;

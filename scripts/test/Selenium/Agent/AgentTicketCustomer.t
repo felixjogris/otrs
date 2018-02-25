@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -129,14 +129,11 @@ $Selenium->RunTest(
         my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
         $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentTicketZoom;TicketID=$TicketID");
 
-        # wait for displaying submenu items for 'People' ticket menu item
-        $Selenium->WaitFor(
-            JavaScript =>
-                'return typeof($) === "function" && $("#nav-People ul").css({ "height": "auto", "opacity": "100" });'
-        );
+        # force sub menus to be visible in order to be able to click one of the links
+        $Selenium->execute_script("\$('.Cluster ul ul').addClass('ForceVisible');");
 
         # go to AgentTicketCustomer, it causes open popup screen, wait will be done by WaitFor
-        $Selenium->find_element("//a[contains(\@href, \'Action=AgentTicketCustomer' )]")->VerifiedClick();
+        $Selenium->find_element("//a[contains(\@href, \'Action=AgentTicketCustomer' )]")->click();
 
         # switch to another window
         $Selenium->WaitFor( WindowCount => 2 );
@@ -145,11 +142,14 @@ $Selenium->RunTest(
 
         # set size for small screens, because of sidebar with customer info overflow form for customer data
         $Selenium->set_window_size( 1000, 700 );
+        $Selenium->WaitFor(
+            JavaScript =>
+                'return typeof($) === "function" && $("#CustomerInfo a.AsPopup").attr("target") === "_blank"'
+        );
 
         # Check if user email is a link in the Customer Information widget and has target property.
-        my $LinkTarget = $Selenium->execute_script("return \$('#CustomerInfo a.AsPopup').attr('target');");
         $Self->Is(
-            $LinkTarget,
+            $Selenium->execute_script("return \$('#CustomerInfo a.AsPopup').attr('target');"),
             '_blank',
             "Check if user email is a link in the Customer Information widget and has target property."
         );
@@ -167,13 +167,14 @@ $Selenium->RunTest(
         $Selenium->find_element( "#CustomerAutoComplete", 'css' )->clear();
         $Selenium->find_element( "#CustomerAutoComplete", 'css' )->send_keys( $TestCustomers[1] );
         $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("li.ui-menu-item:visible").length' );
-        $Selenium->find_element("//*[text()='$TestCustomers[1]']")->VerifiedClick();
+        $Selenium->execute_script("\$('li.ui-menu-item:contains($TestCustomers[1])').click()");
 
         # wait until customer data is loading (CustomerID is filled after CustomerAutoComplete)
         $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("#CustomerID").val().length' );
 
         # submit customer data, it causes close popup screen, wait will be done by WaitFor
-        $Selenium->find_element( "#CustomerAutoComplete", 'css' )->submit();
+        $Selenium->execute_script("\$('#submitRichText').click();");
+        $Selenium->close();
 
         # wait for update
         $Selenium->WaitFor( WindowCount => 1 );
@@ -188,12 +189,22 @@ $Selenium->RunTest(
             index( $Selenium->get_page_source(), 'CustomerUpdate' ) > -1,
             "Action AgentTicketCustomer executed correctly",
         );
+        $Selenium->close();
 
         # delete created test ticket
         my $Success = $TicketObject->TicketDelete(
             TicketID => $TicketID,
             UserID   => 1,
         );
+
+        # Ticket deletion could fail if apache still writes to ticket history. Try again in this case.
+        if ( !$Success ) {
+            sleep 3;
+            $Success = $TicketObject->TicketDelete(
+                TicketID => $TicketID,
+                UserID   => 1,
+            );
+        }
         $Self->True(
             $Success,
             "Ticket with ticket id $TicketID is deleted"

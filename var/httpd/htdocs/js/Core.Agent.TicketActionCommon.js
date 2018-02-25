@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -29,9 +29,7 @@ Core.Agent.TicketActionCommon = (function (TargetNS) {
      */
     TargetNS.Init = function () {
 
-        var $Form,
-            FieldID,
-            DynamicFieldNames = Core.Config.Get('DynamicFieldNames'),
+        var DynamicFieldNames = Core.Config.Get('DynamicFieldNames'),
             Fields = ['TypeID', 'ServiceID', 'SLAID', 'NewOwnerID', 'NewResponsibleID', 'NewStateID', 'NewPriorityID'],
             ModifiedFields;
 
@@ -56,20 +54,29 @@ Core.Agent.TicketActionCommon = (function (TargetNS) {
             return false;
         });
 
-        // Bind event to AttachmentDelete button.
-        $('button[id*=AttachmentDeleteButton]').on('click', function () {
-            $Form = $(this).closest('form');
-            FieldID = $(this).attr('id').split('AttachmentDeleteButton')[1];
-            $('#AttachmentDelete' + FieldID).val(1);
-            Core.Form.Validate.DisableValidation($Form);
-            $Form.trigger('submit');
-        });
-
-        // Bind event to FileUpload button.
-        $('#FileUpload').on('change', function () {
-            $Form = $('#FileUpload').closest('form');
-            Core.Form.Validate.DisableValidation($Form);
-            $Form.find('#AttachmentUpload').val('1').end().submit();
+        // Bind click event to CreateArticle checkbox and toggle widget.
+        $('#CreateArticle, #WidgetArticle .WidgetAction.Toggle').on('click', function () {
+            $('#WidgetArticle .Validate_DependingRequiredAND.Validate_Depending_CreateArticle').each(function (Index, Element) {
+                var $Element = $(Element);
+                var ClosestClass = 'Field';
+                if ($Element.attr('id') === 'RichText') {
+                    ClosestClass = 'RichTextField';
+                }
+                if ($('#CreateArticle').prop('checked') && $('#WidgetArticle').hasClass('Expanded')) {
+                    $Element.closest('.' + ClosestClass)
+                        .prev('label')
+                        .addClass('Mandatory')
+                        .prepend('<span class="Marker">*</span>');
+                }
+                else {
+                    $Element.closest('.' + ClosestClass)
+                        .prev('label')
+                        .removeClass('Mandatory')
+                        .find('span')
+                        .remove();
+                    Core.Form.Validate.UnHighlightError(Element);
+                }
+            });
         });
 
         // Initialize the ticket action popup.

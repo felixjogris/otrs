@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,15 +12,14 @@ use utf8;
 
 use vars (qw($Self));
 
-# get needed objects
-my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
+my $ConfigObject         = $Kernel::OM->Get('Kernel::Config');
+my $TicketObject         = $Kernel::OM->Get('Kernel::System::Ticket');
+my $ArticleObject        = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+my $ArticleBackendObject = $ArticleObject->BackendForChannel( ChannelName => 'Internal' );
 
-# get helper object
 $Kernel::OM->ObjectParamAdd(
     'Kernel::System::UnitTest::Helper' => {
         RestoreDatabase  => 1,
-        UseTmpArticleDir => 1,
         UseTmpArticleDir => 1,
     },
 );
@@ -42,7 +41,6 @@ my @Tests = (
         },
         ExpectedResults => {
             Filename           => 'testing.pdf',
-            Filesize           => '3 Bytes',
             FilesizeRaw        => 3,
             ContentID          => '<testing123@example.com>',
             ContentType        => 'application/pdf',
@@ -62,7 +60,6 @@ my @Tests = (
         },
         ExpectedResults => {
             Filename           => 'testing.pdf',
-            Filesize           => '3 Bytes',
             FilesizeRaw        => 3,
             ContentID          => '',
             ContentType        => 'application/pdf',
@@ -82,7 +79,6 @@ my @Tests = (
         },
         ExpectedResults => {
             Filename           => 'testing.pdf',
-            Filesize           => '3 Bytes',
             FilesizeRaw        => 3,
             ContentID          => '<testing123@example.com>',
             ContentType        => 'application/pdf',
@@ -102,7 +98,6 @@ my @Tests = (
         },
         ExpectedResults => {
             Filename           => 'testing.pdf',
-            Filesize           => '3 Bytes',
             FilesizeRaw        => 3,
             ContentID          => '',
             ContentType        => 'application/pdf',
@@ -122,7 +117,6 @@ my @Tests = (
         },
         ExpectedResults => {
             Filename           => 'testing.pdf',
-            Filesize           => '3 Bytes',
             FilesizeRaw        => 3,
             ContentID          => '',
             ContentType        => 'application/pdf',
@@ -142,7 +136,6 @@ my @Tests = (
         },
         ExpectedResults => {
             Filename           => 'testing.pdf',
-            Filesize           => '3 Bytes',
             FilesizeRaw        => 3,
             ContentID          => '<testing123@example.com>',
             ContentType        => 'application/pdf',
@@ -164,7 +157,6 @@ my @Tests = (
         },
         ExpectedResults => {
             Filename           => 'testing.png',
-            Filesize           => '3 Bytes',
             FilesizeRaw        => 3,
             ContentID          => '<testing123@example.com>',
             ContentType        => 'image/png',
@@ -184,7 +176,6 @@ my @Tests = (
         },
         ExpectedResults => {
             Filename           => 'testing.png',
-            Filesize           => '3 Bytes',
             FilesizeRaw        => 3,
             ContentID          => '',
             ContentType        => 'image/png',
@@ -206,7 +197,6 @@ my @Tests = (
         # images with content id and no disposition should be inline
         ExpectedResults => {
             Filename           => 'testing.png',
-            Filesize           => '3 Bytes',
             FilesizeRaw        => 3,
             ContentID          => '<testing123@example.com>',
             ContentType        => 'image/png',
@@ -226,7 +216,6 @@ my @Tests = (
         },
         ExpectedResults => {
             Filename           => 'testing.png',
-            Filesize           => '3 Bytes',
             FilesizeRaw        => 3,
             ContentID          => '',
             ContentType        => 'image/png',
@@ -246,7 +235,6 @@ my @Tests = (
         },
         ExpectedResults => {
             Filename           => 'testing.png',
-            Filesize           => '3 Bytes',
             FilesizeRaw        => 3,
             ContentID          => '',
             ContentType        => 'image/png',
@@ -266,7 +254,6 @@ my @Tests = (
         },
         ExpectedResults => {
             Filename           => 'testing.png',
-            Filesize           => '3 Bytes',
             FilesizeRaw        => 3,
             ContentID          => '<testing123@example.com>',
             ContentType        => 'image/png',
@@ -288,7 +275,6 @@ my @Tests = (
         },
         ExpectedResults => {
             Filename           => 'file-2',
-            Filesize           => '3 Bytes',
             FilesizeRaw        => 3,
             ContentID          => '<testing123@example.com>',
             ContentType        => 'text/html',
@@ -308,7 +294,6 @@ my @Tests = (
         },
         ExpectedResults => {
             Filename           => 'file-2',
-            Filesize           => '3 Bytes',
             FilesizeRaw        => 3,
             ContentID          => '',
             ContentType        => 'text/html',
@@ -330,7 +315,6 @@ my @Tests = (
         # special attachments with no disposition should be inline
         ExpectedResults => {
             Filename           => 'file-2',
-            Filesize           => '3 Bytes',
             FilesizeRaw        => 3,
             ContentID          => '<testing123@example.com>',
             ContentType        => 'text/html',
@@ -350,7 +334,6 @@ my @Tests = (
         },
         ExpectedResults => {
             Filename           => 'file-2',
-            Filesize           => '3 Bytes',
             FilesizeRaw        => 3,
             ContentID          => '',
             ContentType        => 'text/html',
@@ -370,7 +353,6 @@ my @Tests = (
         },
         ExpectedResults => {
             Filename           => 'file-2',
-            Filesize           => '3 Bytes',
             FilesizeRaw        => 3,
             ContentID          => '',
             ContentType        => 'text/html',
@@ -390,7 +372,6 @@ my @Tests = (
         },
         ExpectedResults => {
             Filename           => 'file-2',
-            Filesize           => '3 Bytes',
             FilesizeRaw        => 3,
             ContentID          => '<testing123@example.com>',
             ContentType        => 'text/html',
@@ -415,49 +396,49 @@ for my $Backend (qw(DB FS)) {
     );
     $Self->True(
         $TicketID,
-        "TicketCreate() - TicketID:'$TicketID'",
+        "TicketCreate() - TicketID: '$TicketID'"
     );
 
     for my $Test (@Tests) {
 
-        # Make sure that the TicketObject gets recreated for each loop.
-        $Kernel::OM->ObjectsDiscard( Objects => ['Kernel::System::Ticket::Article'] );
+        # Make sure that the article backend object gets recreated for each loop.
+        $Kernel::OM->ObjectsDiscard( Objects => [ ref $ArticleBackendObject ] );
 
         $ConfigObject->Set(
-            Key   => 'Ticket::StorageModule',
-            Value => 'Kernel::System::Ticket::ArticleStorage' . $Backend,
+            Key   => 'Ticket::Article::Backend::MIMEBase::ArticleStorage',
+            Value => 'Kernel::System::Ticket::Article::Backend::MIMEBase::ArticleStorage' . $Backend,
         );
 
-        my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+        $ArticleBackendObject = $ArticleObject->BackendForChannel( ChannelName => 'Internal' );
 
         $Self->Is(
-            $ArticleObject->{ArticleStorageModule},
-            'Kernel::System::Ticket::ArticleStorage' . $Backend,
-            "TicketObject loaded the correct backend",
+            $ArticleBackendObject->{ArticleStorageModule},
+            'Kernel::System::Ticket::Article::Backend::MIMEBase::ArticleStorage' . $Backend,
+            'Article backend loaded the correct storage module'
         );
 
         # create an article
-        my $ArticleID = $ArticleObject->ArticleCreate(
-            TicketID       => $TicketID,
-            ArticleType    => 'note-internal',
-            SenderType     => 'agent',
-            From           => 'Some Agent <email@example.com>',
-            To             => 'Some Customer <customer-a@example.com>',
-            Subject        => 'some short description',
-            Body           => 'the message text',
-            ContentType    => 'text/plain; charset=ISO-8859-15',
-            HistoryType    => 'OwnerUpdate',
-            HistoryComment => 'Some free text!',
-            UserID         => 1,
-            NoAgentNotify  => 1,                                         # if you don't want to send agent notifications
+        my $ArticleID = $ArticleBackendObject->ArticleCreate(
+            TicketID             => $TicketID,
+            SenderType           => 'agent',
+            IsVisibleForCustomer => 0,
+            From                 => 'Some Agent <email@example.com>',
+            To                   => 'Some Customer <customer-a@example.com>',
+            Subject              => 'some short description',
+            Body                 => 'the message text',
+            ContentType          => 'text/plain; charset=ISO-8859-15',
+            HistoryType          => 'OwnerUpdate',
+            HistoryComment       => 'Some free text!',
+            UserID               => 1,
+            NoAgentNotify        => 1,
         );
         $Self->True(
             $ArticleID,
-            "ArticleCreate() - ArticleID:'$ArticleID'",
+            "ArticleCreate() - ArticleID: '$ArticleID'"
         );
 
         # create attachment
-        my $Success = $ArticleObject->ArticleWriteAttachment(
+        my $Success = $ArticleBackendObject->ArticleWriteAttachment(
             %{ $Test->{Config} },
             ArticleID => $ArticleID,
         );
@@ -467,9 +448,8 @@ for my $Backend (qw(DB FS)) {
         );
 
         # get the list of all attachments (should be only 1)
-        my %AttachmentIndex = $ArticleObject->ArticleAttachmentIndex(
+        my %AttachmentIndex = $ArticleBackendObject->ArticleAttachmentIndex(
             ArticleID => $ArticleID,
-            UserID    => $UserID,
         );
         my $AttachmentID = grep { $AttachmentIndex{$_}->{Filename} eq $Test->{Config}->{Filename} }
             keys %AttachmentIndex;
@@ -480,10 +460,9 @@ for my $Backend (qw(DB FS)) {
         );
 
         # get the attachment individually
-        my %Attachment = $ArticleObject->ArticleAttachment(
+        my %Attachment = $ArticleBackendObject->ArticleAttachment(
             ArticleID => $ArticleID,
             FileID    => $AttachmentID,
-            UserID    => $UserID,
         );
 
         # add the missing content to the test expected resutls
@@ -499,7 +478,7 @@ for my $Backend (qw(DB FS)) {
 
     }
 
-    # cleanup is done by RestoreDatabase, but we need to additionaly
+    # cleanup is done by RestoreDatabase, but we need to additionally
     # run TicketDelete() to cleanup the FS backend too
     my $Success = $TicketObject->TicketDelete(
         TicketID => $TicketID,
@@ -507,7 +486,7 @@ for my $Backend (qw(DB FS)) {
     );
     $Self->True(
         $Success,
-        "TicketDelete() - TicketID:'$TicketID'",
+        "TicketDelete() - TicketID: '$TicketID'",
     );
 }
 

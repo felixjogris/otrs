@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -15,7 +15,7 @@ our $ObjectManagerDisabled = 1;
 
 # disable redefine warnings in this scope
 {
-    no warnings 'redefine';
+    no warnings 'redefine';    ## no critic
 
     # as example redefine the TicketXXX() of Kernel::System::Ticket
     sub Kernel::System::Ticket::TicketXXX {

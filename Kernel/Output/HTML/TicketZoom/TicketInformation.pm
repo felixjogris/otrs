@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,7 +8,7 @@
 
 package Kernel::Output::HTML::TicketZoom::TicketInformation;
 
-use base 'Kernel::Output::HTML::Base';
+use parent 'Kernel::Output::HTML::Base';
 
 use strict;
 use warnings;
@@ -24,9 +24,19 @@ sub Run {
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
     my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
+    my $UserObject   = $Kernel::OM->Get('Kernel::System::User');
 
     my %Ticket    = %{ $Param{Ticket} };
     my %AclAction = %{ $Param{AclAction} };
+
+    # Show created by name, if different then root user (ID=1).
+    if ( $Ticket{CreateBy} > 1 ) {
+        $Ticket{CreatedByUser} = $UserObject->UserName( UserID => $Ticket{CreateBy} );
+        $LayoutObject->Block(
+            Name => 'CreatedBy',
+            Data => {%Ticket},
+        );
+    }
 
     if ( $Ticket{ArchiveFlag} eq 'y' ) {
         $LayoutObject->Block(
@@ -68,13 +78,15 @@ sub Run {
 
     # show first response time if needed
     if ( defined $Ticket{FirstResponseTime} ) {
-        $Ticket{FirstResponseTimeHuman} = $LayoutObject->CustomerAgeInHours(
-            Age   => $Ticket{FirstResponseTime},
-            Space => ' ',
+        $Ticket{FirstResponseTimeHuman} = $LayoutObject->CustomerAge(
+            Age                => $Ticket{FirstResponseTime},
+            TimeShowAlwaysLong => 1,
+            Space              => ' ',
         );
-        $Ticket{FirstResponseTimeWorkingTime} = $LayoutObject->CustomerAgeInHours(
-            Age   => $Ticket{FirstResponseTimeWorkingTime},
-            Space => ' ',
+        $Ticket{FirstResponseTimeWorkingTime} = $LayoutObject->CustomerAge(
+            Age                => $Ticket{FirstResponseTimeWorkingTime},
+            TimeShowAlwaysLong => 1,
+            Space              => ' ',
         );
         if ( 60 * 60 * 1 > $Ticket{FirstResponseTime} ) {
             $Ticket{FirstResponseTimeClass} = 'Warning';
@@ -87,13 +99,15 @@ sub Run {
 
     # show update time if needed
     if ( defined $Ticket{UpdateTime} ) {
-        $Ticket{UpdateTimeHuman} = $LayoutObject->CustomerAgeInHours(
-            Age   => $Ticket{UpdateTime},
-            Space => ' ',
+        $Ticket{UpdateTimeHuman} = $LayoutObject->CustomerAge(
+            Age                => $Ticket{UpdateTime},
+            TimeShowAlwaysLong => 1,
+            Space              => ' ',
         );
-        $Ticket{UpdateTimeWorkingTime} = $LayoutObject->CustomerAgeInHours(
-            Age   => $Ticket{UpdateTimeWorkingTime},
-            Space => ' ',
+        $Ticket{UpdateTimeWorkingTime} = $LayoutObject->CustomerAge(
+            Age                => $Ticket{UpdateTimeWorkingTime},
+            TimeShowAlwaysLong => 1,
+            Space              => ' ',
         );
         if ( 60 * 60 * 1 > $Ticket{UpdateTime} ) {
             $Ticket{UpdateTimeClass} = 'Warning';
@@ -106,13 +120,15 @@ sub Run {
 
     # show solution time if needed
     if ( defined $Ticket{SolutionTime} ) {
-        $Ticket{SolutionTimeHuman} = $LayoutObject->CustomerAgeInHours(
-            Age   => $Ticket{SolutionTime},
-            Space => ' ',
+        $Ticket{SolutionTimeHuman} = $LayoutObject->CustomerAge(
+            Age                => $Ticket{SolutionTime},
+            TimeShowAlwaysLong => 1,
+            Space              => ' ',
         );
-        $Ticket{SolutionTimeWorkingTime} = $LayoutObject->CustomerAgeInHours(
-            Age   => $Ticket{SolutionTimeWorkingTime},
-            Space => ' ',
+        $Ticket{SolutionTimeWorkingTime} = $LayoutObject->CustomerAge(
+            Age                => $Ticket{SolutionTimeWorkingTime},
+            TimeShowAlwaysLong => 1,
+            Space              => ' ',
         );
         if ( 60 * 60 * 1 > $Ticket{SolutionTime} ) {
             $Ticket{SolutionTimeClass} = 'Warning';
@@ -154,12 +170,14 @@ sub Run {
             $Ticket{PendingUntilClass} = 'Warning';
         }
 
-        # get time object
-        my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+        my $CurSysDTObject = $Kernel::OM->Create('Kernel::System::DateTime');
+        $Ticket{UntilTimeHuman} = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                Epoch => ( $Ticket{UntilTime} + $CurSysDTObject->ToEpoch() ),
+            },
+        )->ToString();
 
-        $Ticket{UntilTimeHuman} = $TimeObject->SystemTime2TimeStamp(
-            SystemTime => ( $Ticket{UntilTime} + $TimeObject->SystemTime() ),
-        );
         $Ticket{PendingUntil} .= $LayoutObject->CustomerAge(
             Age   => $Ticket{UntilTime},
             Space => ' '
@@ -169,9 +187,6 @@ sub Run {
             Data => \%Ticket,
         );
     }
-
-    # get user object
-    my $UserObject = $Kernel::OM->Get('Kernel::System::User');
 
     # Check if agent has permission to start chats with agents.
     my $EnableChat               = 1;
@@ -366,6 +381,18 @@ sub Run {
         next DYNAMICFIELD if !defined $Ticket{ 'DynamicField_' . $DynamicFieldConfig->{Name} };
         next DYNAMICFIELD if $Ticket{ 'DynamicField_' . $DynamicFieldConfig->{Name} } eq '';
 
+        # Check if this field is supposed to be hidden from the ticket information box.
+        #   For example, it's displayed by a different mechanism (i.e. async widget).
+        if (
+            $DynamicFieldBeckendObject->HasBehavior(
+                DynamicFieldConfig => $DynamicFieldConfig,
+                Behavior           => 'IsHiddenInTicketInformation',
+            )
+            )
+        {
+            next DYNAMICFIELD;
+        }
+
         # use translation here to be able to reduce the character length in the template
         my $Label = $LayoutObject->{LanguageObject}->Translate( $DynamicFieldConfig->{Label} );
 
@@ -380,13 +407,17 @@ sub Run {
 
         if ( $Self->{DisplaySettings}->{DynamicField}->{ $DynamicFieldConfig->{Name} } ) {
             push @FieldsSidebar, {
+                $DynamicFieldConfig->{Name} => $ValueStrg->{Title},
                 Name                        => $DynamicFieldConfig->{Name},
                 Title                       => $ValueStrg->{Title},
                 Value                       => $ValueStrg->{Value},
                 Label                       => $Label,
                 Link                        => $ValueStrg->{Link},
                 LinkPreview                 => $ValueStrg->{LinkPreview},
-                $DynamicFieldConfig->{Name} => $ValueStrg->{Title},
+
+                # Include unique parameter with dynamic field name in case of collision with others.
+                #   Please see bug#13362 for more information.
+                "DynamicField_$DynamicFieldConfig->{Name}" => $ValueStrg->{Title},
             };
         }
 
@@ -421,15 +452,19 @@ sub Run {
             $LayoutObject->Block(
                 Name => 'TicketDynamicFieldLink',
                 Data => {
+                    $Field->{Name} => $Field->{Title},
                     %Ticket,
 
                     # alias for ticket title, Title will be overwritten
-                    TicketTitle    => $Ticket{Title},
-                    Value          => $Field->{Value},
-                    Title          => $Field->{Title},
-                    Link           => $Field->{Link},
-                    LinkPreview    => $Field->{LinkPreview},
-                    $Field->{Name} => $Field->{Title},
+                    TicketTitle => $Ticket{Title},
+                    Value       => $Field->{Value},
+                    Title       => $Field->{Title},
+                    Link        => $Field->{Link},
+                    LinkPreview => $Field->{LinkPreview},
+
+                    # Include unique parameter with dynamic field name in case of collision with others.
+                    #   Please see bug#13362 for more information.
+                    "DynamicField_$Field->{Name}" => $Field->{Title},
                 },
             );
         }

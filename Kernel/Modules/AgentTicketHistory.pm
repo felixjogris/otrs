@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -106,12 +106,59 @@ sub Run {
         );
     }
 
+    my $UserObject = $Kernel::OM->Get('Kernel::System::User');
+
+    my $Time;
+
     for my $Data (@Lines) {
+        $Data->{Class} = '';
+
+        my $HistoryArticleTime = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                String => $Data->{CreateTime},
+                }
+        )->ToEpoch();
+
+        my $IsNewWidget;
+
+        # Create a new widget if article create time difference is more then 5 sec.
+        if ( !$Time || abs( $Time - $HistoryArticleTime ) > 5 ) {
+
+            $LayoutObject->Block(
+                Name => 'HistoryWidget',
+                Data => {
+                    CreateTime => $Data->{CreateTime},
+                },
+            );
+
+            $Time        = $HistoryArticleTime;
+            $IsNewWidget = 1;
+
+        }
 
         # replace text
         if ( $Data->{Name} && $Data->{Name} =~ m/^%%/x ) {
             $Data->{Name} =~ s/^%%//xg;
             my @Values = split( /%%/x, $Data->{Name} );
+
+            # Rebuild some of the values for history entries so they have more speaking form. This is necessary because
+            #   values stored previously in older format might not be compatible with new human readable form.
+            #   Please see bug#11520 for more information.
+            #
+            # HistoryType: TicketDynamicFieldUpdate
+            #   - Old: %%FieldName%%$FieldName%%Value%%$HistoryValue%%OldValue%%$HistoryOldValue
+            #   - New: %%$FieldName%%$HistoryOldValue%%$HistoryValue
+            if ( $Data->{HistoryType} eq 'TicketDynamicFieldUpdate' ) {
+                @Values = ( $Values[1], $Values[5] // '', $Values[3] // '' );
+            }
+
+            # Make sure that the order of the values is correct, because we're now
+            #   also showing the old ticket type on 'TypeUpdate'.
+            elsif ( $Data->{HistoryType} eq 'TypeUpdate' ) {
+                @Values = ( $Values[2], $Values[3], $Values[0], $Values[1] );
+            }
+
             $Data->{Name} = $LayoutObject->{LanguageObject}->Translate(
                 $HistoryTypes{ $Data->{HistoryType} },
                 @Values,
@@ -120,24 +167,16 @@ sub Run {
             # remove not needed place holder
             $Data->{Name} =~ s/\%s//xg;
         }
+        else {
+            $Data->{Name} = $LayoutObject->{LanguageObject}->Translate(
+                $Data->{Name}
+            );
+        }
 
         $LayoutObject->Block(
             Name => 'Row',
             Data => $Data,
         );
-
-        if ( $Data->{ArticleID} ne "0" ) {
-            $LayoutObject->Block(
-                Name => 'ShowLinkZoom',
-                Data => $Data,
-            );
-        }
-        else {
-            $LayoutObject->Block(
-                Name => 'NoLinkZoom',
-            );
-
-        }
     }
 
     # build page

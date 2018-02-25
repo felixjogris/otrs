@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -41,13 +41,6 @@ Core.Customer.TicketMessage = (function (TargetNS) {
             ModifiedFields.splice(Index, 1);
 
             FieldUpdate(Value, ModifiedFields);
-        });
-
-        // choose attachment
-        $('#Attachment').on('change', function () {
-            $Form = $('#Attachment').closest('form');
-            Core.Form.Validate.DisableValidation($Form);
-            $Form.find('#AttachmentUpload').val('1').end().submit();
         });
 
         // delete attachment

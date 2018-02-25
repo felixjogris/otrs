@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,7 +8,7 @@
 
 <!-- start -->
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
-    <h1 class="Header">[% Translate("Session Management") | html %]</h1>
+    <h1 class="InvisibleText">[% Translate("Session Management") | html %]</h1>
 
     [% BreadcrumbPath = [
             {
@@ -19,8 +19,8 @@
     %]
 
     [% IF Data.Action == 'Detail' %]
-        [% USE DetailView = String(Translate("Detail Session View for")) %]
-        [% BreadcrumbPath.push({ Name => DetailView.append( ' ', Data.UserType, ': ', Data.UserFirstname, ' ', Data.UserLastname ) })%]
+        [% USE TranslatedUserType = String(Translate(Data.UserType)) %]
+        [% BreadcrumbPath.push({ Name => Translate( "Detail Session View for %s (%s)", Data.UserFullname, TranslatedUserType ) })%]
     [% END %]
 
     [% INCLUDE "Breadcrumb.tt" Path = BreadcrumbPath %]
@@ -116,7 +116,7 @@
                                 <a class="AsBlock" href="[% Env("Baselink") %]Action=AdminSession;Subaction=Detail;WantSessionID=[% Data.SessionID | uri %]">[% Data.SessionID | html %]</a>
                             </td>
                             <td>[% Data.UserType | html %]</td>
-                            <td>[% Data.UserFirstname | html %] [% Data.UserLastname %]</td>
+                            <td>[% Data.UserFullname | html %]</td>
                             <td>
                                 <a class="AsBlock" href="[% Env("Baselink") %]Action=AdminSession;Subaction=Kill;WantSessionID=[% Data.SessionID | uri %];[% Env("ChallengeTokenParam") | html %]">[% Translate("Kill this session") | html %]</a>
                             </td>
@@ -132,7 +132,7 @@
 
 [% RenderBlockStart("DetailView") %]
             <div class="Header">
-                <h2>[% Translate("Detail View for SessionID") | html %] : [% Data.SessionID | html %] - [% Data.UserFirstname | html %] [% Data.UserLastname | html %]</h2>
+                <h2>[% Translate("Detail View for SessionID: %s - %s", Data.SessionID, Data.UserFullname) | html %]</h2>
             </div>
             <div class="Content">
                 <table class="DataTable">

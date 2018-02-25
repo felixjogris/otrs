@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -15,6 +15,16 @@
     </div>
     <div class="Content">
         <ul class="ActionList">
+[% IF Env("Action") == 'AdminSystemConfiguration' && Env("Subaction") == 'SearchLocked' %]
+            <li>
+                <a href="[% Env("Baselink") %]Action=AdminSystemConfiguration" class="GoBackButton CallForAction Fullsize Center"><span><i class="fa fa-caret-left"></i>[% Translate("Go back") | html %]</span></a>
+            </li>
+[% END %]
+[% IF Env("Action") == 'AdminSystemConfiguration' && Env("Subaction") == 'Search' %]
+            <li>
+                <a href="[% Env("Baselink") %]Action=AdminSystemConfiguration;Subaction=SearchDialog" data-term="[% Data.Search | html %]" data-category="[% Data.Category | html %]" id="SystemConfigurationEditSearch" class="CallForAction Fullsize Center"><span><i class="fa fa-search"></i>[% Translate("Edit search") | html %]</span></a>
+            </li>
+[% END %]
 [% IF Env("LastEntityType") %]
             <li>
                 <a href="[% Env("Baselink") %][% Env("LastScreenEntity") %]" class="CallForAction Fullsize Center"><span><i class="fa fa-caret-left"></i>[% Translate("Go back to admin: ") | html %][% Translate( Env("LastEntityType") ) | html %]</span></a>
@@ -35,7 +45,7 @@
             </li>
 [% END %]
             <li>
-                <a href="[% Env("Baselink") %]Action=AdminSystemConfiguration;Subaction=ImportExport" class="CallForAction Fullsize Center"><span><i class="fa fa-exchange"></i>[% Translate("Import & Export") | html %]</span></a>
+                <a href="[% Env("Baselink") %]Action=AdminSystemConfiguration;Subaction=ImportExport" class="CallForAction Fullsize Center"><span><i class="fa fa-exchange"></i>[% IF Config("ConfigImportAllowed") %][% Translate("Import & Export") | html %][% ELSE %][% Translate("Export") | html %][% END %]</span></a>
             </li>
         </ul>
     </div>

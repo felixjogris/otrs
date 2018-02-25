@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -156,18 +156,20 @@ for my $Test (@Tests) {
         "Ticket is created - ID $TicketID",
     );
 
+    my $ArticleBackendObject = $ArticleObject->BackendForChannel( ChannelName => 'Email' );
+
     # create test email article
-    my $ArticleID = $ArticleObject->ArticleCreate(
-        TicketID       => $TicketID,
-        ArticleType    => 'email-external',
-        SenderType     => 'customer',
-        Subject        => 'some short description',
-        Body           => 'the message text',
-        Charset        => 'ISO-8859-15',
-        MimeType       => 'text/plain',
-        HistoryType    => 'EmailCustomer',
-        HistoryComment => 'Some free text!',
-        UserID         => 1,
+    my $ArticleID = $ArticleBackendObject->ArticleCreate(
+        TicketID             => $TicketID,
+        IsVisibleForCustomer => 1,
+        SenderType           => 'customer',
+        Subject              => 'some short description',
+        Body                 => 'the message text',
+        Charset              => 'ISO-8859-15',
+        MimeType             => 'text/plain',
+        HistoryType          => 'EmailCustomer',
+        HistoryComment       => 'Some free text!',
+        UserID               => 1,
     );
     $Self->True(
         $ArticleID,
@@ -175,8 +177,9 @@ for my $Test (@Tests) {
     );
 
     # get last article
-    my %Article = $ArticleObject->ArticleLastCustomerArticle(
+    my %Article = $ArticleBackendObject->ArticleGet(
         TicketID      => $TicketID,
+        ArticleID     => $ArticleID,
         DynamicFields => 0,
     );
 

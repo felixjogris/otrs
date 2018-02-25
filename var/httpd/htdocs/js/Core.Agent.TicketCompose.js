@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -29,8 +29,7 @@ Core.Agent.TicketCompose = (function (TargetNS) {
      */
     TargetNS.Init = function () {
 
-        var $Form, FieldID, i,
-            ArticleComposeOptions = Core.Config.Get('ArticleComposeOptions'),
+        var ArticleComposeOptions = Core.Config.Get('ArticleComposeOptions'),
             EmailAddressesTo = Core.Config.Get('EmailAddressesTo'),
             EmailAddressesCc = Core.Config.Get('EmailAddressesCc');
 
@@ -43,22 +42,6 @@ Core.Agent.TicketCompose = (function (TargetNS) {
             return false;
         });
 
-        // delete attachment
-        $('button[id*=AttachmentDeleteButton]').on('click', function () {
-            $Form = $(this).closest('form');
-            FieldID = $(this).attr('id').split('AttachmentDeleteButton')[1];
-            $('#AttachmentDelete' + FieldID).val(1);
-            Core.Form.Validate.DisableValidation($Form);
-            $Form.trigger('submit');
-        });
-
-        // choose attachment
-        $('#FileUpload').on('change', function () {
-            $Form = $('#FileUpload').closest('form');
-            Core.Form.Validate.DisableValidation($Form);
-            $Form.find('#AttachmentUpload').val('1').end().submit();
-        });
-
         // change next ticket state
         $('#StateID').on('change', function () {
             Core.AJAX.FormUpdate($('#ComposeTicket'), 'AJAXUpdate', 'StateID', Core.Config.Get('DynamicFieldNames'));
@@ -66,23 +49,23 @@ Core.Agent.TicketCompose = (function (TargetNS) {
 
         // add 'To' customer users
         if (typeof EmailAddressesTo !== 'undefined') {
-            for (i = 0; i < EmailAddressesTo.length; i++) {
-                Core.Agent.CustomerSearch.AddTicketCustomer('ToCustomer', EmailAddressesTo[i]);
-            }
+            EmailAddressesTo.forEach(function(ToCustomer) {
+                Core.Agent.CustomerSearch.AddTicketCustomer('ToCustomer', ToCustomer.CustomerTicketText, ToCustomer.CustomerKey);
+            });
         }
 
         // add 'Cc' customer users
         if (typeof EmailAddressesCc !== 'undefined') {
-            for (i = 0; i < EmailAddressesCc.length; i++) {
-                Core.Agent.CustomerSearch.AddTicketCustomer('CcCustomer', EmailAddressesCc[i]);
-            }
+            EmailAddressesCc.forEach(function(CcCustomer) {
+                Core.Agent.CustomerSearch.AddTicketCustomer('CcCustomer', CcCustomer.CustomerTicketText, CcCustomer.CustomerKey);
+            });
         }
 
         // change article compose options
         if (typeof ArticleComposeOptions !== 'undefined') {
             $.each(ArticleComposeOptions, function (Key, Value) {
                 $('#'+Value.Name).on('change', function () {
-                    Core.AJAX.FormUpdate($('#NewEmailTicket'), 'AJAXUpdate', Value.Name, Value.Fields);
+                    Core.AJAX.FormUpdate($('#ComposeTicket'), 'AJAXUpdate', Value.Name, Value.Fields);
                 });
             });
         }

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -500,7 +500,7 @@ my $WorkingHoursFull = [ '0' .. '23' ];
 $ConfigObject->Set(
     Key   => 'TimeWorkingHours::Calendar7',
     Value => {
-        map { $_ => $WorkingHoursFull, } qw( Mon Tue Wed Thu Fri Sat Sun ),
+        map { $_ => $WorkingHoursFull } qw( Mon Tue Wed Thu Fri Sat Sun ),
     },
 );
 

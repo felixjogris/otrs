@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -24,11 +24,9 @@ our @ObjectDependencies = (
 sub new {
     my ( $Type, %Param ) = @_;
 
-    # allocate new hash for object
     my $Self = {};
     bless( $Self, $Type );
 
-    # get needed params
     for my $Needed (qw(UserID ArticleID)) {
         if ( $Param{$Needed} ) {
             $Self->{$Needed} = $Param{$Needed};
@@ -57,16 +55,14 @@ sub Check {
     return if !$ConfigObject->Get('SMIME');
 
     # check if article is an email
-    return if $Param{Article}->{ArticleType} !~ /email/i;
+    my $ArticleBackendObject
+        = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForArticle( %{ $Param{Article} // {} } );
+    return if $ArticleBackendObject->ChannelNameGet() ne 'Email';
 
-    my $StoreDecryptedData = $ConfigObject->Get('SMIME::StoreDecryptedData');
-
-    # get needed objects
     my $SMIMEObject = $Kernel::OM->Get('Kernel::System::Crypt::SMIME');
-    my $ArticleObject = $Param{ArticleObject} || $Kernel::OM->Get('Kernel::System::Ticket::Article');
 
     # check inline smime
-    if ( $Param{Article}->{Body} =~ /^-----BEGIN PKCS7-----/ ) {
+    if ( $Param{Article}->{Body} && $Param{Article}->{Body} =~ /^-----BEGIN PKCS7-----/ ) {
         %SignCheck = $SMIMEObject->Verify( Message => $Param{Article}->{Body} );
         if (%SignCheck) {
 
@@ -90,7 +86,8 @@ sub Check {
     else {
 
         # get email from fs
-        my $Message = $ArticleObject->ArticlePlain(
+        my $Message = $ArticleBackendObject->ArticlePlain(
+            TicketID  => $Param{Article}->{TicketID},
             ArticleID => $Self->{ArticleID},
             UserID    => $Self->{UserID},
         );
@@ -125,7 +122,7 @@ sub Check {
         {
 
             # check if article is already decrypted
-            if ( $Param{Article}->{Body} ne '- no text message => see attachment -' ) {
+            if ( $Param{Article}->{Body} && $Param{Article}->{Body} ne '- no text message => see attachment -' ) {
                 push(
                     @Return,
                     {
@@ -137,7 +134,7 @@ sub Check {
             }
 
             # check sender (don't decrypt sent emails)
-            if ( $Param{Article}->{SenderType} =~ /(agent|system)/i ) {
+            if ( $Param{Article}->{SenderType} && $Param{Article}->{SenderType} =~ /(agent|system)/i ) {
 
                 # return info
                 return (
@@ -294,31 +291,28 @@ sub Check {
                         . ", but sender address $OrigSender: does not match certificate address!";
                 }
 
-                if ($StoreDecryptedData) {
+                # updated article body
+                $ArticleBackendObject->ArticleUpdate(
+                    TicketID  => $Param{Article}->{TicketID},
+                    ArticleID => $Self->{ArticleID},
+                    Key       => 'Body',
+                    Value     => $Body,
+                    UserID    => $Self->{UserID},
+                );
 
-                    # updated article body
-                    $ArticleObject->ArticleUpdate(
-                        TicketID  => $Param{Article}->{TicketID},
+                # delete crypted attachments
+                $ArticleBackendObject->ArticleDeleteAttachment(
+                    ArticleID => $Self->{ArticleID},
+                    UserID    => $Self->{UserID},
+                );
+
+                # write attachments to the storage
+                for my $Attachment ( $ParserObject->GetAttachments() ) {
+                    $ArticleBackendObject->ArticleWriteAttachment(
+                        %{$Attachment},
                         ArticleID => $Self->{ArticleID},
-                        Key       => 'Body',
-                        Value     => $Body,
                         UserID    => $Self->{UserID},
                     );
-
-                    # delete crypted attachments
-                    $ArticleObject->ArticleDeleteAttachment(
-                        ArticleID => $Self->{ArticleID},
-                        UserID    => $Self->{UserID},
-                    );
-
-                    # write attachments to the storage
-                    for my $Attachment ( $ParserObject->GetAttachments() ) {
-                        $ArticleObject->ArticleWriteAttachment(
-                            %{$Attachment},
-                            ArticleID => $Self->{ArticleID},
-                            UserID    => $Self->{UserID},
-                        );
-                    }
                 }
 
                 return @Return;
@@ -409,31 +403,28 @@ sub Check {
                         . ", but sender address $OrigSender: does not match certificate address!";
                 }
 
-                if ($StoreDecryptedData) {
+                # updated article body
+                $ArticleBackendObject->ArticleUpdate(
+                    TicketID  => $Param{Article}->{TicketID},
+                    ArticleID => $Self->{ArticleID},
+                    Key       => 'Body',
+                    Value     => $Body,
+                    UserID    => $Self->{UserID},
+                );
 
-                    # updated article body
-                    $ArticleObject->ArticleUpdate(
-                        TicketID  => $Param{Article}->{TicketID},
+                # delete crypted attachments
+                $ArticleBackendObject->ArticleDeleteAttachment(
+                    ArticleID => $Self->{ArticleID},
+                    UserID    => $Self->{UserID},
+                );
+
+                # write attachments to the storage
+                for my $Attachment ( $ParserObject->GetAttachments() ) {
+                    $ArticleBackendObject->ArticleWriteAttachment(
+                        %{$Attachment},
                         ArticleID => $Self->{ArticleID},
-                        Key       => 'Body',
-                        Value     => $Body,
                         UserID    => $Self->{UserID},
                     );
-
-                    # delete crypted attachments
-                    $ArticleObject->ArticleDeleteAttachment(
-                        ArticleID => $Self->{ArticleID},
-                        UserID    => $Self->{UserID},
-                    );
-
-                    # write attachments to the storage
-                    for my $Attachment ( $ParserObject->GetAttachments() ) {
-                        $ArticleObject->ArticleWriteAttachment(
-                            %{$Attachment},
-                            ArticleID => $Self->{ArticleID},
-                            UserID    => $Self->{UserID},
-                        );
-                    }
                 }
             }
 

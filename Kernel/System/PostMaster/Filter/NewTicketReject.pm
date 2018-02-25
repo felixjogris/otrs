@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,10 +11,12 @@ package Kernel::System::PostMaster::Filter::NewTicketReject;
 use strict;
 use warnings;
 
+use Kernel::System::VariableCheck qw(:all);
+
 our @ObjectDependencies = (
     'Kernel::Config',
-    'Kernel::System::Email',
     'Kernel::System::Log',
+    'Kernel::System::Email',
     'Kernel::System::Ticket',
 );
 
@@ -25,7 +27,8 @@ sub new {
     my $Self = {};
     bless( $Self, $Type );
 
-    $Self->{Debug} = $Param{Debug} || 0;
+    # Get communication log object.
+    $Self->{CommunicationLogObject} = $Param{CommunicationLogObject} || die "Got no CommunicationLogObject!";
 
     return $Self;
 }
@@ -36,9 +39,11 @@ sub Run {
     # check needed stuff
     for (qw(JobConfig GetParam)) {
         if ( !$Param{$_} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "Need $_!"
+            $Self->{CommunicationLogObject}->ObjectLog(
+                ObjectLogType => 'Message',
+                Priority      => 'Error',
+                Key           => 'Kernel::System::PostMaster::Filter::NewTicketReject',
+                Value         => "Need $_!",
             );
             return;
         }
@@ -46,40 +51,66 @@ sub Run {
 
     # get config options
     my %Config;
-    my %Match;
-    my %Set;
+    my @Match;
+    my @Set;
     if ( $Param{JobConfig} && ref $Param{JobConfig} eq 'HASH' ) {
         %Config = %{ $Param{JobConfig} };
-        if ( $Config{Match} ) {
-            %Match = %{ $Config{Match} };
+
+        if ( IsArrayRefWithData( $Config{Match} ) ) {
+            @Match = @{ $Config{Match} };
         }
-        if ( $Config{Set} ) {
-            %Set = %{ $Config{Set} };
+        elsif ( IsHashRefWithData( $Config{Match} ) ) {
+
+            for my $Key ( sort keys %{ $Config{Match} } ) {
+                push @Match, {
+                    Key   => $Key,
+                    Value => $Config{Match}->{$Key},
+                };
+            }
+        }
+
+        if ( IsArrayRefWithData( $Config{Set} ) ) {
+            @Set = @{ $Config{Set} };
+        }
+        elsif ( IsHashRefWithData( $Config{Set} ) ) {
+
+            for my $Key ( sort keys %{ $Config{Set} } ) {
+                push @Set, {
+                    Key   => $Key,
+                    Value => $Config{Set}->{$Key},
+                };
+            }
         }
     }
 
     # match 'Match => ???' stuff
     my $Matched    = '';
     my $MatchedNot = 0;
-    for ( sort keys %Match ) {
+    for my $Index ( 0 .. ( scalar @Match ) - 1 ) {
+        my $Key   = $Match[$Index]->{Key};
+        my $Value = $Match[$Index]->{Value};
 
-        if ( $Param{GetParam}->{$_} && $Param{GetParam}->{$_} =~ /$Match{$_}/i ) {
+        if ( $Param{GetParam}->{$Key} && $Param{GetParam}->{$Key} =~ /$Value/i ) {
+
             $Matched = $1 || '1';
-            if ( $Self->{Debug} > 1 ) {
-                $Kernel::OM->Get('Kernel::System::Log')->Log(
-                    Priority => 'debug',
-                    Message  => "'$Param{GetParam}->{$_}' =~ /$Match{$_}/i matched!",
-                );
-            }
+
+            $Self->{CommunicationLogObject}->ObjectLog(
+                ObjectLogType => 'Message',
+                Priority      => 'Debug',
+                Key           => 'Kernel::System::PostMaster::Filter::NewTicketReject',
+                Value         => "'$Param{GetParam}->{$Key}' =~ /$Value/i matched!",
+            );
         }
         else {
+
             $MatchedNot = 1;
-            if ( $Self->{Debug} > 1 ) {
-                $Kernel::OM->Get('Kernel::System::Log')->Log(
-                    Priority => 'debug',
-                    Message  => "'$Param{GetParam}->{$_}' =~ /$Match{$_}/i matched NOT!",
-                );
-            }
+
+            $Self->{CommunicationLogObject}->ObjectLog(
+                ObjectLogType => 'Message',
+                Priority      => 'Debug',
+                Key           => 'Kernel::System::PostMaster::Filter::NewTicketReject',
+                Value         => "'$Param{GetParam}->{$Key}' =~ /$Value/i matched NOT!",
+            );
         }
     }
     if ( $Matched && !$MatchedNot ) {
@@ -93,12 +124,17 @@ sub Run {
         return 1 if $Tn && $TicketObject->TicketCheckNumber( Tn => $Tn );
 
         # set attributes if ticket is created
-        for ( sort keys %Set ) {
-            $Param{GetParam}->{$_} = $Set{$_};
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'notice',
-                Message =>
-                    "Set param '$_' to '$Set{$_}' (Message-ID: $Param{GetParam}->{'Message-ID'}) ",
+        for my $SetItem (@Set) {
+            my $Key   = $SetItem->{Key};
+            my $Value = $SetItem->{Value};
+
+            $Param{GetParam}->{$Key} = $Value;
+
+            $Self->{CommunicationLogObject}->ObjectLog(
+                ObjectLogType => 'Message',
+                Priority      => 'Notice',
+                Key           => 'Kernel::System::PostMaster::Filter::NewTicketReject',
+                Value         => "Set param '$Key' to '$Value' (Message-ID: $Param{GetParam}->{'Message-ID'})",
             );
         }
 
@@ -133,9 +169,11 @@ sub Run {
             ],
         );
 
-        $Kernel::OM->Get('Kernel::System::Log')->Log(
-            Priority => 'notice',
-            Message  => "Send reject mail to '$Param{GetParam}->{From}'!",
+        $Self->{CommunicationLogObject}->ObjectLog(
+            ObjectLogType => 'Message',
+            Priority      => 'Notice',
+            Key           => 'Kernel::System::PostMaster::Filter::NewTicketReject',
+            Value         => "Send reject mail to '$Param{GetParam}->{From}'!",
         );
     }
 

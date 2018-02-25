@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -16,20 +16,10 @@ Core.App = (function (Namespace) {
         QUnit.module('Core.App');
 
         QUnit.test('Core.App.GetSessionInformation()', function(Assert){
-            Assert.expect(2);
+            Assert.expect(1);
 
-            Core.Config.Set('SessionName', 'CSID');
-            Core.Config.Set('SessionID', '1234');
-            Core.Config.Set('CustomerPanelSessionName', 'CPanelSID');
             Core.Config.Set('ChallengeToken', 'C123');
 
-            Assert.deepEqual(Core.App.GetSessionInformation(), {
-                CSID: '1234',
-                CPanelSID: '1234',
-                ChallengeToken: 'C123'
-            });
-
-            Core.Config.Set('SessionIDCookie', true);
             Assert.deepEqual(Core.App.GetSessionInformation(), {
                 ChallengeToken: 'C123'
             });
@@ -43,7 +33,7 @@ Core.App = (function (Namespace) {
             Assert.expect(13);
             Assert.equal(Core.App.EscapeSelector(Selector), 'ConfigItemClass\\:\\:Config\\:\\:Hardware\\:\\:MapTypeAdd\\:\\:Attribute\\#\\#\\#SubItem');
             Assert.equal(Core.App.EscapeSelector('ID-mit_anderen_Sonderzeichen'), 'ID-mit_anderen_Sonderzeichen');
-            Assert.equal(Core.App.EscapeSelector('#:.\[\]@!"$'), '\\#\\:\\.\\[\\]\\@\\!\\"\\$');
+            Assert.equal(Core.App.EscapeSelector('#:.[]@!"$'), '\\#\\:\\.\\[\\]\\@\\!\\"\\$');
             Assert.equal(Core.App.EscapeSelector('%&<=>'), '\\%\\&\\<\\=\\>');
             Assert.equal(Core.App.EscapeSelector("'"), "\\'");
             Assert.equal(Core.App.EscapeSelector('()*+,?/;'), '\\(\\)\\*\\+\\,\\?\\/\\;');
@@ -157,6 +147,43 @@ Core.App = (function (Namespace) {
             // calling second block
             Core.Init.ExecuteInit('APP_LATE_INIT');
             Assert.equal(Core.App.Teststring, "12345");
+        });
+
+        QUnit.test('Core.App.HumanReadableDataSize()', function(Assert){
+            var LanguageMetaData;
+
+            Assert.expect(18);
+
+            // Test case: DecimalSeparator is '.'.
+            LanguageMetaData = {
+                'DecimalSeparator': '.'
+            };
+
+            Core.Language.Load(LanguageMetaData, {});
+            Assert.equal(Core.App.HumanReadableDataSize(13), '13 B');
+            Assert.equal(Core.App.HumanReadableDataSize(1024), '1 KB');
+            Assert.equal(Core.App.HumanReadableDataSize(2500), '2.4 KB');
+            Assert.equal(Core.App.HumanReadableDataSize(46137344), '44 MB');
+            Assert.equal(Core.App.HumanReadableDataSize(58626123), '55.9 MB');
+            Assert.equal(Core.App.HumanReadableDataSize(34359738368), '32 GB');
+            Assert.equal(Core.App.HumanReadableDataSize(64508675518), '60.1 GB');
+            Assert.equal(Core.App.HumanReadableDataSize(238594023227392), '217 TB');
+            Assert.equal(Core.App.HumanReadableDataSize(498870572100000), '453.7 TB');
+
+            // Test case: DecimalSeparator is ','.
+            LanguageMetaData = {
+                'DecimalSeparator': ','
+            };
+            Core.Language.Load(LanguageMetaData, {});
+            Assert.equal(Core.App.HumanReadableDataSize(13), '13 B');
+            Assert.equal(Core.App.HumanReadableDataSize(1024), '1 KB');
+            Assert.equal(Core.App.HumanReadableDataSize(2500), '2,4 KB');
+            Assert.equal(Core.App.HumanReadableDataSize(46137344), '44 MB');
+            Assert.equal(Core.App.HumanReadableDataSize(58626123), '55,9 MB');
+            Assert.equal(Core.App.HumanReadableDataSize(34359738368), '32 GB');
+            Assert.equal(Core.App.HumanReadableDataSize(64508675518), '60,1 GB');
+            Assert.equal(Core.App.HumanReadableDataSize(238594023227392), '217 TB');
+            Assert.equal(Core.App.HumanReadableDataSize(498870572100000), '453,7 TB');
         });
     };
 

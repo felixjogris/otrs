@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -419,6 +419,7 @@ sub AppointmentCreate {
         Event => 'AppointmentCreate',
         Data  => {
             AppointmentID => $AppointmentID,
+            CalendarID    => $Param{CalendarID},
         },
         UserID => $Param{UserID},
     );
@@ -1391,6 +1392,7 @@ sub AppointmentUpdate {
         Event => 'AppointmentUpdate',
         Data  => {
             AppointmentID => $Param{AppointmentID},
+            CalendarID    => $Param{CalendarID},
         },
         UserID => $Param{UserID},
     );
@@ -1511,6 +1513,7 @@ sub AppointmentDelete {
         Event => 'AppointmentDelete',
         Data  => {
             AppointmentID => $Param{AppointmentID},
+            CalendarID    => $CalendarID,
         },
         UserID => $Param{UserID},
     );
@@ -2162,6 +2165,7 @@ sub AppointmentNotification {
             Event => 'AppointmentNotification',
             Data  => {
                 AppointmentID => $UpcomingAppointment->{AppointmentID},
+                CalendarID    => $UpcomingAppointment->{CaledarID},
             },
             UserID => 1,
         );

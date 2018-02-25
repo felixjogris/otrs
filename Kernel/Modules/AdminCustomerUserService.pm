@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -10,6 +10,8 @@ package Kernel::Modules::AdminCustomerUserService;
 
 use strict;
 use warnings;
+
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -363,10 +365,10 @@ sub _Change {
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
 
     if ( $VisibleType{$NeType} eq 'Customer' ) {
-        $Param{BreadcrumbTitle} = "Allocate Customers to Service";
+        $Param{BreadcrumbTitle} = Translatable('Allocate Customer Users to Service');
     }
     else {
-        $Param{BreadcrumbTitle} = "Allocate Services to Customer";
+        $Param{BreadcrumbTitle} = Translatable('Allocate Services to Customer User');
     }
 
     # overview
@@ -640,4 +642,5 @@ sub _Overview {
         Data         => \%Param,
     );
 }
+
 1;

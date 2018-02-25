@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -16,14 +16,24 @@ $Kernel::OM->ObjectParamAdd(
     'Kernel::System::UnitTest::Helper' => {
         RestoreDatabase => 1,
     },
+);
+my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+my $TestUserLogin = $Helper->TestUserCreate(
+    Groups => [ 'admin', 'users', ],
+);
+my $UserID = $Kernel::OM->Get('Kernel::System::User')->UserLookup(
+    UserLogin => $TestUserLogin,
+);
+
+$Kernel::OM->ObjectParamAdd(
     'Kernel::Output::HTML::Notification::AgentOTRSBusiness' => {
-        UserID => 1,
+        UserID => $UserID,
     },
     'Kernel::Output::HTML::Notification::CustomerOTRSBusiness' => {
-        UserID => 1,
+        UserID => $UserID,
     },
 );
-my $Helper                     = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 my $AgentNotificationObject    = $Kernel::OM->Get('Kernel::Output::HTML::Notification::AgentOTRSBusiness');
 my $CustomerNotificationObject = $Kernel::OM->Get('Kernel::Output::HTML::Notification::CustomerOTRSBusiness');
 my $SystemDataObject           = $Kernel::OM->Get('Kernel::System::SystemData');
@@ -40,7 +50,7 @@ my @Tests = (
         AgentNotificationResultAdmin => '<!-- start Notify -->
 <div class="MessageBox Info">
     <p>
-            <a href="No-$ENV{"SCRIPT_NAME"}?Action=AdminOTRSBusiness" class="Button"><i class="fa fa-angle-double-up"></i> Upgrade to <b>OTRS Business Solution</b>™ now! </a>
+            <a href="No-$ENV{"SCRIPT_NAME"}?Action=AdminOTRSBusiness"> Upgrade to <b>OTRS Business Solution</b>™ now! </a>
     </p>
 </div>
 <!-- end Notify -->
@@ -197,12 +207,19 @@ if (!window.location.search.match(/^[?]Action=(AgentOTRSBusiness|Admin.*)/)) {
 
 for my $Test (@Tests) {
 
-    my $SystemTime = $Kernel::OM->Get('Kernel::System::Time')->TimeStamp2SystemTime(
-        String => $Test->{CurrentTime},
+    my $DateTimeObject = $Kernel::OM->Create(
+        'Kernel::System::DateTime',
+        ObjectParams => {
+            String => $Test->{CurrentTime},
+            }
     );
+    my $SystemTime = $DateTimeObject->ToEpoch();
+
     $Helper->FixedTimeSet($SystemTime);
 
-    no warnings 'redefine';
+    use Kernel::System::OTRSBusiness;
+
+    no warnings 'redefine';    ## no critic
 
     local *Kernel::System::OTRSBusiness::OTRSBusinessIsInstalled = sub {
         return $Test->{OTRSBusinessIsInstalled};

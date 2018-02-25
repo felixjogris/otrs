@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,7 +12,7 @@ use strict;
 use warnings;
 
 use Kernel::Language qw(Translatable);
-use Kernel::System::DateTime qw(:all);
+use Kernel::System::DateTime;
 
 our @ObjectDependencies = (
     'Kernel::Config',
@@ -37,13 +37,22 @@ sub new {
 sub Param {
     my ( $Self, %Param ) = @_;
 
-    my $PreferencesKey      = $Self->{ConfigItem}->{PrefKey};
-    my $UserDefaultTimeZone = UserDefaultTimeZoneGet();
-    my $TimeZones           = TimeZoneList();
-    my %TimeZones           = map { $_ => $_ } sort @{$TimeZones};
-    my $SelectedTimeZone    = $Kernel::OM->Get('Kernel::System::Web::Request')->GetParam( Param => $PreferencesKey )
-        || $Param{UserData}->{$PreferencesKey}
-        || $UserDefaultTimeZone;
+    my $PreferencesKey   = $Self->{ConfigItem}->{PrefKey};
+    my $TimeZones        = Kernel::System::DateTime->TimeZoneList();
+    my %TimeZones        = map { $_ => $_ } sort @{$TimeZones};
+    my $SelectedTimeZone = $Kernel::OM->Get('Kernel::System::Web::Request')->GetParam( Param => $PreferencesKey );
+
+    # Use stored time zone only if it's valid. It can happen that user preferences store an old-style offset which is
+    #   not valid anymore. Please see bug#13374 for more information.
+    if (
+        $Param{UserData}->{$PreferencesKey}
+        && Kernel::System::DateTime->IsTimeZoneValid( TimeZone => $Param{UserData}->{$PreferencesKey} )
+        )
+    {
+        $SelectedTimeZone = $Param{UserData}->{$PreferencesKey};
+    }
+
+    $SelectedTimeZone ||= Kernel::System::DateTime->UserDefaultTimeZoneGet();
 
     my @Params = ();
     push(

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -54,6 +54,15 @@ sub Config {
 
 sub Run {
     my ( $Self, %Param ) = @_;
+
+    # get customer id from customer user data if neccessary
+    if ( !$Param{CustomerID} && $Param{CustomerUserID} ) {
+        my %CustomerUserData = $Kernel::OM->Get('Kernel::System::CustomerUser')->CustomerUserDataGet(
+            User => $Self->{CustomerUserID},
+        );
+
+        $Param{CustomerID} = $CustomerUserData{UserCustomerID} || '';
+    }
 
     return if !$Param{CustomerID};
 
@@ -140,6 +149,9 @@ sub Run {
                 );
 
                 next VALUE if !IsHashRefWithData($RenderedValue) || !defined $RenderedValue->{Value};
+
+                # If there is configured show link in DF, save as map value.
+                $Entry->[6] = $RenderedValue->{Link} ? $RenderedValue->{Link} : $Entry->[6];
 
                 push @RenderedValues, $RenderedValue->{Value};
             }

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -25,6 +25,8 @@ my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
 
 my $RandomNumber = $HelperObject->GetRandomNumber();
 
+$HelperObject->FixedTimeSet();
+
 my $SettingName1 = 'ProductName ' . $RandomNumber . 1;
 my $SettingName2 = 'ProductName ' . $RandomNumber . 2;
 my $SettingName3 = 'ProductName ' . $RandomNumber . 3;
@@ -33,35 +35,31 @@ my $SettingName4 = 'ProductName ' . $RandomNumber . 4;
 #
 # Prepare valid config XML and Perl
 #
-my @ValidSettingXML = (
-    <<'EOF',
-<Setting Name="Test1" Required="1" Valid="1">
-    <Description Translatable="1">Test 1.</Description>
-    <Navigation>Core::Ticket</Navigation>
-    <Value>
-        <Item ValueType="String" ValueRegex=".*">Test setting 1</Item>
-    </Value>
-</Setting>
+my $ValidSettingXML = <<'EOF',
+<?xml version="1.0" encoding="utf-8" ?>
+<otrs_config version="2.0" init="Framework">
+    <Setting Name="Test1" Required="1" Valid="1">
+        <Description Translatable="1">Test 1.</Description>
+        <Navigation>Core::Ticket</Navigation>
+        <Value>
+            <Item ValueType="String" ValueRegex=".*">Test setting 1</Item>
+        </Value>
+    </Setting>
+    <Setting Name="Test2" Required="1" Valid="1">
+        <Description Translatable="1">Test 2.</Description>
+        <Navigation>Core::Ticket</Navigation>
+        <Value>
+            <Item ValueType="File">/usr/bin/gpg</Item>
+        </Value>
+    </Setting>
+</otrs_config>
 EOF
-    <<'EOF',
-<Setting Name="Test2" Required="1" Valid="1">
-    <Description Translatable="1">Test 2.</Description>
-    <Navigation>Core::Ticket</Navigation>
-    <Value>
-        <Item ValueType="File">/usr/bin/gpg</Item>
-    </Value>
-</Setting>
-EOF
-);
 
-my $SysConfigXMLObject = $Kernel::OM->Get('Kernel::System::SysConfig::XML');
-my @ValidSettingXMLAndPerl;
-for my $ValidSettingXML (@ValidSettingXML) {
-    push @ValidSettingXMLAndPerl, {
-        XML  => $ValidSettingXML,
-        Perl => $SysConfigXMLObject->SettingParse( SettingXML => $ValidSettingXML ),
-    };
-}
+    my $SysConfigXMLObject = $Kernel::OM->Get('Kernel::System::SysConfig::XML');
+
+my @DefaultSettingAddParams = $SysConfigXMLObject->SettingListParse(
+    XMLInput => $ValidSettingXML,
+);
 
 my $SysConfigDBObject = $Kernel::OM->Get('Kernel::System::SysConfig::DB');
 
@@ -78,8 +76,8 @@ my $DefaultSettingID1 = $SysConfigDBObject->DefaultSettingAdd(
     UserModificationPossible => 1,
     UserModificationActive   => 1,
     UserPreferencesGroup     => 'Advanced',
-    XMLContentRaw            => $ValidSettingXMLAndPerl[0]->{XML},
-    XMLContentParsed         => $ValidSettingXMLAndPerl[0]->{Perl},
+    XMLContentRaw            => $DefaultSettingAddParams[0]->{XMLContentRaw},
+    XMLContentParsed         => $DefaultSettingAddParams[0]->{XMLContentParsed},
     XMLFilename              => 'UnitTest.xml',
     EffectiveValue           => 'Test setting 1',
     UserID                   => 1,
@@ -102,8 +100,8 @@ my $DefaultSettingID2 = $SysConfigDBObject->DefaultSettingAdd(
     UserModificationPossible => 1,
     UserModificationActive   => 1,
     UserPreferencesGroup     => 'Advanced',
-    XMLContentRaw            => $ValidSettingXMLAndPerl[0]->{XML},
-    XMLContentParsed         => $ValidSettingXMLAndPerl[0]->{Perl},
+    XMLContentRaw            => $DefaultSettingAddParams[0]->{XMLContentRaw},
+    XMLContentParsed         => $DefaultSettingAddParams[0]->{XMLContentParsed},
     XMLFilename              => 'UnitTest.xml',
     EffectiveValue           => 'Test setting 2',
     UserID                   => 1,
@@ -126,8 +124,8 @@ my $DefaultSettingID3 = $SysConfigDBObject->DefaultSettingAdd(
     UserModificationPossible => 1,
     UserModificationActive   => 1,
     UserPreferencesGroup     => 'Advanced',
-    XMLContentRaw            => $ValidSettingXMLAndPerl[0]->{XML},
-    XMLContentParsed         => $ValidSettingXMLAndPerl[0]->{Perl},
+    XMLContentRaw            => $DefaultSettingAddParams[0]->{XMLContentRaw},
+    XMLContentParsed         => $DefaultSettingAddParams[0]->{XMLContentParsed},
     XMLFilename              => 'UnitTest.xml',
     EffectiveValue           => 'Test setting 3',
     UserID                   => 1,
@@ -150,8 +148,8 @@ my $DefaultSettingID4 = $SysConfigDBObject->DefaultSettingAdd(
     UserModificationPossible => 1,
     UserModificationActive   => 1,
     UserPreferencesGroup     => 'Advanced',
-    XMLContentRaw            => $ValidSettingXMLAndPerl[0]->{XML},
-    XMLContentParsed         => $ValidSettingXMLAndPerl[0]->{Perl},
+    XMLContentRaw            => $DefaultSettingAddParams[0]->{XMLContentRaw},
+    XMLContentParsed         => $DefaultSettingAddParams[0]->{XMLContentParsed},
     XMLFilename              => 'UnitTest.xml',
     EffectiveValue           => 'Test setting 4',
     UserID                   => 1,
@@ -198,14 +196,14 @@ my $Success = $SysConfigDBObject->DefaultSettingUnlock(
     UnlockAll => 1,
 );
 
-$Success = $SysConfigObject->ConfigurationDeploy(
+my %DeploymentResult = $SysConfigObject->ConfigurationDeploy(
     Comments     => "UnitTest",
     UserID       => 1,
     Force        => 1,
     NoValidation => 1,
 );
 $Self->True(
-    $Success,
+    $DeploymentResult{Success},
     "ConfigurationDeploy() 1 with true",
 );
 
@@ -275,14 +273,19 @@ $Success = $SysConfigDBObject->DefaultSettingUnlock(
     UnlockAll => 1,
 );
 
-$Success = $SysConfigObject->ConfigurationDeploy(
+# Make sure that there is enough time between two ConfigurationDeploy() calls.
+# DeploymentModifiedVersionList() method works with timestamps, so it can return
+# data which was deployed in previous deployment. See https://bugs.otrs.org/show_bug.cgi?id=13071.
+$HelperObject->FixedTimeAddSeconds(2);
+
+%DeploymentResult = $SysConfigObject->ConfigurationDeploy(
     Comments     => "UnitTest",
     UserID       => 1,
     Force        => 1,
     NoValidation => 1,
 );
 $Self->True(
-    $Success,
+    $DeploymentResult{Success},
     "ConfigurationDeploy() 2 with true",
 );
 

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -14,7 +14,7 @@ use vars (qw($Self));
 
 use Kernel::GenericInterface::Debugger;
 
-# get webservice object
+# get web service object
 my $WebserviceObject = $Kernel::OM->Get('Kernel::System::GenericInterface::Webservice');
 
 # get helper object
@@ -39,7 +39,7 @@ my $WebserviceID = $WebserviceObject->WebserviceAdd(
             },
         },
     },
-    Name    => "$RandomID webservice",
+    Name    => "$RandomID web service",
     ValidID => 1,
     UserID  => 1,
 );
@@ -272,7 +272,7 @@ for my $Test (@Tests) {
                 },
             },
         },
-        Name    => "$RandomID webservice",
+        Name    => "$RandomID web service",
         ValidID => 1,
         UserID  => 1,
     );

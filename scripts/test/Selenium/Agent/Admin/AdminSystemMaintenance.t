@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -39,8 +39,12 @@ $Selenium->RunTest(
         # get helper object
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
-        # get time object
-        my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+        # Make sure system is based on UTC.
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'OTRSTimeZone',
+            Value => 'UTC',
+        );
 
         # get DB object
         my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
@@ -48,11 +52,26 @@ $Selenium->RunTest(
         # get SystemMaintenance object
         my $SystemMaintenanceObject = $Kernel::OM->Get('Kernel::System::SystemMaintenance');
 
-        # create test user and login
+        # Create test user.
         my $TestUserLogin = $Helper->TestUserCreate(
             Groups => ['admin'],
         ) || die "Did not get test user";
 
+        # Get UserID for later manipulation of preferences.
+        my $UserObject = $Kernel::OM->Get('Kernel::System::User');
+        my $UserID     = $UserObject->UserLookup(
+            UserLogin => $TestUserLogin,
+        );
+
+        # Set user's time zone.
+        my $UserTimeZone = 'Europe/Berlin';
+        $UserObject->SetPreferences(
+            Key    => 'UserTimeZone',
+            Value  => $UserTimeZone,
+            UserID => $UserID,
+        );
+
+        # Login test user
         $Selenium->Login(
             Type     => 'Agent',
             User     => $TestUserLogin,
@@ -96,7 +115,10 @@ $Selenium->RunTest(
 
         # check client side validation
         $Selenium->find_element( "#Comment", 'css' )->clear();
-        $Selenium->find_element( "#Comment", 'css' )->VerifiedSubmit();
+        $Selenium->execute_script("\$('#Submit').trigger('click')");
+        $Selenium->WaitFor(
+            JavaScript => "return typeof(\$) === 'function' && \$('#Comment.Error').length"
+        );
         $Self->Is(
             $Selenium->execute_script(
                 "return \$('#Comment').hasClass('Error')"
@@ -105,11 +127,13 @@ $Selenium->RunTest(
             'Client side validation correctly detected missing input value',
         );
 
+        my $DTObj = $Kernel::OM->Create('Kernel::System::DateTime');
+
         # create error test SystemMaintenance scenario
         # get test end time - 1 hour of current time
-        my ( $SecWrong, $MinWrong, $HourWrong, $DayWrong, $MonthWrong, $YearWrong, ) = $TimeObject->SystemTime2Date(
-            SystemTime => $TimeObject->SystemTime() - 60 * 60,
-        );
+        my $DTWrongObj = $DTObj->Clone();
+        $DTWrongObj->Subtract( Hours => 1 );
+        my $DTWrong = $DTWrongObj->Get();
 
         my $SysMainComment = "sysmaintenance" . $Helper->GetRandomID();
         my $SysMainLogin   = "Selenium test SystemMaintance is progress, please log in later on";
@@ -117,45 +141,83 @@ $Selenium->RunTest(
 
         $Selenium->find_element( "#Comment", 'css' )->send_keys($SysMainComment);
 
-        $Selenium->find_element( "#StopDateDay option[value='" . int($DayWrong) . "']",     'css' )->VerifiedClick();
-        $Selenium->find_element( "#StopDateMonth option[value='" . int($MonthWrong) . "']", 'css' )->VerifiedClick();
-        $Selenium->execute_script(
-            "\$('#StopDateYear').val('$YearWrong').trigger('redraw.InputField').trigger('change');"
-        );
-        $Selenium->find_element( "#StopDateHour option[value='" . int($HourWrong) . "']",  'css' )->VerifiedClick();
-        $Selenium->find_element( "#StopDateMinute option[value='" . int($MinWrong) . "']", 'css' )->VerifiedClick();
+        $Selenium->execute_script("\$('#StopDateDay').val('$DTWrong->{Day}')");
+        $Selenium->execute_script("\$('#StopDateMonth').val('$DTWrong->{Month}')");
+        $Selenium->execute_script("\$('#StopDateYear').val('$DTWrong->{Year}')");
+        $Selenium->execute_script("\$('#StopDateHour').val('$DTWrong->{Hour}')");
+        $Selenium->execute_script("\$('#StopDateMinute').val('$DTWrong->{Minute}')");
 
-        $Selenium->find_element( "#Comment", 'css' )->VerifiedSubmit();
+        $Selenium->execute_script("\$('#Submit').trigger('click')");
+        $Selenium->WaitFor(
+            JavaScript =>
+                "return typeof(\$) === 'function' && \$('.MessageBox > p:contains(\"Start date shouldn\\'t be defined after Stop date!\")').length"
+        );
         $Self->True(
-            index( $Selenium->get_page_source(), "Start date shouldn\'t be defined after Stop date!" ) > -1,
-            "Error message correctly displayed",
-        );
+            $Selenium->execute_script(
+                "return \$('.MessageBox > p:contains(\"Start date shouldn\\'t be defined after Stop date!\")').length"
+            ),
+            "Error message correctly displayed"
+        ) || die "Did not get notification message";
 
-        # get test start time + 1 hour of system time
-        my ( $SecStart, $MinStart, $HourStart, $DayStart, $MonthStart, $YearStart, ) = $TimeObject->SystemTime2Date(
-            SystemTime => $TimeObject->SystemTime() + 60 * 60,
-        );
+        # get test start time + 2 hour of system time
+        my $DTStartObj = $DTObj->Clone();
+        $DTStartObj->Add( Hours => 2 );
+        my $DTStart = $DTStartObj->Get();
 
-        # get test end time + 2 hour of system time
-        my ( $SecEnd, $MinEnd, $HourEnd, $DayEnd, $MonthEnd, $YearEnd ) = $TimeObject->SystemTime2Date(
-            SystemTime => $TimeObject->SystemTime() + 2 * 60 * 60,
-        );
+        # get test end time + 3 hour of system time
+        my $DTEndObj = $DTObj->Clone();
+        $DTEndObj->Add( Hours => 3 );
+        my $DTEnd = $DTEndObj->Get();
 
         # create real test SystemMaintenance
-        $Selenium->find_element( "#StartDateDay option[value='" . int($DayStart) . "']",     'css' )->VerifiedClick();
-        $Selenium->find_element( "#StartDateMonth option[value='" . int($MonthStart) . "']", 'css' )->VerifiedClick();
-        $Selenium->execute_script(
-            "\$('#StartDateYear').val('$YearStart').trigger('redraw.InputField').trigger('change');"
+        $Selenium->execute_script("\$('#StartDateDay').val('$DTStart->{Day}')");
+        $Selenium->execute_script("\$('#StartDateMonth').val('$DTStart->{Month}')");
+        $Selenium->execute_script("\$('#StartDateYear').val('$DTStart->{Year}')");
+        $Selenium->execute_script("\$('#StartDateHour').val('$DTStart->{Hour}')");
+        $Selenium->execute_script("\$('#StartDateMinute').val('$DTStart->{Minute}')");
+        $Selenium->execute_script("\$('#StopDateDay').val('$DTEnd->{Day}')");
+        $Selenium->execute_script("\$('#StopDateMonth').val('$DTEnd->{Month}')");
+        $Selenium->execute_script("\$('#StopDateYear').val('$DTEnd->{Year}')");
+        $Selenium->execute_script("\$('#StopDateHour').val('$DTEnd->{Hour}')");
+        $Selenium->execute_script("\$('#StopDateMinute').val('$DTEnd->{Minute}')");
+
+        # Try to create System Maintenance with Login and Notify message longer then 250 characters.
+        #   See bug#13366 (https://bugs.otrs.org/show_bug.cgi?id=13366).
+        #   Verify there is no Error class initially.
+        $Self->False(
+            $Selenium->execute_script("return \$('#LoginMessage').hasClass('Error')"),
+            "There is no error class in Login Message text area"
         );
-        $Selenium->find_element( "#StartDateHour option[value='" . int($HourStart) . "']",  'css' )->VerifiedClick();
-        $Selenium->find_element( "#StartDateMinute option[value='" . int($MinStart) . "']", 'css' )->VerifiedClick();
-        $Selenium->find_element( "#StopDateDay option[value='" . int($DayEnd) . "']",       'css' )->VerifiedClick();
-        $Selenium->find_element( "#StopDateMonth option[value='" . int($MonthEnd) . "']",   'css' )->VerifiedClick();
-        $Selenium->execute_script(
-            "\$('#StopDateYear').val('$YearEnd').trigger('redraw.InputField').trigger('change');"
+        $Self->False(
+            $Selenium->execute_script("return \$('#NotifyMessage').hasClass('Error')"),
+            "There is no error class in Notify Message text area"
         );
-        $Selenium->find_element( "#StopDateHour option[value='" . int($HourEnd) . "']",  'css' )->VerifiedClick();
-        $Selenium->find_element( "#StopDateMinute option[value='" . int($MinEnd) . "']", 'css' )->VerifiedClick();
+
+        # Add 251 characters in the fields and verify Error class.
+        my $LongLoginMessage  = "a" x 251;
+        my $LongNotifyMessage = "b" x 251;
+
+        $Selenium->find_element( "#LoginMessage",  'css' )->send_keys($LongLoginMessage);
+        $Selenium->find_element( "#NotifyMessage", 'css' )->send_keys($LongNotifyMessage);
+
+        $Selenium->execute_script("\$('#Submit').trigger('click')");
+        $Selenium->WaitFor(
+            JavaScript =>
+                "return typeof(\$) === 'function' && \$('#LoginMessage.Error').length && \$('#NotifyMessage.Error').length"
+        );
+
+        $Self->True(
+            $Selenium->execute_script("return \$('#LoginMessage').hasClass('Error')"),
+            "There is error class in Login Message text area"
+        );
+        $Self->True(
+            $Selenium->execute_script("return \$('#NotifyMessage').hasClass('Error')"),
+            "There is error class in Notify Message text area"
+        );
+
+        # Create SystemMaintenance.
+        $Selenium->find_element( "#LoginMessage",  'css' )->clear();
+        $Selenium->find_element( "#NotifyMessage", 'css' )->clear();
         $Selenium->find_element( "#LoginMessage",  'css' )->send_keys($SysMainLogin);
         $Selenium->find_element( "#NotifyMessage", 'css' )->send_keys($SysMainNotify);
         $Selenium->find_element( "#Submit",        'css' )->VerifiedClick();
@@ -165,6 +227,35 @@ $Selenium->RunTest(
         $Self->True(
             $Selenium->execute_script("return \$('.MessageBox.Notice p:contains($Notification)').length"),
             "$Notification - notification is found."
+        );
+
+        # Get test start time + 1 hour of system.
+        my $LayoutObject = Kernel::Output::HTML::Layout->new( UserTimeZone => $UserTimeZone );
+        my $DTStartObjStr = $DTObj->Clone();
+        $DTStartObjStr->Add( Hours => 1 );
+        my $StartTimeString = $LayoutObject->{LanguageObject}->FormatTimeString(
+            $DTStartObjStr->ToString(),
+            'DateFormat',
+            1,
+        );
+
+        # Get test end time + 2 hour of system.
+        my $DTEndObjStr = $DTObj->Clone();
+        $DTEndObjStr->Add( Hours => 2 );
+        my $EndTimeString = $LayoutObject->{LanguageObject}->FormatTimeString(
+            $DTEndObjStr->ToString(),
+            'DateFormat',
+            1,
+        );
+
+        # Check for upcoming System Maintenance notification.
+        my $UpcomingSysMaintenanceNotif
+            = "A system maintenance period will start at: $StartTimeString and is expected to stop at: $EndTimeString";
+        $Self->True(
+            $Selenium->execute_script(
+                "return \$('.MessageBox.Notice p:contains(\"$UpcomingSysMaintenanceNotif\")').length"
+            ),
+            "$UpcomingSysMaintenanceNotif - notification is found."
         );
 
         # check for created test SystemMaintenance
@@ -212,9 +303,47 @@ $Selenium->RunTest(
         # check breadcrumb on Edit screen
         $CheckBredcrumb->( BreadcrumbText => 'Edit System Maintenance' );
 
+        # Try to edit System Maintenance with Login and Notify message longer then 250 characters.
+        #   See bug#13366 (https://bugs.otrs.org/show_bug.cgi?id=13366).
+        #   Verify there is no Error class initially.
+        $Self->False(
+            $Selenium->execute_script("return \$('#LoginMessage').hasClass('Error')"),
+            "There is no error class in Login Message text area"
+        );
+        $Self->False(
+            $Selenium->execute_script("return \$('#NotifyMessage').hasClass('Error')"),
+            "There is no error class in Notify Message text area"
+        );
+
+        # Add 251 characters in the fields and verify Error class.
+        $LongLoginMessage  = "a" x 251;
+        $LongNotifyMessage = "b" x 251;
+
+        $Selenium->find_element( "#LoginMessage",  'css' )->clear();
+        $Selenium->find_element( "#NotifyMessage", 'css' )->clear();
+        $Selenium->find_element( "#LoginMessage",  'css' )->send_keys($LongLoginMessage);
+        $Selenium->find_element( "#NotifyMessage", 'css' )->send_keys($LongNotifyMessage);
+
+        $Selenium->execute_script("\$('#Submit').trigger('click')");
+        $Selenium->WaitFor(
+            JavaScript =>
+                "return typeof(\$) === 'function' && \$('#LoginMessage.Error').length && \$('#NotifyMessage.Error').length"
+        );
+
+        $Self->True(
+            $Selenium->execute_script("return \$('#LoginMessage').hasClass('Error')"),
+            "There is error class in Login Message text area"
+        );
+        $Self->True(
+            $Selenium->execute_script("return \$('#NotifyMessage').hasClass('Error')"),
+            "There is error class in Notify Message text area"
+        );
+        $Selenium->find_element( "#LoginMessage",  'css' )->clear();
+        $Selenium->find_element( "#NotifyMessage", 'css' )->clear();
+
         # edit test SystemMaintenance and set it to invalid
-        $Selenium->find_element( "#LoginMessage",  'css' )->send_keys("-update");
-        $Selenium->find_element( "#NotifyMessage", 'css' )->send_keys("-update");
+        $Selenium->find_element( "#LoginMessage",  'css' )->send_keys( $SysMainLogin,  "-update" );
+        $Selenium->find_element( "#NotifyMessage", 'css' )->send_keys( $SysMainNotify, "-update" );
         $Selenium->execute_script("\$('#ValidID').val('2').trigger('redraw.InputField').trigger('change');");
         $Selenium->find_element( "#Submit", 'css' )->VerifiedClick();
 
@@ -265,8 +394,7 @@ $Selenium->RunTest(
         $Selenium->accept_alert();
 
         $Selenium->WaitFor(
-            JavaScript =>
-                'return typeof(Core) == "object" && typeof(Core.App) == "object" && Core.App.PageLoadComplete'
+            JavaScript => "return typeof(\$) === 'function' &&  \$('tbody tr:contains($SysMainComment)').length === 0;"
         );
 
         $Self->True(
@@ -274,84 +402,86 @@ $Selenium->RunTest(
             "Deleted - $SysMainComment"
         );
 
+        my $Epoch = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
+
         # define test SystemMaintenance scenarios
         my @Tests = (
             {
                 # now, duration 2 hours
-                StartDate => $TimeObject->SystemTime(),
-                StopDate  => $TimeObject->SystemTime() + 2 * 60 * 60,
+                StartDate => $Epoch,
+                StopDate  => $Epoch + 2 * 60 * 60,
                 Comment   => $SysMainComment . ' maintenance period #1',
                 ValidID   => 1,
                 UserID    => 1,
             },
             {
                 # 1 day later, duration 2 hours
-                StartDate => $TimeObject->SystemTime() + 24 * 60 * 60,
-                StopDate  => $TimeObject->SystemTime() + 24 * 60 * 60 + 2 * 60 * 60,
+                StartDate => $Epoch + 24 * 60 * 60,
+                StopDate  => $Epoch + 24 * 60 * 60 + 2 * 60 * 60,
                 Comment   => $SysMainComment . ' maintenance period #2',
                 ValidID   => 1,
                 UserID    => 1,
             },
             {
                 # 2 days later, duration 2 hours
-                StartDate => $TimeObject->SystemTime() + 2 * 24 * 60 * 60,
-                StopDate  => $TimeObject->SystemTime() + 2 * 24 * 60 * 60 + 2 * 60 * 60,
+                StartDate => $Epoch + 2 * 24 * 60 * 60,
+                StopDate  => $Epoch + 2 * 24 * 60 * 60 + 2 * 60 * 60,
                 Comment   => $SysMainComment . ' maintenance period #3',
                 ValidID   => 1,
                 UserID    => 1,
             },
             {
                 # 3 days later, duration 2 hours
-                StartDate => $TimeObject->SystemTime() + 3 * 24 * 60 * 60,
-                StopDate  => $TimeObject->SystemTime() + 3 * 24 * 60 * 60 + 2 * 60 * 60,
+                StartDate => $Epoch + 3 * 24 * 60 * 60,
+                StopDate  => $Epoch + 3 * 24 * 60 * 60 + 2 * 60 * 60,
                 Comment   => $SysMainComment . ' maintenance period #4',
                 ValidID   => 1,
                 UserID    => 1,
             },
             {
                 # 4 days later, duration 2 hours
-                StartDate => $TimeObject->SystemTime() + 4 * 24 * 60 * 60,
-                StopDate  => $TimeObject->SystemTime() + 4 * 24 * 60 * 60 + 2 * 60 * 60,
+                StartDate => $Epoch + 4 * 24 * 60 * 60,
+                StopDate  => $Epoch + 4 * 24 * 60 * 60 + 2 * 60 * 60,
                 Comment   => $SysMainComment . ' maintenance period #5',
                 ValidID   => 1,
                 UserID    => 1,
             },
             {
                 # 5 days later, duration 2 hours
-                StartDate => $TimeObject->SystemTime() + 5 * 24 * 60 * 60,
-                StopDate  => $TimeObject->SystemTime() + 5 * 24 * 60 * 60 + 2 * 60 * 60,
+                StartDate => $Epoch + 5 * 24 * 60 * 60,
+                StopDate  => $Epoch + 5 * 24 * 60 * 60 + 2 * 60 * 60,
                 Comment   => $SysMainComment . ' maintenance period #6',
                 ValidID   => 1,
                 UserID    => 1,
             },
             {
                 # 6 days later, duration 2 hours
-                StartDate => $TimeObject->SystemTime() + 6 * 24 * 60 * 60,
-                StopDate  => $TimeObject->SystemTime() + 6 * 24 * 60 * 60 + 2 * 60 * 60,
+                StartDate => $Epoch + 6 * 24 * 60 * 60,
+                StopDate  => $Epoch + 6 * 24 * 60 * 60 + 2 * 60 * 60,
                 Comment   => $SysMainComment . ' maintenance period #7',
                 ValidID   => 1,
                 UserID    => 1,
             },
             {
                 # 7 days later, duration 2 hours
-                StartDate => $TimeObject->SystemTime() + 7 * 24 * 60 * 60,
-                StopDate  => $TimeObject->SystemTime() + 7 * 24 * 60 * 60 + 2 * 60 * 60,
+                StartDate => $Epoch + 7 * 24 * 60 * 60,
+                StopDate  => $Epoch + 7 * 24 * 60 * 60 + 2 * 60 * 60,
                 Comment   => $SysMainComment . ' maintenance period #8',
                 ValidID   => 1,
                 UserID    => 1,
             },
             {
                 # 8 days later, duration 2 hours
-                StartDate => $TimeObject->SystemTime() + 8 * 24 * 60 * 60,
-                StopDate  => $TimeObject->SystemTime() + 8 * 24 * 60 * 60 + 2 * 60 * 60,
+                StartDate => $Epoch + 8 * 24 * 60 * 60,
+                StopDate  => $Epoch + 8 * 24 * 60 * 60 + 2 * 60 * 60,
                 Comment   => $SysMainComment . ' maintenance period #9',
                 ValidID   => 1,
                 UserID    => 1,
             },
             {
                 # one week earlier, duration 2 hours
-                StartDate => $TimeObject->SystemTime() - 7 * 24 * 60 * 60,
-                StopDate  => $TimeObject->SystemTime() - 7 * 24 * 60 * 60 + 2 * 60 * 60,
+                StartDate => $Epoch - 7 * 24 * 60 * 60,
+                StopDate  => $Epoch - 7 * 24 * 60 * 60 + 2 * 60 * 60,
                 Comment   => $SysMainComment . ' maintenance period #10',
                 ValidID   => 1,
                 UserID    => 1,

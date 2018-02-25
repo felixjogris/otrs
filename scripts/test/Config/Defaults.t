@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -27,8 +27,7 @@ and cause wrong test failures.
 =cut
 
 # Get list of installed config XML files
-# TODO: Update $Directory to /Kernel/Config/Files/XML/ when ToBeMerged.xml is merged.
-my $Directory   = $Kernel::OM->Get('Kernel::Config')->Get('Home') . "/Kernel/Config/Files/";
+my $Directory   = $Kernel::OM->Get('Kernel::Config')->Get('Home') . "/Kernel/Config/Files/XML";
 my @ConfigFiles = $Kernel::OM->Get('Kernel::System::Main')->DirectoryRead(
     Directory => $Directory,
     Filter    => "*.xml",
@@ -69,16 +68,17 @@ Kernel::Config::Files::ZZZAAuto->Load($ZZZAAutoConfig);
 
 # These entries are hashes
 my %CheckSubEntries = (
-    'Frontend::Module'            => 1,
-    'Frontend::NotifyModule'      => 1,
-    'Frontend::Navigation'        => 1,
-    'Frontend::NavigationModule'  => 1,
-    'CustomerFrontend::Module'    => 1,
-    'Loader::Agent::CommonJS'     => 1,
-    'Loader::Agent::CommonCSS'    => 1,
-    'Loader::Customer::CommonJS'  => 1,
-    'Loader::Customer::CommonCSS' => 1,
-    'PreferencesGroups'           => 1,
+    'Frontend::Module'                   => 1,
+    'Frontend::NotifyModule'             => 1,
+    'Frontend::Navigation'               => 1,
+    'Frontend::NavigationModule'         => 1,
+    'CustomerFrontend::Module'           => 1,
+    'Loader::Agent::CommonJS'            => 1,
+    'Loader::Agent::CommonCSS'           => 1,
+    'Loader::Customer::CommonJS'         => 1,
+    'Loader::Customer::CommonCSS'        => 1,
+    'PreferencesGroups'                  => 1,
+    'Ticket::Article::Backend::MIMEBase' => 1,
 );
 
 # These entries are hashes of hashes
@@ -95,6 +95,9 @@ my %IgnoreEntries = (
     'Loader::Module::Admin'                    => 1,
     'Loader::Module::AdminLog'                 => 1,
     'Loader::Module::AdminSystemConfiguration' => 1,
+
+    # This settings is modified in daemon.xml and needs to be excluded from this test.
+    'DaemonModules' => 1,
 );
 
 my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');

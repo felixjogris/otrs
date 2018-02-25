@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -61,6 +61,9 @@ Core.SystemConfiguration.VacationDaysOneTime = (function (TargetNS) {
 
         Prefix = $Object.attr("id");
         Prefix = Prefix.substr(0, Prefix.length - 3);
+
+        // Escape selector.
+        Prefix = Core.App.EscapeSelector(Prefix);
 
         Year = $Object.parent().find("#" + Prefix + "Year").val();
         Month = parseInt($Object.parent().find("#" + Prefix + "Month").val(), 10);

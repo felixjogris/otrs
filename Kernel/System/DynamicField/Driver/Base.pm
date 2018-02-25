@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -71,9 +71,6 @@ sub HasBehavior {
 
     # return success if the dynamic field has the expected behavior
     return IsPositiveInteger( $Self->{Behaviors}->{ $Param{Behavior} } );
-
-    # otherwise return fail
-    return;
 }
 
 sub SearchFieldPreferences {

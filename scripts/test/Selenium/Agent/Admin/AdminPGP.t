@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -133,7 +133,7 @@ $Selenium->RunTest(
 
         # test search filter
         $Selenium->find_element( "#Search", 'css' )->send_keys( $PGPKey{1} );
-        $Selenium->find_element( "#Search", 'css' )->VerifiedSubmit();
+        $Selenium->find_element("//button[\@type='submit']")->VerifiedClick();
 
         $Self->True(
             index( $Selenium->get_page_source(), $PGPKey{1} ) > -1,
@@ -146,7 +146,7 @@ $Selenium->RunTest(
 
         #clear search filter
         $Selenium->find_element( "#Search", 'css' )->clear();
-        $Selenium->find_element( "#Search", 'css' )->VerifiedSubmit();
+        $Selenium->find_element("//button[\@type='submit']")->VerifiedClick();
 
         # set test PGP in config so we can delete them
         $Helper->ConfigSettingChange(

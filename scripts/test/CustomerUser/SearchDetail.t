@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -984,7 +984,7 @@ my $ReferenceCustomerUserLogins = [ $CustomerLogins[0] ];
 
 # get a ref to an array of found ids
 my $CustomerUserLogins = $CustomerUserObject->CustomerSearchDetail(
-    CustomerCompanySearchCustomerIDs => [ $CustomerCompanyID, ],
+    CustomerCompanySearchCustomerIDs => [$CustomerCompanyID],
     Result                           => 'ARRAY',
     UserID                           => 1,
 );
@@ -993,6 +993,19 @@ $Self->IsDeeply(
     $CustomerUserLogins,
     $ReferenceCustomerUserLogins,
     "Test $TestCount: CustomerSearchDetail() special param 'CustomerCompanySearchCustomerIDs'."
+);
+
+# get a ref to an array of found ids
+$CustomerUserLogins = $CustomerUserObject->CustomerSearchDetail(
+    CustomerCompanySearchCustomerIDs => [ $CustomerCompanyID, 1 .. 1000 ],
+    Result                           => 'ARRAY',
+    UserID                           => 1,
+);
+
+$Self->IsDeeply(
+    $CustomerUserLogins,
+    $ReferenceCustomerUserLogins,
+    "Test $TestCount: CustomerSearchDetail() special param 'CustomerCompanySearchCustomerIDs' (with more then 1000 values)."
 );
 
 1;

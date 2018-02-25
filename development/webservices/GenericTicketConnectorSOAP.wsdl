@@ -102,9 +102,10 @@ WARNING: This WSDL file is for Development and Test purposes ONLY!
             <xsd:complexType name="OTRS_Article">
                 <xsd:sequence>
                     <xsd:choice maxOccurs="1" minOccurs="0">
-                        <xsd:element maxOccurs="1" minOccurs="0" name="ArticleTypeID" type="xsd:positiveInteger"/>
-                        <xsd:element maxOccurs="1" minOccurs="0" name="ArticleType" type="xsd:string"/>
+                        <xsd:element maxOccurs="1" minOccurs="0" name="CommunicationChannelID" type="xsd:positiveInteger"/>
+                        <xsd:element maxOccurs="1" minOccurs="0" name="CommunicationChannel" type="tns:OTRS_MIME_Communication_Channel"/>
                     </xsd:choice>
+                    <xsd:element maxOccurs="1" minOccurs="1" name="IsVisibleForCustomer" type="xsd:string"/>
                     <xsd:choice maxOccurs="1" minOccurs="0">
                         <xsd:element maxOccurs="1" minOccurs="0" name="SenderTypeID" type="xsd:positiveInteger"/>
                         <xsd:element maxOccurs="1" minOccurs="0" name="SenderType" type="xsd:string"/>
@@ -264,7 +265,6 @@ WARNING: This WSDL file is for Development and Test purposes ONLY!
                     <xsd:element maxOccurs="1" name="Changed" type="xsd:string"/>
                     <xsd:element minOccurs="0" name="Closed" type="xsd:string"/>
                     <xsd:element maxOccurs="1" name="CreateBy" type="xsd:positiveInteger"/>
-                    <xsd:element maxOccurs="1" minOccurs="1" name="CreateTimeUnix" type="xsd:positiveInteger"/>
                     <xsd:element maxOccurs="1" minOccurs="1" name="Created" type="xsd:string"/>
                     <xsd:element minOccurs="0" name="CustomerID" type="xsd:string"/>
                     <xsd:element minOccurs="1" name="CustomerUserID" type="xsd:string"/>
@@ -327,6 +327,7 @@ WARNING: This WSDL file is for Development and Test purposes ONLY!
                     <xsd:element maxOccurs="1" minOccurs="1" name="TicketNumber" type="xsd:string"/>
                     <xsd:element maxOccurs="1" minOccurs="1" name="Title" type="xsd:string"/>
                     <xsd:element minOccurs="1" name="Type" type="xsd:string"/>
+                    <xsd:element minOccurs="0" name="TimeUnit" type="xsd:float"/>
                     <xsd:element maxOccurs="1" minOccurs="1" name="TypeID" type="xsd:positiveInteger"/>
                     <xsd:element maxOccurs="1" minOccurs="1" name="UnlockTimeout" type="xsd:positiveInteger"/>
                     <xsd:element maxOccurs="1" minOccurs="1" name="UntilTime" type="xsd:nonNegativeInteger"/>
@@ -340,7 +341,6 @@ WARNING: This WSDL file is for Development and Test purposes ONLY!
                     <xsd:element maxOccurs="1" name="ArticleType" type="xsd:string"/>
                     <xsd:element maxOccurs="1" name="ArticleTypeID" type="xsd:positiveInteger"/>
                     <xsd:element maxOccurs="unbounded" minOccurs="0" name="Attachment" type="tns:OTRS_TicketGetResponse_Attachment"/>
-                    <xsd:element maxOccurs="1" name="AttachmentIDOfHTMLBody" type="xsd:string"/>
                     <xsd:element maxOccurs="1" name="Body" type="xsd:string"/>
                     <xsd:element maxOccurs="1" name="Cc" type="xsd:string"/>
                     <xsd:element minOccurs="0" name="CcRealname" type="xsd:string"/>
@@ -349,7 +349,6 @@ WARNING: This WSDL file is for Development and Test purposes ONLY!
                     <xsd:element minOccurs="0" name="Closed" type="xsd:string"/>
                     <xsd:element maxOccurs="1" name="ContentCharset" type="xsd:string"/>
                     <xsd:element maxOccurs="1" name="ContentType" type="xsd:string"/>
-                    <xsd:element maxOccurs="1" minOccurs="1" name="CreateTimeUnix" type="xsd:positiveInteger"/>
                     <xsd:element maxOccurs="1" minOccurs="1" name="Created" type="xsd:string"/>
                     <xsd:element maxOccurs="1" name="CreatedBy" type="xsd:positiveInteger"/>
                     <xsd:element minOccurs="0" name="CustomerID" type="xsd:string"/>
@@ -403,6 +402,7 @@ WARNING: This WSDL file is for Development and Test purposes ONLY!
                     <xsd:element maxOccurs="1" minOccurs="1" name="TicketID" type="xsd:positiveInteger"/>
                     <xsd:element maxOccurs="1" minOccurs="1" name="TicketNumber" type="xsd:string"/>
                     <xsd:element maxOccurs="1" minOccurs="1" name="Title" type="xsd:string"/>
+                    <xsd:element minOccurs="0" name="TimeUnit" type="xsd:float"/>
                     <xsd:element maxOccurs="1" minOccurs="1" name="To" type="xsd:string"/>
                     <xsd:element maxOccurs="1" minOccurs="1" name="ToRealname" type="xsd:string"/>
                     <xsd:element minOccurs="1" name="Type" type="xsd:string"/>
@@ -470,11 +470,11 @@ WARNING: This WSDL file is for Development and Test purposes ONLY!
                         <xsd:element maxOccurs="unbounded" minOccurs="0" name="CreatedQueueIDs" type="xsd:positiveInteger"/>
                         <xsd:element maxOccurs="unbounded" minOccurs="0" name="DynamicField" type="tns:OTRS_TicketSearch_DynamicField"/>
                         <xsd:element minOccurs="0" name="Ticketflag" type="tns:OTRS_TicketSearch_TicketFlag"/>
-                        <xsd:element maxOccurs="1" minOccurs="0" name="From" type="xsd:string"/>
-                        <xsd:element maxOccurs="1" minOccurs="0" name="To" type="xsd:string"/>
-                        <xsd:element maxOccurs="1" minOccurs="0" name="Cc" type="xsd:string"/>
-                        <xsd:element maxOccurs="1" minOccurs="0" name="Subject" type="xsd:string"/>
-                        <xsd:element maxOccurs="1" minOccurs="0" name="Body" type="xsd:string"/>
+                        <xsd:element maxOccurs="1" minOccurs="0" name="MIMEBase_From" type="xsd:string"/>
+                        <xsd:element maxOccurs="1" minOccurs="0" name="MIMEBase_To" type="xsd:string"/>
+                        <xsd:element maxOccurs="1" minOccurs="0" name="MIMEBase_Cc" type="xsd:string"/>
+                        <xsd:element maxOccurs="1" minOccurs="0" name="MIMEBase_Subject" type="xsd:string"/>
+                        <xsd:element maxOccurs="1" minOccurs="0" name="MIMEBase_Body" type="xsd:string"/>
                         <xsd:element maxOccurs="1" minOccurs="0" name="FullTextIndex" type="xsd:positiveInteger"/>
                         <xsd:element maxOccurs="1" minOccurs="0" name="ContentSearch" type="xsd:string"/>
                         <xsd:element maxOccurs="1" minOccurs="0" name="ConditionInline" type="xsd:positiveInteger"/>
@@ -571,6 +571,80 @@ WARNING: This WSDL file is for Development and Test purposes ONLY!
                     </xsd:sequence>
                 </xsd:complexType>
             </xsd:element>
+            <xsd:element name="TicketHistoryGet">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:choice maxOccurs="1" minOccurs="1">
+                            <xsd:annotation>
+                                <xsd:documentation>UserLogin or SessionID is
+                            mandatory
+                                </xsd:documentation>
+                            </xsd:annotation>
+                            <xsd:element minOccurs="0" name="UserLogin" type="xsd:string"/>
+                            <xsd:element minOccurs="0" name="SessionID" type="xsd:string"/>
+                        </xsd:choice>
+                        <xsd:element minOccurs="0" name="Password" type="xsd:string"/>
+                        <xsd:element maxOccurs="unbounded" minOccurs="1" name="TicketID" type="xsd:positiveInteger"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="TicketHistoryGetResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element maxOccurs="unbounded" minOccurs="1" name="TicketHistory" type="tns:OTRS_TicketHistoryGetResponse_TicketHistory"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:complexType name="OTRS_TicketHistoryGetResponse_TicketHistory">
+                <xsd:sequence>
+                    <xsd:element name="TicketID" type="xsd:positiveInteger"/>
+                    <xsd:element maxOccurs="unbounded" minOccurs="1" name="History" type="tns:OTRS_TicketHistoryGetResponse_TicketHistoryElement"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="OTRS_TicketHistoryGetResponse_TicketHistoryElement">
+                <xsd:sequence>
+                    <xsd:element maxOccurs="1" minOccurs="1" name="ArticleID" type="xsd:positiveInteger"/>
+                    <xsd:element maxOccurs="1" minOccurs="1" name="CreateBy" type="xsd:positiveInteger"/>
+                    <xsd:element maxOccurs="1" minOccurs="1" name="CreateTime" type="xsd:string"/>
+                    <xsd:element maxOccurs="1" minOccurs="1" name="HistoryType" type="xsd:string"/>
+                    <xsd:element maxOccurs="1" minOccurs="1" name="HistoryTypeID" type="xsd:positiveInteger"/>
+                    <xsd:element maxOccurs="1" minOccurs="1" name="Name" type="xsd:string"/>
+                    <xsd:element maxOccurs="1" minOccurs="1" name="OwnerID" type="xsd:positiveInteger"/>
+                    <xsd:element maxOccurs="1" minOccurs="1" name="PriorityID" type="xsd:positiveInteger"/>
+                    <xsd:element maxOccurs="1" minOccurs="1" name="QueueID" type="xsd:positiveInteger"/>
+                    <xsd:element maxOccurs="1" minOccurs="1" name="StateID" type="xsd:positiveInteger"/>
+                    <xsd:element maxOccurs="1" minOccurs="1" name="TicketID" type="xsd:positiveInteger"/>
+                    <xsd:element maxOccurs="1" minOccurs="1" name="TypeID" type="xsd:positiveInteger"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:simpleType name="OTRS_MIME_Communication_Channel">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Email"/>
+                    <xsd:enumeration value="Internal"/>
+                    <xsd:enumeration value="Phone"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:element name="SessionGet">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element maxOccurs="1" minOccurs="1" name="SessionID" type="xsd:string"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="SessionGetResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element maxOccurs="unbounded" minOccurs="1" name="SessionData" type="tns:OTRS_SessionGetResponse_SessionData"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:complexType name="OTRS_SessionGetResponse_SessionData">
+                <xsd:sequence>
+                    <xsd:element maxOccurs="1" minOccurs="1" name="Name" type="xsd:string"/>
+                    <xsd:element maxOccurs="1" minOccurs="1" name="Value" type="xsd:string"/>
+                    <xsd:element maxOccurs="1" minOccurs="0" name="Serialized" type="xsd:positiveInteger"/>
+                </xsd:sequence>
+            </xsd:complexType>
         </xsd:schema>
     </wsdl:types>
     <wsdl:message name="TicketCreateRequest">
@@ -597,11 +671,23 @@ WARNING: This WSDL file is for Development and Test purposes ONLY!
     <wsdl:message name="TicketSearchResponse">
         <wsdl:part element="tns:TicketSearchResponse" name="parameters"/>
     </wsdl:message>
+    <wsdl:message name="TicketHistoryGetRequest">
+        <wsdl:part element="tns:TicketHistoryGet" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="TicketHistoryGetResponse">
+        <wsdl:part element="tns:TicketHistoryGetResponse" name="parameters"/>
+    </wsdl:message>
     <wsdl:message name="SessionCreateRequest">
         <wsdl:part element="tns:SessionCreate" name="parameters"/>
     </wsdl:message>
     <wsdl:message name="SessionCreateResponse">
         <wsdl:part element="tns:SessionCreateResponse" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="SessionGetRequest">
+        <wsdl:part element="tns:SessionGet" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="SessionGetResponse">
+        <wsdl:part element="tns:SessionGetResponse" name="parameters"/>
     </wsdl:message>
     <wsdl:portType name="GenericTicketConnector_PortType">
         <wsdl:documentation>Provides:
@@ -609,6 +695,7 @@ WARNING: This WSDL file is for Development and Test purposes ONLY!
 - TicketGet
 - TicketUpdate
 - TicketSearch
+- TicketHistoryGet
 - SessionCreate
 </wsdl:documentation>
         <wsdl:operation name="TicketCreate">
@@ -627,9 +714,17 @@ WARNING: This WSDL file is for Development and Test purposes ONLY!
             <wsdl:input message="tns:TicketSearchRequest"/>
             <wsdl:output message="tns:TicketSearchResponse"/>
         </wsdl:operation>
+        <wsdl:operation name="TicketHistoryGet">
+            <wsdl:input message="tns:TicketHistoryGetRequest"/>
+            <wsdl:output message="tns:TicketHistoryGetResponse"/>
+        </wsdl:operation>
         <wsdl:operation name="SessionCreate">
             <wsdl:input message="tns:SessionCreateRequest"/>
             <wsdl:output message="tns:SessionCreateResponse"/>
+        </wsdl:operation>
+        <wsdl:operation name="SessionGet">
+            <wsdl:input message="tns:SessionGetRequest"/>
+            <wsdl:output message="tns:SessionGetResponse"/>
         </wsdl:operation>
     </wsdl:portType>
     <wsdl:binding name="GenericTicketConnector_Binding" type="tns:GenericTicketConnector_PortType">
@@ -670,8 +765,26 @@ WARNING: This WSDL file is for Development and Test purposes ONLY!
                 <soap:body use="literal"/>
             </wsdl:output>
         </wsdl:operation>
+        <wsdl:operation name="TicketHistoryGet">
+            <soap:operation soapAction="http://www.otrs.org/TicketConnector/TicketHistoryGet"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
         <wsdl:operation name="SessionCreate">
             <soap:operation soapAction="http://www.otrs.org/TicketConnector/SessionCreate"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="SessionGet">
+            <soap:operation soapAction="http://www.otrs.org/TicketConnector/SessionGet"/>
             <wsdl:input>
                 <soap:body use="literal"/>
             </wsdl:input>

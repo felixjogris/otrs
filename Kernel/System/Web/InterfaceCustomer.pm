@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,7 +11,7 @@ package Kernel::System::Web::InterfaceCustomer;
 use strict;
 use warnings;
 
-use Kernel::System::DateTime qw(:all);
+use Kernel::System::DateTime;
 use Kernel::System::Email;
 use Kernel::System::VariableCheck qw(IsArrayRefWithData IsHashRefWithData);
 use Kernel::Language qw(Translatable);
@@ -28,7 +28,7 @@ our @ObjectDependencies = (
     'Kernel::System::Log',
     'Kernel::System::Main',
     'Kernel::System::Scheduler',
-    'Kernel::System::Time',
+    'Kernel::System::DateTime',
     'Kernel::System::Web::Request',
     'Kernel::System::Valid',
 );
@@ -101,18 +101,41 @@ execute the object
 sub Run {
     my $Self = shift;
 
-    # get common framework params
-    my %Param;
-
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-    my $ParamObject  = $Kernel::OM->Get('Kernel::System::Web::Request');
+
+    my $QueryString = $ENV{QUERY_STRING} || '';
+
+    # Check if https forcing is active, and redirect if needed.
+    if ( $ConfigObject->Get('HTTPSForceRedirect') ) {
+
+        # Some web servers do not set HTTPS environment variable, so it's not possible to easily know if we are using
+        #   https protocol. Look also for similarly named keys in environment hash, since this should prevent loops in
+        #   certain cases.
+        if (
+            (
+                !defined $ENV{HTTPS}
+                && !grep {/^HTTPS(?:_|$)/} keys %ENV
+            )
+            || $ENV{HTTPS} ne 'on'
+            )
+        {
+            my $Host = $ENV{HTTP_HOST} || $ConfigObject->Get('FQDN');
+
+            # Redirect with 301 code. Add two new lines at the end, so HTTP headers are validated correctly.
+            print "Status: 301 Moved Permanently\nLocation: https://$Host$ENV{REQUEST_URI}\n\n";
+            return;
+        }
+    }
+
+    my $ParamObject = $Kernel::OM->Get('Kernel::System::Web::Request');
+
+    my %Param;
 
     # get session id
     $Param{SessionName} = $ConfigObject->Get('CustomerPanelSessionName') || 'CSID';
-    $Param{SessionID} = $ParamObject->GetParam( Param => $Param{SessionName} ) || '';
+    $Param{SessionID} = $ParamObject->GetCookie( Key => $Param{SessionName} ) // '';
 
     # drop old session id (if exists)
-    my $QueryString = $ENV{QUERY_STRING} || '';
     $QueryString =~ s/(\?|&|;|)$Param{SessionName}(=&|=;|=.+?&|=.+?$)/;/g;
 
     # define framework params
@@ -130,17 +153,6 @@ sub Run {
     # validate language
     if ( $Param{Lang} && $Param{Lang} !~ m{\A[a-z]{2}(?:_[A-Z]{2})?\z}xms ) {
         delete $Param{Lang};
-    }
-
-    my $BrowserHasCookie = 0;
-
-    # Check if the browser sends the SessionID cookie and set the SessionID-cookie
-    # as SessionID! GET or POST SessionID have the lowest priority.
-    if ( $ConfigObject->Get('SessionUseCookie') ) {
-        $Param{SessionIDCookie} = $ParamObject->GetCookie( Key => $Param{SessionName} );
-        if ( $Param{SessionIDCookie} ) {
-            $Param{SessionID} = $Param{SessionIDCookie};
-        }
     }
 
     my $CookieSecureAttribute;
@@ -235,21 +247,6 @@ sub Run {
 
         # login is invalid
         if ( !$User ) {
-            $Kernel::OM->ObjectParamAdd(
-                'Kernel::Output::HTML::Layout' => {
-                    SetCookies => {
-                        OTRSBrowserHasCookie => $ParamObject->SetCookie(
-                            Key      => 'OTRSBrowserHasCookie',
-                            Value    => 1,
-                            Expires  => $Expires,
-                            Path     => $ConfigObject->Get('ScriptAlias'),
-                            Secure   => $CookieSecureAttribute,
-                            HTTPOnly => 1,
-                        ),
-                    },
-                },
-            );
-
             my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
 
             # redirect to alternate login
@@ -286,15 +283,6 @@ sub Run {
             Valid => 1
         );
 
-        # check if the browser supports cookies
-        if ( $ParamObject->GetCookie( Key => 'OTRSBrowserHasCookie' ) ) {
-            $Kernel::OM->ObjectParamAdd(
-                'Kernel::Output::HTML::Layout' => {
-                    BrowserHasCookie => 1,
-                },
-            );
-        }
-
         # check needed data
         if ( !$UserData{UserID} || !$UserData{UserLogin} ) {
 
@@ -312,7 +300,7 @@ sub Run {
             # show need user data error message
             $LayoutObject->Print(
                 Output => \$LayoutObject->CustomerLogin(
-                    Title   => 'Panic!',
+                    Title   => 'Error',
                     Message => Translatable(
                         'Authentication succeeded, but no customer record is found in the customer backend. Please contact the administrator.'
                     ),
@@ -322,11 +310,15 @@ sub Run {
             return;
         }
 
+        # create datetime object
+        my $SessionDTObject = $Kernel::OM->Create('Kernel::System::DateTime');
+
         # create new session id
         my $NewSessionID = $SessionObject->CreateSessionID(
             %UserData,
-            UserLastRequest => $Kernel::OM->Get('Kernel::System::Time')->SystemTime(),
+            UserLastRequest => $SessionDTObject->ToEpoch(),
             UserType        => 'Customer',
+            SessionSource   => 'CustomerInterface',
         );
 
         # show error message if no session id has been created
@@ -348,17 +340,13 @@ sub Run {
             return;
         }
 
-        # get time object
-        my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
-
         # execution in 20 seconds
-        my $ExecutionTime = $TimeObject->SystemTime2TimeStamp(
-            SystemTime => ( $TimeObject->SystemTime() + 20 ),
-        );
+        my $ExecutionTimeObj = $Kernel::OM->Create('Kernel::System::DateTime');
+        $ExecutionTimeObj->Add( Seconds => 20 );
 
         # add a asynchronous executor scheduler task to count the concurrent user
         $Kernel::OM->Get('Kernel::System::Scheduler')->TaskAdd(
-            ExecutionTime            => $ExecutionTime,
+            ExecutionTime            => $ExecutionTimeObj->ToString(),
             Type                     => 'AsynchronousExecutor',
             Name                     => 'PluginAsynchronous::ConcurrentUser',
             MaximumParallelInstances => 1,
@@ -368,8 +356,8 @@ sub Run {
             },
         );
 
-        # get time zone
-        my $UserTimeZone = $UserData{UserTimeZone} || UserDefaultTimeZoneGet();
+        my $UserTimeZone = $Self->_UserTimeZoneGet(%UserData);
+
         $SessionObject->UpdateSessionID(
             SessionID => $NewSessionID,
             Key       => 'UserTimeZone',
@@ -401,7 +389,7 @@ sub Run {
         $Kernel::OM->ObjectParamAdd(
             'Kernel::Output::HTML::Layout' => {
                 SetCookies => {
-                    SessionIDCookie => $ParamObject->SetCookie(
+                    SessionID => $ParamObject->SetCookie(
                         Key      => $Param{SessionName},
                         Value    => $NewSessionID,
                         Expires  => $Expires,
@@ -409,15 +397,6 @@ sub Run {
                         Secure   => scalar $CookieSecureAttribute,
                         HTTPOnly => 1,
                     ),
-                    OTRSBrowserHasCookie => $ParamObject->SetCookie(
-                        Key      => 'OTRSBrowserHasCookie',
-                        Value    => '',
-                        Expires  => '-1y',
-                        Path     => $ConfigObject->Get('ScriptAlias'),
-                        Secure   => $CookieSecureAttribute,
-                        HTTPOnly => 1,
-                    ),
-
                 },
                 SessionID   => $NewSessionID,
                 SessionName => $Param{SessionName},
@@ -470,11 +449,13 @@ sub Run {
             SessionID => $Param{SessionID},
         );
 
+        $UserData{UserTimeZone} = $Self->_UserTimeZoneGet(%UserData);
+
         # create new LayoutObject with new '%Param' and '%UserData'
         $Kernel::OM->ObjectParamAdd(
             'Kernel::Output::HTML::Layout' => {
                 SetCookies => {
-                    SessionIDCookie => $ParamObject->SetCookie(
+                    SessionID => $ParamObject->SetCookie(
                         Key      => $Param{SessionName},
                         Value    => '',
                         Expires  => '-1y',
@@ -610,7 +591,7 @@ sub Run {
                 MimeType => 'text/plain',
                 Body     => $Body
             );
-            if ( !$Sent ) {
+            if ( !$Sent->{Success} ) {
                 $LayoutObject->FatalError(
                     Comment => Translatable('Please contact the administrator.'),
                 );
@@ -680,7 +661,7 @@ sub Run {
             MimeType => 'text/plain',
             Body     => $Body
         );
-        if ( !$Sent ) {
+        if ( !$Sent->{Success} ) {
             $LayoutObject->CustomerFatalError(
                 Comment => Translatable('Please contact the administrator.')
             );
@@ -828,9 +809,10 @@ sub Run {
         }
 
         # create account
-        my $Now = $Kernel::OM->Get('Kernel::System::Time')->SystemTime2TimeStamp(
-            SystemTime => $Kernel::OM->Get('Kernel::System::Time')->SystemTime(),
-        );
+        my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+
+        my $Now = $DateTimeObject->ToString();
+
         my $Add = $UserObject->CustomerUserAdd(
             %GetParams,
             Comment => $LayoutObject->{LanguageObject}->Translate( 'Added via Customer Panel (%s)', $Now ),
@@ -876,7 +858,7 @@ sub Run {
             MimeType => 'text/plain',
             Body     => $Body
         );
-        if ( !$Sent ) {
+        if ( !$Sent->{Success} ) {
             my $Output = $LayoutObject->CustomerHeader(
                 Area  => 'Core',
                 Title => 'Error'
@@ -967,7 +949,7 @@ sub Run {
             $Kernel::OM->ObjectParamAdd(
                 'Kernel::Output::HTML::Layout' => {
                     SetCookies => {
-                        SessionIDCookie => $ParamObject->SetCookie(
+                        SessionID => $ParamObject->SetCookie(
                             Key      => $Param{SessionName},
                             Value    => '',
                             Expires  => '-1y',
@@ -1024,6 +1006,8 @@ sub Run {
             SessionID => $Param{SessionID},
         );
 
+        $UserData{UserTimeZone} = $Self->_UserTimeZoneGet(%UserData);
+
         # check needed data
         if ( !$UserData{UserID} || !$UserData{UserLogin} || $UserData{UserType} ne 'Customer' ) {
             my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
@@ -1040,8 +1024,8 @@ sub Run {
             # show login screen
             $LayoutObject->Print(
                 Output => \$LayoutObject->CustomerLogin(
-                    Title   => 'Panic!',
-                    Message => Translatable('Panic! Invalid Session!!!'),
+                    Title   => 'Error',
+                    Message => Translatable('Error: invalid session.'),
                     %Param,
                 ),
             );
@@ -1103,50 +1087,72 @@ sub Run {
 
         # module permission check for submenu item
         if ( IsHashRefWithData($NavigationConfig) ) {
-            LINKCHECK:
-            for my $Key ( %{$NavigationConfig} ) {
-                next LINKCHECK if $Key !~ m/^\d+$/i;
-                next LINKCHECK if $Param{RequestedURL} !~ m/Subaction/i;
-                if (
-                    $NavigationConfig->{$Key}->{Link} =~ m/Subaction=/i
-                    && $NavigationConfig->{$Key}->{Link} !~ m/$Param{Subaction}/i
-                    )
-                {
-                    next LINKCHECK;
-                }
-                $Param{AccessRo} = 0;
-                $Param{AccessRw} = 0;
 
-                # module permission check for submenu item
-                if (
-                    ref $NavigationConfig->{$Key}->{GroupRo} eq 'ARRAY'
-                    && !scalar @{ $NavigationConfig->{$Key}->{GroupRo} }
-                    && ref $NavigationConfig->{$Key}->{Group} eq 'ARRAY'
-                    && !scalar @{ $NavigationConfig->{$Key}->{Group} }
-                    )
-                {
-                    $Param{AccessRo} = 1;
-                    $Param{AccessRw} = 1;
+            KEY:
+            for my $Key ( sort keys %{$NavigationConfig} ) {
+                next KEY if $Key !~ m/^\d+/i;
+                next KEY if $Param{RequestedURL} !~ m/Subaction/i;
+
+                my @ModuleNavigationConfigs;
+
+                # FIXME: Support both old (HASH) and new (ARRAY of HASH) navigation configurations, for reasons of
+                #   backwards compatibility. Once we are sure everything has been migrated correctly, support for
+                #   HASH-only configuration can be dropped in future major release.
+                if ( IsHashRefWithData( $NavigationConfig->{$Key} ) ) {
+                    push @ModuleNavigationConfigs, $NavigationConfig->{$Key};
                 }
+                elsif ( IsArrayRefWithData( $NavigationConfig->{$Key} ) ) {
+                    push @ModuleNavigationConfigs, @{ $NavigationConfig->{$Key} };
+                }
+
+                # Skip incompatible configuration.
                 else {
+                    next KEY;
+                }
 
-                    ( $Param{AccessRo}, $Param{AccessRw} ) = $Self->_CheckModulePermission(
-                        ModuleReg => $NavigationConfig->{$Key},
-                        %UserData,
-                    );
+                ITEM:
+                for my $Item (@ModuleNavigationConfigs) {
+                    if (
+                        $Item->{Link} =~ m/Subaction=/i
+                        && $Item->{Link} !~ m/$Param{Subaction}/i
+                        )
+                    {
+                        next ITEM;
+                    }
+                    $Param{AccessRo} = 0;
+                    $Param{AccessRw} = 0;
 
-                    if ( !$Param{AccessRo} ) {
+                    # module permission check for submenu item
+                    if (
+                        ref $Item->{GroupRo} eq 'ARRAY'
+                        && !scalar @{ $Item->{GroupRo} }
+                        && ref $Item->{Group} eq 'ARRAY'
+                        && !scalar @{ $Item->{Group} }
+                        )
+                    {
+                        $Param{AccessRo} = 1;
+                        $Param{AccessRw} = 1;
+                    }
+                    else {
 
-                        # new layout object
-                        my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
-                        $Kernel::OM->Get('Kernel::System::Log')->Log(
-                            Priority => 'error',
-                            Message  => 'No Permission to use this frontend subaction module!'
+                        ( $Param{AccessRo}, $Param{AccessRw} ) = $Self->_CheckModulePermission(
+                            ModuleReg => $Item,
+                            %UserData,
                         );
-                        $LayoutObject->CustomerFatalError(
-                            Comment => Translatable('Please contact the administrator.')
-                        );
-                        return;
+
+                        if ( !$Param{AccessRo} ) {
+
+                            # new layout object
+                            my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
+                            $Kernel::OM->Get('Kernel::System::Log')->Log(
+                                Priority => 'error',
+                                Message  => 'No Permission to use this frontend subaction module!'
+                            );
+                            $LayoutObject->CustomerFatalError(
+                                Comment => Translatable('Please contact the administrator.')
+                            );
+                            return;
+                        }
                     }
                 }
             }
@@ -1170,10 +1176,12 @@ sub Run {
             || $Param{Action} eq 'CustomerVideoChat'
             )
         {
+            my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+
             $SessionObject->UpdateSessionID(
                 SessionID => $Param{SessionID},
                 Key       => 'UserLastRequest',
-                Value     => $Kernel::OM->Get('Kernel::System::Time')->SystemTime(),
+                Value     => $DateTimeObject->ToEpoch(),
             );
         }
 
@@ -1257,7 +1265,7 @@ sub Run {
                     . "::$UserData{UserLogin}::$QueryString\n";
                 close $Out;
                 $Kernel::OM->Get('Kernel::System::Log')->Log(
-                    Priority => 'notice',
+                    Priority => 'debug',
                     Message  => 'Response::Customer: '
                         . ( time() - $Self->{PerformanceLogStart} )
                         . "s taken (URL:$QueryString:$UserData{UserLogin})",
@@ -1277,6 +1285,7 @@ sub Run {
     my %Data = $SessionObject->GetSessionIDData(
         SessionID => $Param{SessionID},
     );
+    $Data{UserTimeZone} = $Self->_UserTimeZoneGet(%Data);
     $Kernel::OM->ObjectParamAdd(
         'Kernel::Output::HTML::Layout' => {
             %Param,
@@ -1352,6 +1361,38 @@ sub _CheckModulePermission {
     }
 
     return ( $AccessRo, $AccessRw );
+}
+
+=head2 _UserTimeZoneGet()
+
+Get time zone for the current user. This function will validate passed time zone parameter and return default user time
+zone if it's not valid.
+
+    my $UserTimeZone = $Self->_UserTimeZoneGet(
+        UserTimeZone => 'Europe/Berlin',
+    );
+
+=cut
+
+sub _UserTimeZoneGet {
+    my ( $Self, %Param ) = @_;
+
+    my $UserTimeZone;
+
+    # Return passed time zone only if it's valid. It can happen that user preferences or session store an old-style
+    #   offset which is not valid anymore. In this case, return the default value.
+    #   Please see bug#13374 for more information.
+    if (
+        $Param{UserTimeZone}
+        && Kernel::System::DateTime->IsTimeZoneValid( TimeZone => $Param{UserTimeZone} )
+        )
+    {
+        $UserTimeZone = $Param{UserTimeZone};
+    }
+
+    $UserTimeZone ||= Kernel::System::DateTime->UserDefaultTimeZoneGet();
+
+    return $UserTimeZone;
 }
 
 =end Internal:

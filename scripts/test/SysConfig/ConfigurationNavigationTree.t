@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -21,101 +21,176 @@ $Kernel::OM->ObjectParamAdd(
         RestoreDatabase => 1,
     },
 );
-my $HelperObject      = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
-my $SysConfigObject   = $Kernel::OM->Get('Kernel::System::SysConfig');
-my $ConfigObject      = $Kernel::OM->Get('Kernel::Config');
-my $SysConfigDBObject = $Kernel::OM->Get('Kernel::System::SysConfig::DB');
+my $HelperObject    = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');
+my $ConfigObject    = $Kernel::OM->Get('Kernel::Config');
 
-# Delete sysconfig_modified_version
-return if !$Kernel::OM->Get('Kernel::System::DB')->Do(
-    SQL => 'DELETE FROM sysconfig_modified_version',
-);
+# Create a code scope to be able to redefine a function safely
+{
+    $Kernel::OM->ObjectsDiscard(
+        Objects => [ 'Kernel::System::SysConfig', 'Kernel::System::SysConfig::DB' ],
+    );
 
-# Delete sysconfig_modified
-return if !$Kernel::OM->Get('Kernel::System::DB')->Do(
-    SQL => 'DELETE FROM sysconfig_modified',
-);
-
-# Delete sysconfig_default_version
-return if !$Kernel::OM->Get('Kernel::System::DB')->Do(
-    SQL => 'DELETE FROM sysconfig_default_version',
-);
-
-# Delete sysconfig_default
-return if !$Kernel::OM->Get('Kernel::System::DB')->Do(
-    SQL => 'DELETE FROM sysconfig_default',
-);
-
-# Load setting from sample XML file
-my $LoadSuccess = $SysConfigObject->ConfigurationXML2DB(
-    UserID    => 1,
-    Directory => "$ConfigObject->{Home}/scripts/test/sample/SysConfig/XML/",
-);
-$Self->True(
-    $LoadSuccess,
-    "Load settings from Sample.xml."
-);
-
-# Basic tests
-my @Tests = (
-    {
-        Description => 'Test #1',
-        Config      => {
-        },
-        ExpectedResult => {
-            'Core' => {
-                'Core::CustomerUser' => {},
-                'Core::Ticket'       => {},
+    # Redefine ConfigurationCategoriesGet to be able to use fake category Sample, with this we don't
+    #   need to delete the tables and we can use this category for the tests. this needs to be
+    #   redefine only locally otherwise the rest of the test will be affected.
+    local *Kernel::System::SysConfig::ConfigurationCategoriesGet = sub {
+        return (
+            All => {
+                DisplayName => 'All Settings',
+                Files       => [],
             },
-            'Frontend' => {
-                'Frontend::Agent' => {
-                    'Frontend::Agent::Dashboard'          => {},
-                    'Frontend::Agent::ModuleRegistration' => {},
-                    'Frontend::Agent::Ticket'             => {
-                        'Frontend::Agent::Ticket::ViewPriority'    => {},
-                        'Frontend::Agent::Ticket::ViewResponsible' => {},
+            OTRSFree => {
+                DisplayName => 'OTRS Free',
+                Files       => [
+                    'Calendar.xml', 'CloudServices.xml', 'Daemon.xml', 'Framework.xml',
+                    'GenericInterface.xml', 'ProcessManagement.xml', 'Ticket.xml',
+                ],
+            },
+            Sample => {
+                DisplayName => 'Sample',
+                Files       => ['Sample.xml'],
+            },
+        );
+    };
+
+    my $SysConfigDBObject = $Kernel::OM->Get('Kernel::System::SysConfig::DB');
+
+    # Load setting from sample XML file
+    my $LoadSuccess = $SysConfigObject->ConfigurationXML2DB(
+        UserID    => 1,
+        Directory => "$ConfigObject->{Home}/scripts/test/sample/SysConfig/XML/",
+    );
+    $Self->True(
+        $LoadSuccess,
+        "Load settings from Sample.xml."
+    );
+
+    # Basic tests
+    my @Tests = (
+        {
+            Description => 'Test #1',
+            Config      => {
+                Category => 'Sample',
+            },
+            ExpectedResult => {
+                'Core' => {
+                    'Count'    => 0,
+                    'Subitems' => {
+                        'Core::CustomerUser' => {
+                            'Subitems' => {},
+                            'Count'    => 4,
+                        },
+                        'Core::Ticket' => {
+                            'Subitems' => {},
+                            'Count'    => 3,
+                        },
                     },
                 },
-                'Frontend::Agentß∂čćžšđ' => {
-                    'Frontend::Agentß∂čćžšđ::ModuleRegistration' => {},
-                    }
+                'Frontend' => {
+                    'Count'    => 0,
+                    'Subitems' => {
+                        'Frontend::Agent' => {
+                            'Count'    => 0,
+                            'Subitems' => {
+                                'Frontend::Agent::Dashboard' => {
+                                    'Subitems' => {},
+                                    'Count'    => 1,
+                                },
+                                'Frontend::Agent::ModuleRegistration' => {
+                                    'Subitems' => {},
+                                    'Count'    => 2,
+                                },
+                                'Frontend::Agent::Ticket' => {
+                                    'Count'    => 0,
+                                    'Subitems' => {
+                                        'Frontend::Agent::Ticket::ViewPriority' => {
+                                            'Subitems' => {},
+                                            'Count'    => 3,
+                                        },
+                                        'Frontend::Agent::Ticket::ViewResponsible' => {
+                                            'Subitems' => {},
+                                            'Count'    => 1,
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                        'Frontend::Agentß∂čćžšđ' => {
+                            'Count'    => 0,
+                            'Subitems' => {
+                                'Frontend::Agentß∂čćžšđ::ModuleRegistration' => {
+                                    'Subitems' => {},
+                                    'Count'    => 1,
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
-    },
-    {
-        Description => 'Test #2',
-        Config      => {
-            RootNavigation => 'Frontend::Agent',
-        },
-        ExpectedResult => {
-            'Frontend::Agent::Dashboard'          => {},
-            'Frontend::Agent::ModuleRegistration' => {},
-            'Frontend::Agent::Ticket'             => {
-                'Frontend::Agent::Ticket::ViewPriority'    => {},
-                'Frontend::Agent::Ticket::ViewResponsible' => {},
+        {
+            Description => 'Test #2',
+            Config      => {
+                Category       => 'Sample',
+                RootNavigation => 'Frontend::Agent',
+            },
+            ExpectedResult => {
+                'Frontend::Agent::Dashboard' => {
+                    'Subitems' => {},
+                    'Count'    => 1,
+                },
+                'Frontend::Agent::ModuleRegistration' => {
+                    'Subitems' => {},
+                    'Count'    => 2,
+                },
+                'Frontend::Agent::Ticket' => {
+                    'Count'    => 0,
+                    'Subitems' => {
+                        'Frontend::Agent::Ticket::ViewPriority' => {
+                            'Subitems' => {},
+                            'Count'    => 3,
+                        },
+                        'Frontend::Agent::Ticket::ViewResponsible' => {
+                            'Subitems' => {},
+                            'Count'    => 1,
+                        },
+                    },
+                },
             },
         },
-    },
-    {
-        Description => 'Test #3',
-        Config      => {
-            RootNavigation => 'Frontend::Agentß∂čćžšđ',
+        {
+            Description => 'Test #3',
+            Config      => {
+                Category       => 'Sample',
+                RootNavigation => 'Frontend::Agentß∂čćžšđ',
+            },
+            ExpectedResult => {
+                'Frontend::Agentß∂čćžšđ::ModuleRegistration' => {
+                    'Subitems' => {},
+                    'Count'    => 1,
+                },
+            },
         },
-        ExpectedResult => {
-            'Frontend::Agentß∂čćžšđ::ModuleRegistration' => {},
-        },
-    },
+    );
+
+    for my $Test (@Tests) {
+        my %Result = $SysConfigObject->ConfigurationNavigationTree( %{ $Test->{Config} } );
+
+        $Self->IsDeeply(
+            \%Result,
+            $Test->{ExpectedResult},
+            $Test->{Description} . ': ConfigurationNavigationTree(): Result must match expected one.',
+        );
+    }
+}
+
+# Outside of the code scope be sure to discard affected objects, so they can load again normally
+$Kernel::OM->ObjectsDiscard(
+    Objects => [ 'Kernel::System::SysConfig', 'Kernel::System::SysConfig::DB' ],
 );
 
-for my $Test (@Tests) {
-    my %Result = $SysConfigObject->ConfigurationNavigationTree( %{ $Test->{Config} } );
-
-    $Self->IsDeeply(
-        \%Result,
-        $Test->{ExpectedResult},
-        $Test->{Description} . ': ConfigurationNavigationTree(): Result must match expected one.',
-    );
-}
+my $SysConfigDBObject = $Kernel::OM->Get('Kernel::System::SysConfig::DB');
 
 my $String = '<?xml version="1.0" encoding="utf-8" ?>
 <otrs_package version="1.0">
@@ -153,7 +228,7 @@ $Self->True(
 );
 
 # tests after Package Installation
-@Tests = (
+my @Tests = (
     {
         Description => "Test #P1 - Category $PackageName",
         Config      => {
@@ -161,8 +236,17 @@ $Self->True(
         },
         ExpectedResult => {
             'Core' => {
-                'Core::TestPackage' => {
-                    'Core::TestPackage::Other' => {},
+                'Count'    => 0,
+                'Subitems' => {
+                    'Core::TestPackage' => {
+                        'Count'    => 1,
+                        'Subitems' => {
+                            'Core::TestPackage::Other' => {
+                                'Subitems' => {},
+                                'Count'    => 2,
+                            },
+                        },
+                    },
                 },
             },
         },
@@ -175,8 +259,17 @@ $Self->True(
         },
         ExpectedResult => {
             'Core' => {
-                'Core::TestPackage' => {
-                    'Core::TestPackage::Other' => {},
+                'Count'    => 0,
+                'Subitems' => {
+                    'Core::TestPackage' => {
+                        'Count'    => 0,
+                        'Subitems' => {
+                            'Core::TestPackage::Other' => {
+                                'Subitems' => {},
+                                'Count'    => 1,
+                            },
+                        },
+                    },
                 },
             },
         },

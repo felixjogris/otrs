@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -18,14 +18,14 @@ $Kernel::OM->ObjectParamAdd(
         RestoreDatabase => 1,
     },
 );
-my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
-
+my $Helper              = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 my $SystemAddressObject = $Kernel::OM->Get('Kernel::System::SystemAddress');
+my $QueueObject         = $Kernel::OM->Get('Kernel::System::Queue');
 
 my $QueueRand1 = $Helper->GetRandomID();
 my $QueueRand2 = $Helper->GetRandomID();
 
-my $QueueID1 = $Kernel::OM->Get('Kernel::System::Queue')->QueueAdd(
+my $QueueID1 = $QueueObject->QueueAdd(
     Name                => $QueueRand1,
     ValidID             => 1,
     GroupID             => 1,
@@ -42,7 +42,7 @@ my $QueueID1 = $Kernel::OM->Get('Kernel::System::Queue')->QueueAdd(
     Comment             => 'Some Comment',
 );
 
-my $QueueID2 = $Kernel::OM->Get('Kernel::System::Queue')->QueueAdd(
+my $QueueID2 = $QueueObject->QueueAdd(
     Name                => $QueueRand2,
     ValidID             => 1,
     GroupID             => 1,
@@ -79,6 +79,52 @@ my $SystemAddressID = $SystemAddressObject->SystemAddressAdd(
 $Self->True(
     $SystemAddressID,
     'SystemAddressAdd()',
+);
+
+my $SystemAddressIDWrong = $SystemAddressObject->SystemAddressAdd(
+    Name     => $SystemAddressEmail,
+    Realname => $SystemAddressRealname,
+    Comment  => 'some comment',
+    QueueID  => 2,
+    ValidID  => 1,
+    UserID   => 1,
+);
+
+$Self->False(
+    $SystemAddressIDWrong,
+    'SystemAddressAdd() - Try to add new system address with existing system address name',
+);
+
+# add SystemAddress
+my $SystemAddressEmail2    = $Helper->GetRandomID() . '@example.com';
+my $SystemAddressRealname2 = "OTRS-Team2";
+my $SystemAddressID2       = $SystemAddressObject->SystemAddressAdd(
+    Name     => $SystemAddressEmail2,
+    Realname => $SystemAddressRealname2,
+    Comment  => 'some comment',
+    QueueID  => 2,
+    ValidID  => 1,
+    UserID   => 1,
+);
+
+$Self->True(
+    $SystemAddressID2,
+    'SystemAddressAdd()',
+);
+
+# try to update SystemAddress with existing name
+my $SystemAddressUpdate = $SystemAddressObject->SystemAddressUpdate(
+    ID       => $SystemAddressID2,
+    Name     => $SystemAddressEmail,
+    Realname => $SystemAddressRealname2,
+    Comment  => 'some comment',
+    QueueID  => 1,
+    ValidID  => 2,
+    UserID   => 1,
+);
+$Self->False(
+    $SystemAddressUpdate,
+    'SystemAddressUpdate() - Try to update new system address with existing system address name',
 );
 
 my %SystemAddress = $SystemAddressObject->SystemAddressGet( ID => $SystemAddressID );
@@ -166,7 +212,7 @@ my %SystemAddressDataUpdate = (
     ValidID  => 2,
 );
 
-my $SystemAddressUpdate = $SystemAddressObject->SystemAddressUpdate(
+$SystemAddressUpdate = $SystemAddressObject->SystemAddressUpdate(
     %SystemAddressDataUpdate,
     ID     => $SystemAddressID,
     UserID => 1,
@@ -218,6 +264,23 @@ $Self->False(
 $Self->True(
     exists $SystemQueues{$QueueID1} && $SystemQueues{$QueueID1} == $SystemAddressID1,
     "SystemAddressQueueList() contains the valid QueueID1",
+);
+
+# Test SystemAddressIsUsed() function.
+my $SystemAddressIsUsed = $SystemAddressObject->SystemAddressIsUsed(
+    SystemAddressID => 1,
+);
+$Self->True(
+    $SystemAddressIsUsed,
+    "SystemAddressIsUsed() - Correctly detected system address in use"
+);
+
+$SystemAddressIsUsed = $SystemAddressObject->SystemAddressIsUsed(
+    SystemAddressID => $SystemAddressID2,
+);
+$Self->False(
+    $SystemAddressIsUsed,
+    "SystemAddressIsUsed() - Correctly detected system address not in use"
 );
 
 # cleanup is done by RestoreDatabase

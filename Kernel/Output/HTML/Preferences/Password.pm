@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,12 +13,7 @@ use warnings;
 
 use Kernel::Language qw(Translatable);
 
-our @ObjectDependencies = (
-    'Kernel::Config',
-    'Kernel::Output::HTML::Layout',
-    'Kernel::System::Auth',
-    'Kernel::System::CustomerAuth',
-);
+our $ObjectManagerDisabled = 1;
 
 sub new {
     my ( $Type, %Param ) = @_;
@@ -62,24 +57,27 @@ sub Param {
         @Params,
         {
             %Param,
-            Key   => Translatable('Current password'),
-            Name  => 'CurPw',
-            Raw   => 1,
-            Block => 'Password'
+            Key          => Translatable('Current password'),
+            Name         => 'CurPw',
+            Raw          => 1,
+            Block        => 'Password',
+            Autocomplete => 'current-password',
         },
         {
             %Param,
-            Key   => Translatable('New password'),
-            Name  => 'NewPw',
-            Raw   => 1,
-            Block => 'Password'
+            Key          => Translatable('New password'),
+            Name         => 'NewPw',
+            Raw          => 1,
+            Block        => 'Password',
+            Autocomplete => 'new-password',
         },
         {
             %Param,
-            Key   => Translatable('Verify password'),
-            Name  => 'NewPw1',
-            Raw   => 1,
-            Block => 'Password'
+            Key          => Translatable('Verify password'),
+            Name         => 'NewPw1',
+            Raw          => 1,
+            Block        => 'Password',
+            Autocomplete => 'current-password',
         },
     );
 
@@ -98,7 +96,7 @@ sub Param {
             Key   => '2 Factor Token',
             Name  => 'TwoFactorToken',
             Raw   => 1,
-            Block => 'Password',
+            Block => 'Input',
         };
 
         last COUNT;
@@ -110,8 +108,8 @@ sub Param {
 sub Run {
     my ( $Self, %Param ) = @_;
 
-    # get config object
-    my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
+    my $ConfigObject   = $Kernel::OM->Get('Kernel::Config');
+    my $LanguageObject = $Kernel::OM->Get('Kernel::Language');
 
     # pref update db
     return 1 if $ConfigObject->Get('DemoSystem');
@@ -153,19 +151,20 @@ sub Run {
         )
         )
     {
-        $Self->{Error} = Translatable('The current password is not correct. Please try again!');
+        $Self->{Error} = $LanguageObject->Translate('The current password is not correct. Please try again!');
         return;
     }
 
     # check if pw is true
     if ( !$Pw || !$Pw1 ) {
-        $Self->{Error} = Translatable('Please supply your new password!');
+        $Self->{Error} = $LanguageObject->Translate('Please supply your new password!');
         return;
     }
 
     # compare pws
     if ( $Pw ne $Pw1 ) {
-        $Self->{Error} = Translatable('Can\'t update password, your new passwords do not match. Please try again!');
+        $Self->{Error}
+            = $LanguageObject->Translate('Can\'t update password, your new passwords do not match. Please try again!');
         return;
     }
 
@@ -174,7 +173,7 @@ sub Run {
 
     # check if password is not matching PasswordRegExp
     if ( $Config->{PasswordRegExp} && $Pw !~ /$Config->{PasswordRegExp}/ ) {
-        $Self->{Error} = Translatable(
+        $Self->{Error} = $LanguageObject->Translate(
             'This password is forbidden by the current system configuration. Please contact the administrator if you have additional questions.'
         );
         return;
@@ -182,7 +181,7 @@ sub Run {
 
     # check min size of password
     if ( $Config->{PasswordMinSize} && length $Pw < $Config->{PasswordMinSize} ) {
-        $Self->{Error} = $Kernel::OM->Get('Kernel::Output::HTML::Layout')->{LanguageObject}->Translate(
+        $Self->{Error} = $LanguageObject->Translate(
             'Can\'t update password, it must be at least %s characters long!',
             $Config->{PasswordMinSize}
         );
@@ -195,7 +194,7 @@ sub Run {
         && ( $Pw !~ /[A-Z].*[A-Z]/ || $Pw !~ /[a-z].*[a-z]/ )
         )
     {
-        $Self->{Error} = Translatable(
+        $Self->{Error} = $LanguageObject->Translate(
             'Can\'t update password, it must contain at least 2 lowercase and 2 uppercase letter characters!'
         );
         return;
@@ -203,13 +202,14 @@ sub Run {
 
     # check min 1 digit password
     if ( $Config->{PasswordNeedDigit} && $Pw !~ /\d/ ) {
-        $Self->{Error} = Translatable('Can\'t update password, it must contain at least 1 digit!');
+        $Self->{Error} = $LanguageObject->Translate('Can\'t update password, it must contain at least 1 digit!');
         return;
     }
 
     # check min 2 char password
     if ( $Config->{PasswordMin2Characters} && $Pw !~ /[A-z][A-z]/ ) {
-        $Self->{Error} = Translatable('Can\'t update password, it must contain at least 2 letter characters!');
+        $Self->{Error}
+            = $LanguageObject->Translate('Can\'t update password, it must contain at least 2 letter characters!');
         return;
     }
 
@@ -220,7 +220,7 @@ sub Run {
     );
     return if !$Success;
 
-    $Self->{Message} = Translatable('Preferences updated successfully!');
+    $Self->{Message} = $LanguageObject->Translate('Preferences updated successfully!');
     return 1;
 }
 

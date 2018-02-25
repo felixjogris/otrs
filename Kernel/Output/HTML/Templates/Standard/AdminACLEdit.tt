@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -7,7 +7,7 @@
 # --
 
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
-    <h1>[% Translate("Edit ACL %s", Data.Name) | html %]</h1>
+    <h1 class="InvisibleText">[% Translate("Edit ACL %s", Data.Name) | html %]</h1>
 
     [% BreadcrumbPath = [
             {
@@ -235,10 +235,7 @@
             </div>
 
             <div class="WidgetSimple ScreenXL">
-                <div class="Header Expanded">
-                    <div class="WidgetAction Toggle">
-                        <a href="#" title="[% Translate("Save settings") | html %]"></a>
-                    </div>
+                <div class="Header">
                     <h2>[% Translate("Save ACL") | html %]</h2>
                 </div>
                 <div class="Content">

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -33,7 +33,7 @@ Kernel::Output::HTML::Base - Base class for Output classes
 =head1 DESCRIPTION
 
     package Kernel::Output::HTML::ToolBar::MyToolBar;
-    use base 'Kernel::Output::HTML::Base';
+    use parent 'Kernel::Output::HTML::Base';
 
     # methods go here
 

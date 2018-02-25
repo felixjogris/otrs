@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -24,7 +24,7 @@ Kernel::System::EventHandler - event handler interface
 
 Inherit from this class if you want to use events there.
 
-    use base qw(Kernel::System::EventHandler);
+    use parent qw(Kernel::System::EventHandler);
 
 In your class, have to call L</EventHandlerInit()> first.
 

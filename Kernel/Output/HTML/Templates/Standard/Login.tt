@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -102,16 +102,16 @@ X-OTRS-Login: [% Env("Baselink") %]
                         [% Translate("Please see the documentation or ask your admin for further information.") | html %]
                     </span>
                 </div>
-            </div>
 
 [% RenderBlockStart("SystemMaintenance") %]
-            <div class="MessageBox WithIcon" id="SystemMaintenance">
-                <i class="fa fa-exclamation-circle"></i>
-                <p>
-                    [% Translate(Data.LoginMessage) | html %]
-                </p>
-            </div>
+                <div class="MessageBox WithIcon" id="SystemMaintenance">
+                    <i class="fa fa-exclamation-circle"></i>
+                    <p>
+                        [% Translate(Data.LoginMessage) | html %]
+                    </p>
+                </div>
 [% RenderBlockEnd("SystemMaintenance") %]
+            </div>
 
 [% RenderBlockStart("PreLogin") %]
             <div id="LoginBox" class="LoginBox PreLogin">
@@ -140,7 +140,7 @@ X-OTRS-Login: [% Env("Baselink") %]
                     <div class="Content">
                         <p class="Error Center Spacing"></p>
 
-                        <form action="[% Env("CGIHandle") %]" method="post" enctype="application/x-www-form-urlencoded" name="login" class="Validate">
+                        <form action="[% Env("CGIHandle") %]" method="post" enctype="application/x-www-form-urlencoded" name="login" class="Validate PreventMultipleSubmits">
                             <input type="hidden" name="Action" value="Login" />
                             <input type="hidden" name="RequestedURL" value="[% Data.RequestedURL | html %]"/>
                             <input type="hidden" name="Lang" value="[% Env("UserLanguage") | html %]"/>
@@ -150,14 +150,14 @@ X-OTRS-Login: [% Env("Baselink") %]
                                     <label for="User" class="InvisibleText Mandatory">
                                         <span class="Marker">*</span> [% Translate("Username") | html %]
                                     </label>
-                                    <input autocorrect="off" placeholder="[% Translate("Username") | html %]" autocapitalize="off" type="text" id="User" name="User" value="[% Data.User | html %]" class="W75pc Validate_Required" />
+                                    <input autocorrect="off" autocomplete="username" placeholder="[% Translate("Username") | html %]" autocapitalize="off" type="text" id="User" name="User" value="[% Data.User | html %]" class="W75pc Validate_Required" />
                                     <div id="UserError" class="TooltipErrorMessage" ><p>[% Translate("This field is required.") | html %]</p></div>
                                 </div>
                                 <div>
-                                    <label for="TwoFactorToken" class="InvisibleText Mandatory">
+                                    <label for="Password" class="InvisibleText Mandatory">
                                         <span class="Marker">*</span> [% Translate("Password") | html %]
                                     </label>
-                                    <input type="Password" placeholder="[% Translate("Password") | html %]" id="Password" name="Password" class="W75pc Validate_Required" />
+                                    <input type="password" autocomplete="current-password" placeholder="[% Translate("Password") | html %]" id="Password" name="Password" class="W75pc Validate_Required" />
                                     <div id="PasswordError" class="TooltipErrorMessage" ><p>[% Translate("This field is required.") | html %]</p></div>
                                 </div>
                                 <div class="Clear"></div>
@@ -170,7 +170,7 @@ X-OTRS-Login: [% Env("Baselink") %]
                                         [% Translate("2 Factor Token") | html %]
                                 </label>
                                 <div>
-                                    <input type="password" placeholder="[% Translate("2 Factor Token") | html %]" id="TwoFactorToken" name="TwoFactorToken" class="W75pc [% Data.ValidateRequired | html %]" />
+                                    <input type="text" placeholder="[% Translate("2 Factor Token") | html %]" id="TwoFactorToken" name="TwoFactorToken" class="W75pc [% Data.ValidateRequired | html %]" />
                                     <div id="TwoFactorTokenError" class="TooltipErrorMessage" ><p>[% Translate("This field is required.") | html %]</p></div>
                                 </div>
                                 <div class="Clear"></div>
@@ -206,7 +206,7 @@ X-OTRS-Login: [% Env("Baselink") %]
                 <div class="WidgetSimple">
                     <div class="Content">
                         <p class="Error Center Spacing"></p>
-                        <form action="[% Env("CGIHandle") %]" method="post" enctype="application/x-www-form-urlencoded" class="Validate">
+                        <form action="[% Env("CGIHandle") %]" method="post" enctype="application/x-www-form-urlencoded" class="Validate PreventMultipleSubmits">
                             <input type="hidden" name="Action" value="LostPassword"/>
                             <input type="hidden" name="Lang" value="[% Env("UserLanguage") | html %]"/>
 

@@ -24,6 +24,15 @@
     opacity: 0.5;
     filter: alpha(opacity = 50);
     z-index: 3500;
+    transition: all ease 0.2s;
+}
+
+#AppWrapper {
+    transition: filter ease 0.2s;
+}
+
+body.HasOverlay > #AppWrapper {
+    filter: blur(5px);
 }
 
 /**
@@ -31,7 +40,7 @@
  */
 .Dialog {
     position: absolute;
-    z-index: 3501;
+    z-index: 6000;
     min-width: 150px;
     background: #FFF;
 }
@@ -46,9 +55,9 @@
     cursor: move;
     display: block;
     position: relative;
-    height: 25px;
-    background: #eee;
-    border-bottom: 1px solid #CCC;
+    height: 30px;
+    border-bottom: 1px solid #eee;
+    text-align: center;
 }
 
 .Dialog > .Header .Close {
@@ -57,8 +66,9 @@
     height: 12px;
     width: 12px;
     right: 8px;
-    top: 7px;
-    color: #000;
+    top: 9px;
+    color: #ccc;
+    transition: color ease 0.2s;
 }
 
 .RTL .Dialog > .Header .Close {
@@ -71,10 +81,10 @@
 }
 
 .Dialog > .Header h1 {
-    padding: 5px 10px;
+    padding: 8px 10px;
     font-weight: normal;
     font-size: 14px;
-    padding-top: 5px;
+    margin-bottom: 0px;
 }
 
 .Dialog > .Content {
@@ -83,7 +93,7 @@
 }
 
 .Dialog > .Content > .InnerContent {
-    padding: 10px 25px 10px 10px;
+    padding: 20px;
     background: #FFF;
     overflow-y: auto;
     overflow-x: auto;
@@ -91,15 +101,25 @@
     position: relative;
 }
 
+#TimeLineOverflow {
+    overflow-y: hidden;
+    max-height: 1173px;
+    padding: 10px;
+}
+
 .RTL .Dialog > .Content > .InnerContent {
     padding: 10px 10px 10px 25px;
 }
 
 .Dialog > .Content > .ContentFooter {
-    padding: 6px 0 5px;
-    background: #e5e5e5;
+    padding: 14px 0px;
     min-height: 20px;
-    border-top: 1px solid #CCC;
+    border-top: 1px solid #eee;
+}
+
+.Dialog > .Content > .ContentFooter .CallForAction.CloseDialog {
+    border-color: transparent;
+    background: none;
 }
 
 .Dialog > .Footer {
@@ -145,7 +165,8 @@
     margin-bottom: 15px;
 }
 
-.Dialog .WidgetSettingsForm fieldset {
+.Dialog .WidgetSettingsForm fieldset,
+.Dialog fieldset.NoMargin {
     margin-bottom: 0px;
 }
 
@@ -155,6 +176,12 @@
 
 .Dialog .Field.LayoutGrid .Tablelike {
     width: 98%;
+}
+
+.Dialog .Field .FocusField {
+    position: absolute;
+    left: -9999px;
+    z-index: -1;
 }
 
 .Dialog .Buttons {
@@ -233,5 +260,26 @@
     margin-bottom: 12px;
     margin-left: 8px;
 }
+
+/* Error screens in overlays */
+
+.Dialog.Modal #AppWrapper > #Header,
+.Dialog.Modal .ErrorScreen ~ #Footer {
+    display: none;
+}
+
+.Dialog.Modal .ErrorScreen {
+    margin-top: 0px !important;
+}
+
+.Dialog.Modal .ErrorScreen .CenterBox {
+    width: auto !important;
+}
+
+.Dialog.Modal .ErrorScreen .WidgetSimple .Content {
+    max-height: 200px;
+    overflow: auto;
+}
+
 
 } /* end @media */

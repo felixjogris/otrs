@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -118,7 +118,7 @@
                     <fieldset class="TableLike FixedLabelSmall Narrow">
                         <label>[% Translate("Customer ID") | html %]:</label>
                         <p class="Value">
-                            <a href="[% Config("CustomerDBLink") | Interpolate %]" class="[% Config("CustomerDBLinkClass") %]" [% Config("CustomerDBLinkTarget") %]>[% Data.CustomerID | html %]</a>[% RenderBlockStart("CustomerIDTickets") %] - <a href="[% Env("Baselink") %]Action=AgentTicketSearch;Subaction=Search;CustomerID=[% Data.CustomerID | uri %]">[% Translate("%s Ticket(s)", Data.CustomerIDTickets) | html %]</a>[% RenderBlockEnd("CustomerIDTickets") %]
+                            <a href="[% Config("CustomerDBLink") | Interpolate %]" class="[% Config("CustomerDBLinkClass") | html %]" [% Config("CustomerDBLinkTarget") %]>[% Data.CustomerID | html %]</a>[% RenderBlockStart("CustomerIDTickets") %] - <a href="[% Env("Baselink") %]Action=AgentTicketSearch;Subaction=Search;CustomerID=[% Data.CustomerID | uri %]">[% Translate("%s Ticket(s)", Data.CustomerIDTickets) | html %]</a>[% RenderBlockEnd("CustomerIDTickets") %]
                         </p>
                         <div class="Clear"></div>
 
@@ -130,13 +130,13 @@
 [% RenderBlockEnd("TotalAccountedTime") %]
 [% RenderBlockStart("Owner") %]
                         <label>[% Translate("Owner") | html %]:</label>
-                        <p class="Value" title="[% Data.UserFullname | html %] [% Data.OutOfOfficeMessage | html %] ([% Data.UserLogin | html %])">
+                        <p class="Value" title="[% Data.UserFullname | html %] ([% Data.UserLogin | html %])">
                             [% IF Data.EnableChat %]
                             <span class="UserStatusIcon [% Data.UserState | html %]">
                                 <i class="fa fa-circle" title="[% Data.UserStateDescription | html %]"></i>
                             </span>
                             [% END %]
-                            [% Data.UserFullname | html %] [% Data.OutOfOfficeMessage | html %]
+                            [% Data.UserFullname | html %]
                             [% IF Data.AgentEnableChat && Data.UserID != Env('UserID') %]
                             <span class="UserChatIcons Block Hidden">
                                 <a href="#" title="[% Translate("Start chat") | html %]" type="button" class="UserChatStart" data-user-id="[% Data.UserID | html %]" data-user-type="User" data-user-fullname="[% Data.UserFullname | html %]" data-ticket-id="[% Data.TicketID | html %]">
@@ -158,13 +158,13 @@
 [% RenderBlockEnd("Owner") %]
 [% RenderBlockStart("Responsible") %]
                         <label>[% Translate("Responsible") | html %]:</label>
-                        <p class="Value" title="[% Data.UserFullname | html %] [% Data.OutOfOfficeMessage | html %] ([% Data.UserLogin | html %])">
+                        <p class="Value" title="[% Data.UserFullname | html %] ([% Data.UserLogin | html %])">
                             [% IF Data.EnableChat %]
                             <span class="UserStatusIcon [% Data.UserState | html %]">
                                 <i class="fa fa-circle" title="[% Data.UserStateDescription | html %]"></i>
                             </span>
                             [% END %]
-                            [% Data.UserFullname | html %] [% Data.OutOfOfficeMessage | html %]
+                            [% Data.UserFullname | html %]
                             [% IF Data.AgentEnableChat && Data.UserID != Env('UserID') %]
                             <span class="UserChatIcons Block Hidden">
                                 <a href="#" title="[% Translate("Start chat") | html %]" type="button" class="UserChatStart" data-user-id="[% Data.UserID | html %]" data-user-type="User" data-user-fullname="[% Data.UserFullname | html %]" data-ticket-id="[% Data.TicketID | html %]">

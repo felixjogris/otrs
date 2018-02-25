@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,7 +13,7 @@ use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
 
-use base qw(Kernel::System::SysConfig::BaseValueType);
+use parent qw(Kernel::System::SysConfig::BaseValueType);
 
 our @ObjectDependencies = (
     'Kernel::Language',
@@ -121,8 +121,7 @@ Extracts the effective value from a XML parsed setting.
 
     my $SettingHTML = $ValueTypeObject->SettingRender(
         Name           => 'SettingName',
-        DefaultID      =>  123,             # (required)
-        EffectiveValue => 'UTC',
+        EffectiveValue => 'UTC',            # (optional)
         DefaultValue   => 'UTC',            # (optional)
         Class          => 'My class'        # (optional)
         RW             => 1,                # (optional) Allow editing. Default 0.
@@ -148,14 +147,12 @@ Returns:
 sub SettingRender {
     my ( $Self, %Param ) = @_;
 
-    for my $Needed (qw(Name EffectiveValue)) {
-        if ( !defined $Param{$Needed} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "Need $Needed",
-            );
-            return;
-        }
+    if ( !defined $Param{Name} ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "Need Name",
+        );
+        return;
     }
 
     $Param{Class}        //= '';
@@ -171,7 +168,7 @@ sub SettingRender {
 
     my $EffectiveValue = $Param{EffectiveValue};
     if (
-        !$EffectiveValue
+        !defined $EffectiveValue
         && $Param{Item}
         && $Param{Item}->[0]->{Content}
         )

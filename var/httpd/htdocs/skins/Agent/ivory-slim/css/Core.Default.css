@@ -11,14 +11,6 @@
 
 @media screen,projection,tv,handheld {
 
-#Header #Logo {
-    background-position: center;
-    height: 62px;
-    opacity: 0.53;
-    -ms-filter: "progid:DXImageTransform.Microsoft.Alpha(Opacity=53)";
-    top: 0px !important;
-}
-
 /**
  * @subsection  Color
  * @note        standard colors #69BFCC is the main skin color and #265D66 its dark version
@@ -27,6 +19,10 @@
 a,
 span.Pagination a:hover {
     color: #69BFCC;
+}
+
+#Logo {
+    opacity: 0.3;
 }
 
 .Admin .Size1of2 h4 {
@@ -42,6 +38,13 @@ a:active,
 a:focus,
 #ToolBar a.Active {
     color: #82CED8;
+}
+
+@keyframes border-fill {
+    0%   { border-bottom: 2px solid #82CED8; }
+    25%  { border-bottom: 2px solid #82CED8; border-left: 2px solid #82CED8; }
+    50%  { border-bottom: 2px solid #82CED8; border-left: 2px solid #82CED8; border-top: 2px solid #82CED8; }
+    100% { border-bottom: 2px solid #82CED8; border-left: 2px solid #82CED8; border-top: 2px solid #82CED8; border-right: 2px solid #82CED8; }
 }
 
 .Admin .Size1of2:hover h4 {
@@ -70,11 +73,8 @@ textarea.Focus  {
  *              red overlay doesn't fit, so changed the main sprite too.
  */
 
-#Navigation > .Selected,
-#Navigation > .Selected > a,
-#Navigation > li:hover,
-#Navigation > li:hover > a {
-    border-color: #69BFCC;
+#Navigation > li > a:after {
+    background-color: #69BFCC;
 }
 
 #Navigation > li:hover > span {
@@ -96,7 +96,6 @@ textarea.Focus  {
 
 .MessageBox.Notice {
     border-color: #265D66;
-    background: #69BFCC;
 }
 
 .MessageBox.Notice p {
@@ -124,19 +123,19 @@ textarea.Focus  {
     background: #82CED8;
 }
 
-.UseArticleColors .agent-phone:hover > td, 
-.UseArticleColors .agent-email-external:hover > td, 
-.UseArticleColors .agent-email-internal:hover > td, 
-.UseArticleColors .agent-note-external:hover > td, 
-.UseArticleColors .agent-note-internal:hover > td, 
-.UseArticleColors .system-note-internal:hover > td, 
-.UseArticleColors .system-note-external:hover > td, 
-.UseArticleColors .system-note-report:hover > td, 
-.UseArticleColors .system-email-external:hover > td, 
-.UseArticleColors .system-email-internal:hover > td, 
-.UseArticleColors .customer-webrequest:hover > td, 
-.UseArticleColors .customer-email-external:hover > td, 
-.UseArticleColors .customer-note-external:hover > td, 
+.UseArticleColors .agent-phone:hover > td,
+.UseArticleColors .agent-email-external:hover > td,
+.UseArticleColors .agent-email-internal:hover > td,
+.UseArticleColors .agent-note-external:hover > td,
+.UseArticleColors .agent-note-internal:hover > td,
+.UseArticleColors .system-note-internal:hover > td,
+.UseArticleColors .system-note-external:hover > td,
+.UseArticleColors .system-note-report:hover > td,
+.UseArticleColors .system-email-external:hover > td,
+.UseArticleColors .system-email-internal:hover > td,
+.UseArticleColors .customer-webrequest:hover > td,
+.UseArticleColors .customer-email-external:hover > td,
+.UseArticleColors .customer-note-external:hover > td,
 .UseArticleColors .customer-phone:hover > td {
     background: #82CED8 !important;
 }
@@ -158,23 +157,26 @@ textarea.Focus  {
     background-position: bottom;
 }
 
-#Logo {
-    right: 246px;
-}
-
-.RTL #Logo {
-    right: auto;
-    left: 246px;
-}
-
 #ToolBar {
-    top: 32px;
+    top: 22px;
     left: auto;
     right: 14px;
+    z-index: 10;
 }
 
-#ToolBar a {
-    margin-top: -7px;
+#ToolBar li.UserAvatar {
+    margin-top: -6px;
+    float: right;
+}
+
+#ToolBar li.UserAvatar div {
+    right: -25px;
+    left: auto;
+}
+
+#ToolBar li.UserAvatar div:after {
+    left: auto;
+    right: 15px;
 }
 
 .RTL #ToolBar {
@@ -187,7 +189,7 @@ textarea.Focus  {
 }
 
 #NavigationContainer {
-    top: 27px;
+    top: 17px;
 }
 
 .DataTable tr td {
@@ -219,6 +221,19 @@ div.InputField_ToolbarContainer ul li a:hover {
 .jstree-InputField .jstree-wholerow-ul .jstree-wholerow-clicked.jstree-wholerow-hovered,
 .jstree-InputField .jstree-focused > .jstree-wholerow-clicked {
     background-color: #69BFCC;
+}
+
+ul.Tablelike li:hover {
+    background-color: #69BFCC;
+}
+
+#ResponsiveNavigationHandle .fa,
+#ResponsiveSidebarHandle .fa {
+    color: #69BFCC;
+}
+
+.ActionRow .Actions li a:hover {
+    border-bottom: 2px solid #69BFCC;
 }
 
 } /* end @media */

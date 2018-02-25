@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -23,13 +23,13 @@ our @ObjectDependencies = (
     'Kernel::Language',
     'Kernel::System::Cache',
     'Kernel::System::CheckItem',
+    'Kernel::System::DateTime',
     'Kernel::System::DB',
     'Kernel::System::DynamicField',
     'Kernel::System::DynamicField::Backend',
     'Kernel::System::Encode',
     'Kernel::System::Log',
     'Kernel::System::Main',
-    'Kernel::System::Time',
     'Kernel::System::Valid',
     'Kernel::System::DynamicField',
     'Kernel::System::DynamicField::Backend',
@@ -320,6 +320,10 @@ sub CustomerSearch {
         # as they cannot be retrieved here
         my @CustomerUserSearchFields = grep { !exists $Self->{ConfiguredDynamicFieldNames}->{$_} }
             @{ $Self->{CustomerUserMap}->{CustomerUserSearchFields} };
+
+        if ( $Param{CustomerUserOnly} ) {
+            @CustomerUserSearchFields = grep { $_ ne 'customer_id' } @CustomerUserSearchFields;
+        }
 
         my %QueryCondition = $Self->{DBObject}->QueryCondition(
             Key           => \@CustomerUserSearchFields,    #$Self->{CustomerUserMap}->{CustomerUserSearchFields},
@@ -613,7 +617,7 @@ sub CustomerSearchDetail {
         }
     }
 
-    my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
+    my $DBObject = $Self->{DBObject};
 
     # Assemble the conditions used in the WHERE clause.
     my @SQLWhere;
@@ -797,13 +801,13 @@ sub CustomerSearchDetail {
         #   or skip the search and return a emptry array ref, if no user logins exists from the dynamic field search.
         if (@DynamicFieldUserLogins) {
 
-            for my $OneParam (@DynamicFieldUserLogins) {
-                $OneParam = $DBObject->Quote($OneParam);
-            }
+            my $SQLQueryInCondition = $DBObject->QueryInCondition(
+                Key      => $Self->{CustomerKey},
+                Values   => \@DynamicFieldUserLogins,
+                BindMode => 0,
+            );
 
-            my $InString = join ', ', map {"'$_'"} @DynamicFieldUserLogins;
-
-            push @SQLWhere, "$Self->{CustomerKey} IN ($InString)";
+            push @SQLWhere, $SQLQueryInCondition;
         }
         else {
             return $Result eq 'COUNT' ? 0 : [];
@@ -815,37 +819,38 @@ sub CustomerSearchDetail {
 
         next FIELD if !@{ $Param{ $Field->{Name} } };
 
-        for my $OneParam ( @{ $Param{ $Field->{Name} } } ) {
-            $OneParam = $DBObject->Quote($OneParam);
-        }
+        my $SQLQueryInCondition = $DBObject->QueryInCondition(
+            Key      => $Field->{DatabaseField},
+            Values   => $Param{ $Field->{Name} },
+            BindMode => 0,
+        );
 
-        my $InString = join ', ', map {"'$_'"} @{ $Param{ $Field->{Name} } };
-
-        push @SQLWhere, "$Field->{DatabaseField} IN ($InString)";
+        push @SQLWhere, $SQLQueryInCondition;
     }
 
     # Special parameter for CustomerIDs from a customer company search result.
     if ( IsArrayRefWithData( $Param{CustomerCompanySearchCustomerIDs} ) ) {
 
-        for my $OneParam ( @{ $Param{CustomerCompanySearchCustomerIDs} } ) {
-            $OneParam = $DBObject->Quote($OneParam);
-        }
+        my $SQLQueryInCondition = $DBObject->QueryInCondition(
+            Key      => $Self->{CustomerID},
+            Values   => $Param{CustomerCompanySearchCustomerIDs},
+            BindMode => 0,
+        );
 
-        my $InString = join ', ', map {"'$_'"} @{ $Param{CustomerCompanySearchCustomerIDs} };
-
-        push @SQLWhere, "$Self->{CustomerID} IN ($InString)";
+        push @SQLWhere, $SQLQueryInCondition;
     }
 
     # Special parameter to exclude some user logins from the search result.
     if ( IsArrayRefWithData( $Param{ExcludeUserLogins} ) ) {
 
-        for my $OneParam ( @{ $Param{ExcludeUserLogins} } ) {
-            $OneParam = $DBObject->Quote($OneParam);
-        }
+        my $SQLQueryInCondition = $DBObject->QueryInCondition(
+            Key      => $Self->{CustomerKey},
+            Values   => $Param{ExcludeUserLogins},
+            BindMode => 0,
+            Negate   => 1,
+        );
 
-        my $InString = join ', ', map {"'$_'"} @{ $Param{ExcludeUserLogins} };
-
-        push @SQLWhere, "$Self->{CustomerKey} NOT IN ($InString)";
+        push @SQLWhere, $SQLQueryInCondition;
     }
 
     # Add the valid option if needed.
@@ -1094,7 +1099,7 @@ sub CustomerIDs {
     if ( !$Param{User} ) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => 'Need User!',
+            Message  => 'Need User!'
         );
         return;
     }
@@ -1109,26 +1114,30 @@ sub CustomerIDs {
     }
 
     # get customer data
-    my %Data = $Self->CustomerUserDataGet( User => $Param{User} );
+    my %Data = $Self->CustomerUserDataGet(
+        User => $Param{User},
+    );
 
     # there are multi customer ids
     my @CustomerIDs;
     if ( $Data{UserCustomerIDs} ) {
 
         # used separators
-        SPLIT:
-        for my $Split ( ';', ',', '|' ) {
+        SEPARATOR:
+        for my $Separator ( ';', ',', '|' ) {
 
-            next SPLIT if $Data{UserCustomerIDs} !~ /\Q$Split\E/;
+            next SEPARATOR if $Data{UserCustomerIDs} !~ /\Q$Separator\E/;
 
             # split it
-            my @IDs = split /\Q$Split\E/, $Data{UserCustomerIDs};
+            my @IDs = split /\Q$Separator\E/, $Data{UserCustomerIDs};
+
             for my $ID (@IDs) {
                 $ID =~ s/^\s+//g;
                 $ID =~ s/\s+$//g;
                 push @CustomerIDs, $ID;
             }
-            last SPLIT;
+
+            last SEPARATOR;
         }
 
         # fallback if no separator got found
@@ -1148,7 +1157,7 @@ sub CustomerIDs {
     if ( $Self->{CacheObject} ) {
         $Self->{CacheObject}->Set(
             Type  => $Self->{CacheType},
-            Key   => "CustomerIDs::$Param{User}",
+            Key   => 'CustomerIDs::' . $Param{User},
             Value => \@CustomerIDs,
             TTL   => $Self->{CustomerUserMap}->{CacheTTL},
         );
@@ -1250,19 +1259,26 @@ sub CustomerUserDataGet {
         return;
     }
 
+    my $CustomerUserListFieldsMap = $Self->{CustomerUserMap}->{CustomerUserListFields};
+    if ( !IsArrayRefWithData($CustomerUserListFieldsMap) ) {
+        $CustomerUserListFieldsMap = [ 'first_name', 'last_name', 'email', ];
+    }
+
     # to build the UserMailString
-    my %LookupCustomerUserListFields = map { $_ => 1 } @{ $Self->{CustomerUserMap}->{CustomerUserListFields} };
+    my %LookupCustomerUserListFields = map { $_ => 1 } @{$CustomerUserListFieldsMap};
     my @CustomerUserListFields
         = map { $_->[0] } grep { $LookupCustomerUserListFields{ $_->[2] } } @{ $Self->{CustomerUserMap}->{Map} };
 
     my $UserMailString = '';
+    my @UserMailStringParts;
 
     FIELD:
     for my $Field (@CustomerUserListFields) {
         next FIELD if !$Data{$Field};
 
-        $UserMailString .= $Data{$Field} . ' ';
+        push @UserMailStringParts, $Data{$Field};
     }
+    $UserMailString = join ' ', @UserMailStringParts;
     $UserMailString =~ s/^(.*)\s(.+?\@.+?\..+?)(\s|)$/"$1" <$2>/;
 
     # add the UserMailString to the data hash
@@ -1276,9 +1292,16 @@ sub CustomerUserDataGet {
 
     # add last login timestamp
     if ( $Preferences{UserLastLogin} ) {
-        $Preferences{UserLastLoginTimestamp} = $Kernel::OM->Get('Kernel::System::Time')->SystemTime2TimeStamp(
-            SystemTime => $Preferences{UserLastLogin},
+
+        my $DateTimeObject = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                Epoch => $Preferences{UserLastLogin},
+            },
         );
+
+        $Preferences{UserLastLoginTimestamp} = $DateTimeObject->ToString();
+
     }
 
     # cache request
@@ -1336,13 +1359,11 @@ sub CustomerUserAdd {
     if ( !$Param{UserLogin} && $Self->{CustomerUserMap}->{AutoLoginCreation} ) {
 
         # get time object
-        my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+        my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+        my $DateTimeString = $DateTimeObject->Format( Format => '%Y%m%d%H%M' );
 
-        my ( $Sec, $Min, $Hour, $Day, $Month, $Year ) = $TimeObject->SystemTime2Date(
-            SystemTime => $TimeObject->SystemTime(),
-        );
         my $Prefix = $Self->{CustomerUserMap}->{AutoLoginCreationPrefix} || 'auto';
-        $Param{UserLogin} = "$Prefix-$Year$Month$Day$Hour$Min" . int( rand(99) );
+        $Param{UserLogin} = "$Prefix-$DateTimeString" . int( rand(99) );
     }
 
     # check if user login exists
@@ -1377,6 +1398,7 @@ sub CustomerUserAdd {
     if (
         $Param{UserEmail}
         && !$CheckItemObject->CheckEmail( Address => $Param{UserEmail} )
+        && grep { $_ eq $Param{ValidID} } $Kernel::OM->Get('Kernel::System::Valid')->ValidIDsGet()
         )
     {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
@@ -1512,6 +1534,7 @@ sub CustomerUserUpdate {
     if (
         $Param{UserEmail}
         && !$CheckItemObject->CheckEmail( Address => $Param{UserEmail} )
+        && grep { $_ eq $Param{ValidID} } $Kernel::OM->Get('Kernel::System::Valid')->ValidIDsGet()
         )
     {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
@@ -1663,8 +1686,9 @@ sub SetPassword {
     }
     my $CryptedPw = '';
 
-    # get crypt type
-    my $CryptType = $Kernel::OM->Get('Kernel::Config')->Get('Customer::AuthModule::DB::CryptType') || 'sha2';
+    my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
+
+    my $CryptType = $ConfigObject->Get('Customer::AuthModule::DB::CryptType') || 'sha2';
 
     # get encode object
     my $EncodeObject = $Kernel::OM->Get('Kernel::System::Encode');
@@ -1711,10 +1735,15 @@ sub SetPassword {
     elsif ( $CryptType eq 'sha1' ) {
 
         my $SHAObject = Digest::SHA->new('sha1');
-
-        # encode output, needed by sha1_hex() only non utf8 signs
         $EncodeObject->EncodeOutput( \$Pw );
+        $SHAObject->add($Pw);
+        $CryptedPw = $SHAObject->hexdigest();
+    }
 
+    elsif ( $CryptType eq 'sha512' ) {
+
+        my $SHAObject = Digest::SHA->new('sha512');
+        $EncodeObject->EncodeOutput( \$Pw );
         $SHAObject->add($Pw);
         $CryptedPw = $SHAObject->hexdigest();
     }
@@ -1734,7 +1763,14 @@ sub SetPassword {
             return;
         }
 
-        my $Cost = 9;
+        my $Cost = $ConfigObject->Get('Customer::AuthModule::DB::bcryptCost') // 12;
+
+        # Don't allow values smaller than 9 for security.
+        $Cost = 9 if $Cost < 9;
+
+        # Current Crypt::Eksblowfish::Bcrypt limit is 31.
+        $Cost = 31 if $Cost > 31;
+
         my $Salt = $MainObject->GenerateRandomString( Length => 16 );
 
         # remove UTF8 flag, required by Crypt::Eksblowfish::Bcrypt
@@ -1744,7 +1780,7 @@ sub SetPassword {
         my $Octets = Crypt::Eksblowfish::Bcrypt::bcrypt_hash(
             {
                 key_nul => 1,
-                cost    => 9,
+                cost    => $Cost,
                 salt    => $Salt,
             },
             $Pw

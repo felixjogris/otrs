@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -15,6 +15,9 @@
     <input type="hidden" name="ReplyToArticle" value="[% Data.ReplyToArticle | html %]"/>
     <input type="hidden" name="Expand" id="Expand" value=""/>
     <input type="hidden" name="FormID" value="[% Data.FormID | html %]"/>
+    <input type="hidden" name="FormDraftTitle" value="[% Data.FormDraftTitle | html %]"/>
+    <input type="hidden" name="FormDraftID" value="[% Data.FormDraftID | html %]"/>
+    <input type="hidden" name="FormDraftAction" id="FormDraftAction" />
 
     <div class="LayoutPopup ARIARoleMain">
         <div class="Header">
@@ -60,7 +63,7 @@
 
         </div>
         <div class="Content">
-
+            [% INCLUDE "FormElements/DraftNotifications.tt" %]
 [% RenderBlockStart("WidgetTicketActions") %]
             <div class="WidgetSimple Expanded">
                 <div class="Header">
@@ -247,55 +250,41 @@
                         </div>
                         <div class="Clear"></div>
 [% RenderBlockEnd("Priority") %]
-                    </div>
-                </div>
-[% RenderBlockEnd("WidgetTicketActions") %]
 
-[% RenderBlockStart("WidgetDynamicFields") %]
-                <div class="WidgetSimple Expanded">
-                    <div class="Header">
-                        <div class="WidgetAction Toggle">
-                            <a href="#" title="[% Translate("Toggle this widget") | html %]"><i class="fa fa-caret-right"></i><i class="fa fa-caret-down"></i></a>
-                        </div>
-                        <h2>[% Translate("Dynamic Fields") | html %]</h2>
-                    </div>
-                    <div class="Content">
-                        <fieldset class="TableLike FixedLabel">
-[% RenderBlockStart("DynamicField") %]
-                            <div class="Row Row_DynamicField_[% Data.Name | html %]">
-                            [% Data.Label %]
-                                <div class="Field">
-                                [% Data.Field %]
-                                </div>
-                                <div class="Clear"></div>
+[% RenderBlockStart("TicketTypeDynamicField") %]
+                        <div class="Row Row_DynamicField_[% Data.Name | html %]">
+                        [% Data.Label %]
+                            <div class="Field">
+                            [% Data.Field %]
                             </div>
-[% RenderBlockEnd("DynamicField") %]
+                            <div class="Clear"></div>
+                        </div>
+[% RenderBlockEnd("TicketTypeDynamicField") %]
 
-# example of how to use fixed dynamic field blocks for customizations
-# Note: Field1 and Field2 are the names of the fields and had to be replaced with the actual
-# field names
-#[% RenderBlockStart("DynamicField_Field1") %]
-#                <div class="Row Row_DynamicField_[% Data.Name | html %]">
-#                    [% Data.Label %]
-#                    <div class="Field">
-#                        [% Data.Field %]
-#                    </div>
-#                    <div class="Clear"></div>
-#                </div>
-#[% RenderBlockEnd("DynamicField_Field1") %]
-#[% RenderBlockStart("DynamicField_Field2") %]
-#                <div class="Row Row_DynamicField_[% Data.Name | html %]">
-#                    [% Data.Label %]
-#                    <div class="Field">
-#                        [% Data.Field %]
-#                    </div>
-#                    <div class="Clear"></div>
-#                </div>
-#[% RenderBlockEnd("DynamicField_Field2") %]
-                        </fieldset>
-                    </div>
+# Example of how to use fixed dynamic field blocks for customizations. Block below is for fields of type 'Ticket'.
+#   NOTE: Field1 and Field2 are the names of the dynamic fields and have to be replaced with the actual field names.
+#[% RenderBlockStart("TicketTypeDynamicField_Field1") %]
+#                       <div class="Row Row_DynamicField_[% Data.Name | html %]">
+#                           [% Data.Label %]
+#                           <div class="Field">
+#                               [% Data.Field %]
+#                           </div>
+#                           <div class="Clear"></div>
+#                       </div>
+#[% RenderBlockEnd("TicketTypeDynamicField_Field2") %]
+#[% RenderBlockStart("TicketTypeDynamicField_Field2") %]
+#                       <div class="Row Row_DynamicField_[% Data.Name | html %]">
+#                           [% Data.Label %]
+#                           <div class="Field">
+#                               [% Data.Field %]
+#                           </div>
+#                           <div class="Clear"></div>
+#                       </div>
+#[% RenderBlockEnd("TicketTypeDynamicField_Field2") %]
+                    </fieldset>
                 </div>
-[% RenderBlockEnd("WidgetDynamicFields") %]
+            </div>
+[% RenderBlockEnd("WidgetTicketActions") %]
 
 [% RenderBlockStart("WidgetArticle") %]
                 <div class="WidgetSimple [% Data.WidgetStatus | html %]" id="WidgetArticle">
@@ -313,7 +302,7 @@
 [% ELSE %]
                             <label for="CreateArticle">[% Translate("Create an Article") | html %]:</label>
                             <div class="Field">
-                                <input type="checkbox" id="CreateArticle" name="CreateArticle" value="1" />
+                                <input type="checkbox" id="CreateArticle" name="CreateArticle" value="1" [% IF Data.CreateArticle %] checked="checked"[% END %] />
                             </div>
                             <div class="Clear"></div>
 [% END %]
@@ -336,7 +325,7 @@
 [% RenderBlockEnd("InvolvedAgent") %]
                             <div class="Field">
                                 <p class="FieldExplanation">
-                                    [% Translate("Here you can select additional agents which should receive a notification regarding the new article.") %]
+                                    [% Translate("Here you can select additional agents which should receive a notification regarding the new article.") | html %]
                                 </p>
                             </div>
                         </fieldset>
@@ -372,11 +361,6 @@
                             <div class="Field">
 
 <!-- OutputFilterHook_TicketOptionsBegin -->
-
-[% RenderBlockStart("SpellCheck") %]
-                                <a href="#" id="OptionSpellCheck">[ [% Translate("Spell check") | html %] ]</a>
-[% RenderBlockEnd("SpellCheck") %]
-
 <!-- OutputFilterHook_TicketOptionsEnd -->
 
                             </div>
@@ -389,7 +373,7 @@
                             <label for="StandardTemplateID">[% Translate("Text Template") | html %]:</label>
                             <div class="Field">
                                 [% Data.StandardTemplateStrg %]
-                                <p class="FieldExplanation">[% Translate("Setting a template will overwrite any text or attachment.") %]</p>
+                                <p class="FieldExplanation">[% Translate("Setting a template will overwrite any text or attachment.") | html %]</p>
                             </div>
                             <div class="Clear"></div>
 [% RenderBlockEnd("StandardTemplate") %]
@@ -408,31 +392,18 @@
                             </div>
                             <div class="Clear"></div>
 
-                            <label>[% Translate("Attachment") | html %]:</label>
+                            <label>[% Translate("Attachments") | html %]:</label>
                             <div class="Field">
-                                <ul>
-[% RenderBlockStart("Attachment") %]
-                                    <li>
-                                    [% Data.Filename | html %] ([% Data.Filesize | html %])
-                                        <button type="button" id="AttachmentDeleteButton[% Data.FileID | html %]" name="AttachmentDeleteButton[% Data.FileID | html %]" value="[% Translate("Delete") | html %]" class="SpacingLeft">[% Translate("Delete") | html %]</button>
-                                        <input type="hidden" id="AttachmentDelete[% Data.FileID | html %]" name="AttachmentDelete[% Data.FileID | html %]" />
-                                    </li>
-[% RenderBlockEnd("Attachment") %]
-                                    <li>
-                                        <input name="FileUpload" id="FileUpload" type="file" size="40"/>
-                                        <input type="hidden" id="AttachmentUpload" name="AttachmentUpload" value="0" />
-                                    </li>
-                                </ul>
+[% INCLUDE "FormElements/AttachmentList.tt" %]
                             </div>
                             <div class="Clear"></div>
 
-[% RenderBlockStart("ArticleType") %]
-                            <label for="ArticleTypeID">[% Translate("Note type") | html %]:</label>
+                            <label for="IsVisibleForCustomer">[% Translate("Is visible for customer") | html %]:</label>
                             <div class="Field">
-                            [% Data.ArticleTypeStrg %]
+                                <input type="checkbox" name="IsVisibleForCustomer" id="IsVisibleForCustomer"
+                                    [% IF Data.IsVisibleForCustomer %]checked="checked" [% END %]/>
                             </div>
                             <div class="Clear"></div>
-[% RenderBlockEnd("ArticleType") %]
 
 [% RenderBlockStart("TimeUnitsLabel") %]
                             <label for="TimeUnits">[% Translate("Time units") | html %] [% Translate(Config("Ticket::Frontend::TimeUnits")) | html %]:</label>
@@ -448,6 +419,52 @@
                             </div>
                             <div class="Clear"></div>
 [% RenderBlockEnd("TimeUnits") %]
+
+[% RenderBlockStart("ArticleTypeDynamicField") %]
+                            <div class="Row Row_DynamicField_[% Data.Name | html %]">
+                            [% Data.Label %]
+                                <div class="Field">
+                                [% Data.Field %]
+[% RenderBlockStart("ArticleTypeDynamicFieldError") %]
+                                    <div id="DynamicField_[% Data.Name %]Error" class="TooltipErrorMessage">
+                                        <p>[% Translate("This field is required.") | html %]</p>
+                                    </div>
+[% RenderBlockEnd("ArticleTypeDynamicFieldError") %]
+                                </div>
+                                <div class="Clear"></div>
+                            </div>
+[% RenderBlockEnd("ArticleTypeDynamicField") %]
+
+# Example of how to use fixed dynamic field blocks for customizations. Block below is for fields of type 'Article'.
+#   NOTE: Field1 and Field2 are the names of the dynamic fields and have to be replaced with the actual field names.
+#[% RenderBlockStart("ArticleTypeDynamicField_Field1") %]
+#                            <div class="Row Row_DynamicField_[% Data.Name | html %]">
+#                                [% Data.Label %]
+#                                <div class="Field">
+#                                [% Data.Field %]
+#                                [% IF (Data.MandatoryTooltip) %]
+#                                    <div id="DynamicField_[% Data.Name %]Error" class="TooltipErrorMessage">
+#                                        <p>[% Translate("This field is required.") | html %]</p>
+#                                    </div>
+#                                [% END %]
+#                                </div>
+#                                <div class="Clear"></div>
+#                            </div>
+#[% RenderBlockEnd("ArticleTypeDynamicField_Field1") %]
+#[% RenderBlockStart("ArticleTypeDynamicField_Field2") %]
+#                            <div class="Row Row_DynamicField_[% Data.Name | html %]">
+#                                [% Data.Label %]
+#                                <div class="Field">
+#                                [% Data.Field %]
+#                                [% IF (Data.MandatoryTooltip) %]
+#                                    <div id="DynamicField_[% Data.Name %]Error" class="TooltipErrorMessage">
+#                                        <p>[% Translate("This field is required.") | html %]</p>
+#                                    </div>
+#                                [% END %]
+#                                </div>
+#                                <div class="Clear"></div>
+#                            </div>
+#[% RenderBlockEnd("ArticleTypeDynamicField_Field2") %]
                         </fieldset>
                     </div>
                 </div>
@@ -455,7 +472,10 @@
 
             </div>
             <div class="Footer">
-                <button class="CallForAction Primary" id="submitRichText" accesskey="g" title="[% Translate("Submit") | html %] (g)" type="submit" value="[% Translate("Submit") | html %]"><span><i class="fa fa-check-square-o"></i> [% Translate("Submit") | html %]</span></button>
+                <button class="CallForAction Primary" id="submitRichText" accesskey="g" title="[% Translate("Submit") | html %] (g)" type="submit" value="[% Translate("Submit") | html %]">
+                    <span><i class="fa fa-check-square-o"></i> [% Translate("Submit") | html %]</span>
+                </button>
+                [% INCLUDE "FormElements/DraftButtons.tt" %]
             </div>
         </div>
     </form>

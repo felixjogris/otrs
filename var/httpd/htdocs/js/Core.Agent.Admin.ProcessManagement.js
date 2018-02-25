@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -66,7 +66,7 @@ Core.Agent.Admin.ProcessManagement = (function (TargetNS) {
         }
 
         // Depending on Action initialize specific functions
-        if (Core.Config.Get('Action') === 'AdminProcessManagementPath') {
+        if (Core.Config.Get('Action') === 'AdminProcessManagementPath' && Core.Config.Get('Subaction') !== 'ClosePopup') {
            TargetNS.InitPathEdit();
         }
     };
@@ -992,9 +992,10 @@ Core.Agent.Admin.ProcessManagement = (function (TargetNS) {
 
             // get start activity and dialogs and store it into hidden fields as JSON string
             StartActivity = TargetNS.ProcessData.Process[ProcessEntityID].StartActivity;
-            $('input[name=StartActivity]').val(StartActivity);
-            $('input[name=StartActivityDialog]').val(TargetNS.ProcessData.Activity[StartActivity].ActivityDialog["1"]);
-
+            if (StartActivity !== '') {
+                $('input[name=StartActivity]').val(StartActivity);
+                $('input[name=StartActivityDialog]').val(TargetNS.ProcessData.Activity[StartActivity].ActivityDialog["1"]);
+            }
             $('#ProcessForm').submit();
             return false;
         });
@@ -1196,11 +1197,16 @@ Core.Agent.Admin.ProcessManagement = (function (TargetNS) {
                                  if (typeof FieldConfigElement.Config === 'undefined'){
                                      FieldConfigElement.Config = {};
                                  }
-                                 FieldConfigElement.Config.ArticleType = $('#ArticleType').val();
+                                 FieldConfigElement.Config.CommunicationChannel = $('#CommunicationChannel').val();
 
-                                 // show error if internal article type is set for an interface different than AgentInterface
-                                 if ($('#Interface').val() !== 'AgentInterface' && $('#ArticleType').val().match(/-int/i)){
-                                     window.alert(Core.Language.Translate('Customer interface does not support internal article types.'));
+                                 FieldConfigElement.Config.IsVisibleForCustomer = '0';
+                                 if ($('#IsVisibleForCustomer').prop('checked')) {
+                                    FieldConfigElement.Config.IsVisibleForCustomer = '1';
+                                 }
+
+                                 // show error if not customer visible article is set for an interface different than AgentInterface
+                                 if ($('#Interface').val() !== 'AgentInterface' && !$('#IsVisibleForCustomer').prop('checked')){
+                                     window.alert(Core.Language.Translate('Customer interface does not support articles not visible for customers.'));
                                      return false;
                                  }
 
@@ -1255,8 +1261,11 @@ Core.Agent.Admin.ProcessManagement = (function (TargetNS) {
                     if (typeof FieldConfig.Config === 'undefined'){
                         FieldConfig.Config = {};
                     }
-                    if (FieldConfig.Config.ArticleType) {
-                        $('#ArticleType').val(FieldConfig.Config.ArticleType);
+                    if (FieldConfig.Config.CommunicationChannel) {
+                        $('#CommunicationChannel').val(FieldConfig.Config.CommunicationChannel);
+                    }
+                    if (FieldConfig.Config.IsVisibleForCustomer === '1') {
+                        $('#IsVisibleForCustomer').prop("checked", true);
                     }
                     if (FieldConfig.Config.TimeUnits) {
                         $('#TimeUnits').val(FieldConfig.Config.TimeUnits);
@@ -1273,12 +1282,15 @@ Core.Agent.Admin.ProcessManagement = (function (TargetNS) {
                 $('#DefaultValue').prop('readonly', true).prop('disabled', true);
             }
 
-            // only article should show ArticleType select.
+            // only article should show Communication channel select.
             if (Fieldname === 'Article') {
 
-                $('#ArticleTypeContainer').removeClass('Hidden');
-                $('#ArticleTypeContainer').prev('label').css('display', 'block');
-                $('#ArticleTypeContainer .Modernize').trigger('redraw.InputField');
+                $('#CommunicationChannelContainer').removeClass('Hidden');
+                $('#CommunicationChannelContainer').prev('label').css('display', 'block');
+                $('#CommunicationChannelContainer .Modernize').trigger('redraw.InputField');
+
+                $('#IsVisibleForCustomerContainer').removeClass('Hidden');
+                $('#IsVisibleForCustomerContainer').prev('label').css('display', 'block');
 
                 $('#TimeUnitsContainer').removeClass('Hidden');
                 $('#TimeUnitsContainer').prev('label').css('display', 'block');
@@ -1286,8 +1298,11 @@ Core.Agent.Admin.ProcessManagement = (function (TargetNS) {
             }
             else {
 
-                $('#ArticleTypeContainer').addClass('Hidden');
-                $('#ArticleTypeContainer').prev('label').css('display', 'none');
+                $('#CommunicationChannelContainer').addClass('Hidden');
+                $('#CommunicationChannelContainer').prev('label').css('display', 'none');
+
+                $('#IsVisibleForCustomerContainer').addClass('Hidden');
+                $('#IsVisibleForCustomerContainer').prev('label').css('display', 'none');
 
                 $('#TimeUnitsContainer').addClass('Hidden');
                 $('#TimeUnitsContainer').prev('label').css('display', 'none');

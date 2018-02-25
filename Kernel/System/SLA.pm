@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -472,7 +472,7 @@ sub SLAAdd {
     if ($NoAdd) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => "Can't add new SLA! '$Param{Name}' already exists.",
+            Message  => "An SLA with the name '$Param{Name}' already exists.",
         );
         return;
     }
@@ -623,7 +623,7 @@ sub SLAUpdate {
     if ($Update) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => "Can't update SLA! '$Param{Name}' already exists.",
+            Message  => "An SLA with the name '$Param{Name}' already exists.",
         );
         return;
     }
@@ -690,9 +690,9 @@ set SLA preferences
 =cut
 
 sub SLAPreferencesSet {
-    my $Self = shift;
+    my ( $Self, %Param ) = @_;
 
-    return $Self->{PreferencesObject}->SLAPreferencesSet(@_);
+    return $Self->{PreferencesObject}->SLAPreferencesSet(%Param);
 }
 
 =head2 SLAPreferencesGet()
@@ -707,9 +707,9 @@ get SLA preferences
 =cut
 
 sub SLAPreferencesGet {
-    my $Self = shift;
+    my ( $Self, %Param ) = @_;
 
-    return $Self->{PreferencesObject}->SLAPreferencesGet(@_);
+    return $Self->{PreferencesObject}->SLAPreferencesGet(%Param);
 }
 
 1;

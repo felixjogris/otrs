@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -14,7 +14,7 @@ use utf8;
 
 use Kernel::System::VariableCheck qw(:all);
 
-use base qw(Kernel::System::ProcessManagement::TransitionAction::Base);
+use parent qw(Kernel::System::ProcessManagement::TransitionAction::Base);
 
 our @ObjectDependencies = (
     'Kernel::Config',
@@ -25,7 +25,7 @@ our @ObjectDependencies = (
     'Kernel::System::State',
     'Kernel::System::Ticket',
     'Kernel::System::Ticket::Article',
-    'Kernel::System::Time',
+    'Kernel::System::DateTime',
     'Kernel::System::User',
 );
 
@@ -35,7 +35,7 @@ Kernel::System::ProcessManagement::TransitionAction::TicketCreate - A module to 
 
 =head1 DESCRIPTION
 
-All TicketArticleCreate functions.
+All TicketCreate functions.
 
 =head1 PUBLIC INTERFACE
 
@@ -61,7 +61,7 @@ sub new {
 
     Run Data
 
-    my $TicketArticleCreateResult = $TicketArticleCreateActionObject->Run(
+    my $TicketCreateResult = $TicketCreateActionObject->Run(
         UserID                   => 123,
         Ticket                   => \%Ticket,   # required
         ProcessEntityID          => 'P123',
@@ -90,34 +90,14 @@ sub new {
             PendingTimeDiff => 123 ,                  # optional (for pending states)
 
             # article required: (if one of them is not present, article will not be created without any error message)
-            ArticleType      => 'note-internal',                        # note-external|phone|fax|sms|...
-                                                                        #   excluding any email type
-            SenderType       => 'agent',                                # agent|system|customer
-            ContentType      => 'text/plain; charset=ISO-8859-15',      # or optional Charset & MimeType
-            Subject          => 'some short description',               # required
-            Body             => 'the message text',                     # required
-            HistoryType      => 'OwnerUpdate',                          # EmailCustomer|Move|AddNote|PriorityUpdate|WebRequestCustomer|...
-            HistoryComment   => 'Some free text!',
+            SenderType           => 'agent',                            # agent|system|customer
+            IsVisibleForCustomer => 1,                                  # required
+            CommunicationChannel => 'Internal',                         # Internal|Phone|Email|..., default: Internal
+
+            %DataPayload,                                               # some parameters depending of each communication channel
 
             # article optional:
-            From             => 'Some Agent <email@example.com>',       # not required but useful
-            To               => 'Some Customer A <customer-a@example.com>', # not required but useful
-            Cc               => 'Some Customer B <customer-b@example.com>', # not required but useful
-            ReplyTo          => 'Some Customer B <customer-b@example.com>', # not required
-            MessageID        => '<asdasdasd.123@example.com>',          # not required but useful
-            InReplyTo        => '<asdasdasd.12@example.com>',           # not required but useful
-            References       => '<asdasdasd.1@example.com> <asdasdasd.12@example.com>', # not required but useful
-            NoAgentNotify    => 0,                                      # if you don't want to send agent notifications
-            AutoResponseType => 'auto reply'                            # auto reject|auto follow up|auto reply/new ticket|auto remove
-
-            ForceNotificationToUserID   => [ 1, 43, 56 ],               # if you want to force somebody
-            ExcludeNotificationToUserID => [ 43,56 ],                   # if you want full exclude somebody from notifications,
-                                                                        # will also be removed in To: line of article,
-                                                                        # higher prio as ForceNotificationToUserID
-            ExcludeMuteNotificationToUserID => [ 43,56 ],               # the same as ExcludeNotificationToUserID but only the
-                                                                        # sending gets muted, agent will still shown in To:
-                                                                        # line of article
-            TimeUnit                        => 123
+            TimeUnit => 123
 
             # other:
             DynamicField_NameX => $Value,
@@ -155,6 +135,7 @@ sub Run {
 
     # use ticket attributes if needed
     $Self->_ReplaceTicketAttributes(%Param);
+    $Self->_ReplaceAdditionalAttributes(%Param);
 
     # convert scalar items into array references
     for my $Attribute (
@@ -246,18 +227,14 @@ sub Run {
 
         if ( $Param{Config}->{PendingTime} ) {
 
-            # get time object
-            my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
-
-            # convert pending time to system time
-            my $SystemTime = $TimeObject->TimeStamp2SystemTime(
-                String => $Param{Config}->{PendingTime},
+            # get datetime object
+            my $DateTimeObject = $Kernel::OM->Create(
+                'Kernel::System::DateTime',
+                ObjectParams => {
+                    String => $Param{Config}->{PendingTime}
+                    }
             );
-
-            # convert it back again so we are sure the sting is correct
-            my $TimeStamp = $TimeObject->SystemTime2TimeStamp(
-                SystemTime => $SystemTime,
-            );
+            my $TimeStamp = $DateTimeObject->ToString();
 
             # set pending time
             $TicketObject->TicketPendingTimeSet(
@@ -277,25 +254,12 @@ sub Run {
         }
     }
 
-    # extract the article params
-    my %ArticleParam;
-    for my $Attribute (
-        qw( ArticleType SenderType ContentType Subject Body HistoryType
-        HistoryComment From To Cc ReplyTo MessageID InReplyTo References NoAgentNotify
-        AutoResponseType ForceNotificationToUserID ExcludeNotificationToUserID
-        ExcludeMuteNotificationToUserID
-        )
-        )
-    {
-        if ( defined $Param{Config}->{$Attribute} ) {
-            $ArticleParam{$Attribute} = $Param{Config}->{$Attribute}
-        }
-    }
+    $Param{Config}->{CommunicationChannel} ||= 'Internal';
 
     # check if article can be created
     my $ArticleCreate = 1;
-    for my $Needed (qw(ArticleType SenderType ContentType Subject Body HistoryType HistoryComment)) {
-        if ( !$ArticleParam{$Needed} ) {
+    for my $Needed (qw(SenderType IsVisibleForCustomer)) {
+        if ( !defined $Param{Config}->{$Needed} ) {
             $ArticleCreate = 0;
         }
     }
@@ -304,46 +268,35 @@ sub Run {
 
     if ($ArticleCreate) {
 
-        my $ValidArticleType = 1;
+        my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForChannel(
+            ChannelName => $Param{Config}->{CommunicationChannel},
+        );
 
-        # check ArticleType
-        if ( $ArticleParam{ArticleType} =~ m{\A email }msxi ) {
+        # Create article for the new ticket.
+        $ArticleID = $ArticleBackendObject->ArticleCreate(
+            %{ $Param{Config} },
+            TicketID => $TicketID,
+            UserID   => $Param{UserID},
+        );
+
+        if ( !$ArticleID ) {
             $Kernel::OM->Get('Kernel::System::Log')->Log(
                 Priority => 'error',
                 Message  => $CommonMessage
-                    . "ArticleType $Param{Config}->{ArticleType} is not supported",
+                    . "Couldn't create Article on Ticket: $TicketID from Ticket: "
+                    . $Param{Ticket}->{TicketID} . '!',
             );
-            $ValidArticleType = 0;
         }
+        else {
 
-        if ($ValidArticleType) {
-
-            # create article for the new ticket
-            $ArticleID = $Kernel::OM->Get('Kernel::System::Ticket::Article')->ArticleCreate(
-                %ArticleParam,
-                TicketID => $TicketID,
-                UserID   => $Param{UserID},
-            );
-
-            if ( !$ArticleID ) {
-                $Kernel::OM->Get('Kernel::System::Log')->Log(
-                    Priority => 'error',
-                    Message  => $CommonMessage
-                        . "Couldn't create Article on Ticket: $TicketID from Ticket: "
-                        . $Param{Ticket}->{TicketID} . '!',
+            # set time units
+            if ( $Param{Config}->{TimeUnit} ) {
+                $TicketObject->TicketAccountTime(
+                    TicketID  => $TicketID,
+                    ArticleID => $ArticleID,
+                    TimeUnit  => $Param{Config}->{TimeUnit},
+                    UserID    => $Param{UserID},
                 );
-            }
-            else {
-
-                # set time units
-                if ( $Param{Config}->{TimeUnit} ) {
-                    $TicketObject->TicketAccountTime(
-                        TicketID  => $TicketID,
-                        ArticleID => $ArticleID,
-                        TimeUnit  => $Param{Config}->{TimeUnit},
-                        UserID    => $Param{UserID},
-                    );
-                }
             }
         }
     }

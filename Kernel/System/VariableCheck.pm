@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -102,6 +102,8 @@ returns 1 if data matches criteria or undef otherwise
     );
 
 =cut
+
+## no critic (Perl::Critic::Policy::Subroutines::RequireArgUnpacking)
 
 sub IsString {
     my $TestData = $_[0];

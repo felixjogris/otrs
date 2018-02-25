@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,7 +11,7 @@ package Kernel::System::Daemon::DaemonModules::SchedulerTaskWorker::CalendarAppo
 use strict;
 use warnings;
 
-use base qw(Kernel::System::Daemon::DaemonModules::BaseTaskWorker);
+use parent qw(Kernel::System::Daemon::DaemonModules::BaseTaskWorker);
 
 our @ObjectDependencies = (
     'Kernel::System::Log',
@@ -77,6 +77,10 @@ sub Run {
 
     # stop execution if an error in params is detected
     return if !$CheckResult;
+
+    if ( $Self->{Debug} ) {
+        print "    $Self->{WorkerName} executes task: $Param{TaskName}\n";
+    }
 
     # trigger the appointment notification
     my $Success

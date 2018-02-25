@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -171,10 +171,17 @@ sub Auth {
         elsif ( $GetPw =~ m{\A .{64} \z}xms ) {
 
             my $SHAObject = Digest::SHA->new('sha256');
-
-            # encode output, needed by sha256_hex() only non utf8 signs
             $EncodeObject->EncodeOutput( \$Pw );
+            $SHAObject->add($Pw);
+            $CryptedPw = $SHAObject->hexdigest();
+            $EncodeObject->EncodeInput( \$CryptedPw );
+        }
 
+        # sha512 pw
+        elsif ( $GetPw =~ m{\A .{128} \z}xms ) {
+
+            my $SHAObject = Digest::SHA->new('sha512');
+            $EncodeObject->EncodeOutput( \$Pw );
             $SHAObject->add($Pw);
             $CryptedPw = $SHAObject->hexdigest();
             $EncodeObject->EncodeInput( \$CryptedPw );

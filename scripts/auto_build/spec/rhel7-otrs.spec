@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -17,7 +17,7 @@ Version:      0.0
 Copyright:    GNU AFFERO GENERAL PUBLIC LICENSE Version 3, 19 November 2007
 Group:        Applications/Mail
 Provides:     otrs
-Requires:     bash-completion cronie httpd perl perl(Archive::Zip) perl(Crypt::SSLeay) perl(Date::Format) perl(DBI) perl(IO::Socket::SSL) perl(LWP::UserAgent) perl(Net::DNS) perl(Net::LDAP) perl(Template) perl(URI) perl(XML::LibXML) perl(XML::LibXSLT) perl(XML::Parser) perl-core procmail
+Requires:     bash-completion cronie httpd perl perl(Archive::Zip) perl(Crypt::SSLeay) perl(Date::Format) perl(DateTime) perl(DBI) perl(IO::Socket::SSL) perl(LWP::UserAgent) perl(Net::DNS) perl(Net::LDAP) perl(Template) perl(URI) perl(XML::LibXML) perl(XML::LibXSLT) perl(XML::Parser) perl-core procmail
 AutoReqProv:  no
 Release:      01
 Source0:      otrs-%{version}.tar.bz2
@@ -146,6 +146,7 @@ rm -rf $RPM_BUILD_ROOT
 /opt/otrs/Kernel/Language/*.pm
 
 /opt/otrs/bin*
+/opt/otrs/Kernel/Autoload*
 /opt/otrs/Kernel/Modules*
 /opt/otrs/Kernel/Output*
 /opt/otrs/Kernel/System*

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -19,6 +19,7 @@ our @ObjectDependencies = (
     'Kernel::System::Log',
     'Kernel::System::Main',
     'Kernel::System::SystemData',
+    'Kernel::System::SysConfig',
 );
 
 =head1 NAME
@@ -235,6 +236,8 @@ sub CreateSessionID {
     my $SessionLimit;
     if ( $Param{UserType} eq 'User' ) {
 
+        # Use the AgentSessionLimit from the business solution, if a session limit exists and use the AgentSessionLimit
+        #   from the config, if the value is lower the business solution value.
         $SessionLimit = $OTRSBusinessSystemData{AgentSessionLimit};
         if ( !$SessionLimit || ( $Self->{AgentSessionLimit} && $Self->{AgentSessionLimit} < $SessionLimit ) ) {
             $SessionLimit = $Self->{AgentSessionLimit};
@@ -253,7 +256,10 @@ sub CreateSessionID {
         $SessionPerUserLimit = $Self->{CustomerSessionPerUserLimit};
     }
 
-    if ( $SessionLimit || $SessionPerUserLimit ) {
+    my $SessionSource = $Param{SessionSource} || '';
+
+    # Don't check the session limit for sessions from the source 'GenericInterface'.
+    if ( $SessionSource ne 'GenericInterface' && ( $SessionLimit || $SessionPerUserLimit ) ) {
 
         my %ActiveSessions = $Self->GetActiveSessions(%Param);
 

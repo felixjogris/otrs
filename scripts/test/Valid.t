@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -54,7 +54,7 @@ for my $ValidID (@ValidIDsList) {
 # makes sure that all ValidIDs in the array are also in the hash containing all IDs
 $Counter = 0;
 for my $ValidIDKey ( sort keys %ValidList ) {
-    my $Number = scalar grep /^\Q$ValidIDKey\E$/, @ValidIDsList;
+    my $Number = scalar grep {m/^\Q$ValidIDKey\E$/} @ValidIDsList;
     $Counter++;
     if ( $ValidList{$ValidIDKey} eq 'valid' ) {
         $Self->True(

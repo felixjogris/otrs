@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,6 +11,8 @@ use strict;
 use warnings;
 use utf8;
 
+use Kernel::System::MailQueue;
+
 use vars (qw($Self));
 
 # get config object
@@ -21,10 +23,49 @@ $Kernel::OM->ObjectParamAdd(
     'Kernel::System::UnitTest::Helper' => {
         RestoreDatabase  => 1,
         UseTmpArticleDir => 1,
-
+    },
+    'Kernel::System::MailQueue' => {
+        CheckEmailAddresses => 0,
     },
 );
 my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+my $DateTimeObject = $Kernel::OM->Create(
+    'Kernel::System::DateTime',
+    ObjectParams => {
+        String => '2016-01-02 03:04:05'
+    },
+);
+
+$Helper->FixedTimeSet($DateTimeObject);
+
+my $MailQueueObj = $Kernel::OM->Get('Kernel::System::MailQueue');
+
+my $SendEmails = sub {
+    my %Param = @_;
+
+    # Get last item in the queue.
+    my $Items = $MailQueueObj->List();
+    my @ToReturn;
+    for my $Item (@$Items) {
+        $MailQueueObj->Send( %{$Item} );
+        push @ToReturn, $Item->{Message};
+    }
+
+    # Clean the mail queue.
+    $MailQueueObj->Delete();
+
+    return @ToReturn;
+};
+
+# Ensure mail queue is empty before tests start.
+$MailQueueObj->Delete();
+
+# Enable email addresses checking.
+$ConfigObject->Set(
+    Key   => 'CheckEmailAddresses',
+    Value => 1,
+);
 
 # disable rich text editor
 my $Success = $ConfigObject->Set(
@@ -105,19 +146,19 @@ $Self->True(
     "TicketCreate() successful for Ticket ID $TicketID",
 );
 
-my $ArticleID = $Kernel::OM->Get('Kernel::System::Ticket::Article')->ArticleCreate(
-    TicketID       => $TicketID,
-    ArticleType    => 'webrequest',
-    SenderType     => 'customer',
-    From           => 'customerOne@example.com, customerTwo@example.com',
-    To             => 'Some Agent A <agent-a@example.com>',
-    Subject        => 'some short description',
-    Body           => 'the message text',
-    Charset        => 'utf8',
-    MimeType       => 'text/plain',
-    HistoryType    => 'OwnerUpdate',
-    HistoryComment => 'Some free text!',
-    UserID         => 1,
+my $ArticleID = $Kernel::OM->Get('Kernel::System::Ticket::Article::Backend::Internal')->ArticleCreate(
+    TicketID             => $TicketID,
+    IsVisibleForCustomer => 1,
+    SenderType           => 'customer',
+    From                 => 'customerOne@example.com, customerTwo@example.com',
+    To                   => 'Some Agent A <agent-a@example.com>',
+    Subject              => 'some short description',
+    Body                 => 'the message text',
+    Charset              => 'utf8',
+    MimeType             => 'text/plain',
+    HistoryType          => 'OwnerUpdate',
+    HistoryComment       => 'Some free text!',
+    UserID               => 1,
 );
 
 # sanity check
@@ -166,7 +207,7 @@ my @Tests = (
         Data => {
             Events          => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             RecipientAgents => [$UserID],
-            RecipientEmail  => ['test@otrsexample.com'],
+            RecipientEmail  => ['zzztest@otrsexample.com'],
         },
         ExpectedResults => [
             {
@@ -174,7 +215,7 @@ my @Tests = (
                 Body    => "JobName $TicketID Kernel::System::Email::Test $UserData{UserFirstname}=\n",
             },
             {
-                ToArray => ['test@otrsexample.com'],
+                ToArray => ['zzztest@otrsexample.com'],
                 Body    => "JobName $TicketID Kernel::System::Email::Test $UserData{UserFirstname}=\n",
             },
         ],
@@ -201,6 +242,39 @@ my @Tests = (
             },
         ],
         JustToRealCustomer => 0,
+    },
+    {
+        Name => 'Sending twice Single RecipientAgent without once per day',
+        Data => {
+            Events          => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
+            RecipientAgents => [$UserID],
+        },
+        SendTwice       => 1,
+        ExpectedResults => [
+            {
+                ToArray => [ $UserData{UserEmail} ],
+                Body    => "JobName $TicketID Kernel::System::Email::Test $UserData{UserFirstname}=\n",
+            },
+            {
+                ToArray => [ $UserData{UserEmail} ],
+                Body    => "JobName $TicketID Kernel::System::Email::Test $UserData{UserFirstname}=\n",
+            },
+        ],
+    },
+    {
+        Name => 'Sending twice Single RecipientAgent with once per day',
+        Data => {
+            Events          => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
+            RecipientAgents => [$UserID],
+            OncePerDay      => [1],
+        },
+        SendTwice       => 1,
+        ExpectedResults => [
+            {
+                ToArray => [ $UserData{UserEmail} ],
+                Body    => "JobName $TicketID Kernel::System::Email::Test $UserData{UserFirstname}=\n",
+            },
+        ],
     },
 );
 
@@ -256,6 +330,33 @@ for my $Test (@Tests) {
         UserID => 1,
     );
 
+    # Test OncePerDay setting.
+    if ( $Test->{SendTwice} ) {
+
+        # Ensure %H:%M:%S are all diferent from the first fixed time.
+        my $TestDateTimeObject = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                String => '2016-01-02 08:09:10'
+            },
+        );
+
+        $Helper->FixedTimeSet($TestDateTimeObject);
+        my $Result = $EventNotificationEventObject->Run(
+            Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
+            Data  => {
+                TicketID => $TicketID,
+            },
+            Config => {},
+            UserID => 1,
+        );
+
+        # Set FixedTime back for the other tests
+        $Helper->FixedTimeSet($DateTimeObject);
+    }
+
+    $SendEmails->();
+
     my $Emails = $TestEmailObject->EmailsGet();
 
     # remove not needed data
@@ -268,8 +369,10 @@ for my $Test (@Tests) {
         $Email->{Body} = ${ $Email->{Body} };
     }
 
+    my @EmailsSort = sort { $a->{ToArray}[0] cmp $b->{ToArray}[0] } @{$Emails};
+
     $Self->IsDeeply(
-        $Emails,
+        \@EmailsSort,
         $Test->{ExpectedResults},
         "$Test->{Name} - Recipients",
     );

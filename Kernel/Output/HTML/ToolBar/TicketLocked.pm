@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,7 +8,7 @@
 
 package Kernel::Output::HTML::ToolBar::TicketLocked;
 
-use base 'Kernel::Output::HTML::Base';
+use parent 'Kernel::Output::HTML::Base';
 
 use strict;
 use warnings;
@@ -16,9 +16,10 @@ use warnings;
 use Kernel::Language qw(Translatable);
 
 our @ObjectDependencies = (
+    'Kernel::Config',
+    'Kernel::Output::HTML::Layout',
     'Kernel::System::Log',
     'Kernel::System::Ticket',
-    'Kernel::Output::HTML::Layout',
 );
 
 sub Run {
@@ -34,6 +35,8 @@ sub Run {
             return;
         }
     }
+
+    return if !$Kernel::OM->Get('Kernel::Config')->Get('Frontend::Module')->{AgentTicketLockedView};
 
     # get ticket object
     my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');

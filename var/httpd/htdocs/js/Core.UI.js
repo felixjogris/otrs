@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -105,6 +105,62 @@ Core.UI = (function (TargetNS) {
     };
 
     /**
+     * @name InitWidgetTabs
+     * @memberof Core.UI
+     * @function
+     * @description
+     *      Initializes tab functions (e.g. link navigation) on widgets with class 'Tabs'.
+     */
+    TargetNS.InitWidgetTabs = function() {
+
+        function ActivateTab($TriggerObj) {
+
+            var $ContainerObj = $TriggerObj.closest('.WidgetSimple'),
+                TargetID      = $TriggerObj.attr('href').replace('#', ''),
+                $TargetObj    = $ContainerObj.find('div[data-id="' + TargetID + '"]');
+
+            if ($TriggerObj.hasClass('Disabled')) {
+                return false;
+            }
+
+            // if tab doesnt exist or is already active, do nothing
+            if ($TargetObj.length && !$TargetObj.hasClass('Active')) {
+
+                $ContainerObj.find('.Header > a').removeClass('Active');
+                $TriggerObj.addClass('Active');
+                $ContainerObj.find('.Content > div.Active').hide().removeClass('Active');
+                $TargetObj.fadeIn(function() {
+                    $(this).addClass('Active');
+
+                    // activate any modern input fields on the active tab
+                    Core.UI.InputFields.Activate($TargetObj);
+                });
+            }
+        }
+
+        // check if the url contains a tab id anchor and jump directly
+        // to this tab if it's the case.
+        $('.WidgetSimple.Tabs .Header a').each(function() {
+            var TargetID = $(this).attr('href');
+            if (window.location.href.indexOf(TargetID) > -1) {
+                ActivateTab($(this));
+                return false;
+            }
+        });
+
+        $('.WidgetSimple.Tabs .Header a').on('click', function(Event) {
+
+            if ($(this).hasClass('Disabled')) {
+                Event.stopPropagation();
+                Event.preventDefault();
+                return false;
+            }
+
+            ActivateTab($(this));
+        });
+    };
+
+    /**
      * @name WidgetOverlayHide
      * @memberof Core.UI
      * @function
@@ -126,16 +182,16 @@ Core.UI = (function (TargetNS) {
                 .parent()
                 .delay(1000)
                 .fadeOut(function() {
-                    $Widget.removeClass('HasOverlay');
                     $(this).remove();
+                    $Widget.removeClass('HasOverlay');
                 });
         }
         else {
             $Widget
                 .find('.Overlay')
                 .fadeOut(function() {
-                    $Widget.removeClass('HasOverlay');
                     $(this).remove();
+                    $Widget.removeClass('HasOverlay');
                 });
         }
     };
@@ -221,12 +277,33 @@ Core.UI = (function (TargetNS) {
     TargetNS.RegisterToggleTwoContainer = function ($ClickedElement, $Element1, $Element2) {
         if (isJQueryObject($ClickedElement) && $ClickedElement.length) {
             $ClickedElement.click(function () {
+                var $ContainerObj = $(this).closest('.WidgetSimple').find('.AllocationListContainer'),
+                    FieldName,
+                    Data = {};
+
                 if ($Element1.is(':visible')) {
                     TargetNS.ToggleTwoContainer($Element1, $Element2);
                 }
                 else {
                     TargetNS.ToggleTwoContainer($Element2, $Element1);
                 }
+
+                Data.Columns = {};
+                Data.Order = [];
+
+                // Get initial columns order (see bug#10683).
+                $ContainerObj.find('.AvailableFields').find('li').each(function() {
+                    FieldName = $(this).attr('data-fieldname');
+                    Data.Columns[FieldName] = 0;
+                });
+
+                $ContainerObj.find('.AssignedFields').find('li').each(function() {
+                    FieldName = $(this).attr('data-fieldname');
+                    Data.Columns[FieldName] = 1;
+                    Data.Order.push(FieldName);
+                });
+                $ContainerObj.closest('form').find('.ColumnsJSON').val(Core.JSON.Stringify(Data));
+
                 return false;
             });
         }
@@ -254,11 +331,13 @@ Core.UI = (function (TargetNS) {
      * @param {String} Type Error|Notice (default)
      * @param {String} Link the (internal) URL to which the notification text should point
      * @param {Function} Callback function which should be executed once the notification was hidden
+     * @param {String} ID The id for the newly created notification (default: no ID)
+     * @param {String} Icon Class of a fontawesome icon which will be added before the text (optional)
      * @returns {Boolean} true or false depending on if the notification could be shown or not
      * @description
      *      Displays a notification on top of the page.
      */
-    TargetNS.ShowNotification = function (Text, Type, Link, Callback) {
+    TargetNS.ShowNotification = function (Text, Type, Link, Callback, ID, Icon) {
 
         var $ExistingNotifications,
             $NotificationObj;
@@ -276,7 +355,7 @@ Core.UI = (function (TargetNS) {
         $ExistingNotifications = $('.MessageBox').filter(
             function() {
                 var Match = 0;
-                if ($(this).find('a').text().indexOf(Core.Language.Translate(Text)) > 0 && $(this).hasClass(Type)) {
+                if ($(this).find('a').text().indexOf(Text) > 0 && $(this).hasClass(Type)) {
                     Match = 1;
                 }
                 return Match;
@@ -296,7 +375,9 @@ Core.UI = (function (TargetNS) {
             Core.Template.Render("Agent/Notification", {
                 Class: Type,
                 URL: Link,
-                Text: Core.Language.Translate(Text)
+                ID: ID,
+                Icon: Icon,
+                Text: Text
             })
         );
 
@@ -341,7 +422,7 @@ Core.UI = (function (TargetNS) {
 
         $('.MessageBox').filter(
             function() {
-                if ($(this).find('a').text().indexOf(Core.Language.Translate(Text)) > 0 && $(this).hasClass(Type)) {
+                if ($(this).find('a').text().indexOf(Text) > 0 && $(this).hasClass(Type)) {
                     $(this).slideUp(function() {
                         $(this).remove();
                         if ($.isFunction(Callback)) {
@@ -428,6 +509,372 @@ Core.UI = (function (TargetNS) {
     };
 
     /**
+     * @name InitAjaxDnDUpload
+     * @memberof Core.UI
+     * @function
+     * @description
+     *      Init drag & drop ajax upload on relevant input fields of type "file"
+     */
+    TargetNS.InitAjaxDnDUpload = function () {
+
+        function UploadFiles(SelectedFiles, $DropObj) {
+
+            var $ContainerObj = $DropObj.closest('.Field'),
+                $FileuploadFieldObj = $ContainerObj.find('.AjaxDnDUpload'),
+                FormID = $FileuploadFieldObj.data('form-id') ? $FileuploadFieldObj.data('form-id') : $DropObj.closest('form').find('input[name=FormID]').val(),
+                ChallengeToken = $DropObj.closest('form').find('input[name=ChallengeToken]').val(),
+                IsMultiple = ($FileuploadFieldObj.attr('multiple') == 'multiple'),
+                MaxFiles = $FileuploadFieldObj.data('max-files'),
+                MaxSizePerFile = $FileuploadFieldObj.data('max-size-per-file'),
+                MaxSizePerFileHR = $FileuploadFieldObj.data('max-size-per-file-hr'),
+                FileTypes = $FileuploadFieldObj.data('file-types'),
+                Upload,
+                XHRObj,
+                FileTypeNotAllowed = [],
+                FileTypeNotAllowedText,
+                FilesTooBig = [],
+                FilesTooBigText,
+                AttemptedToUploadAgain = [],
+                AttemptedToUploadAgainText,
+                NoSpaceLeft = [],
+                NoSpaceLeftText,
+                UsedSpace = 0,
+                WebMaxFileUpload = Core.Config.Get('WebMaxFileUpload');
+
+            if (!FormID || !SelectedFiles || !$DropObj || !ChallengeToken) {
+                return false;
+            }
+
+            // if the original upload field doesn't have the multiple attribute,
+            // prevent uploading of more than one file
+            if (!IsMultiple && SelectedFiles.length > 1) {
+                alert(Core.Language.Translate("Please only select one file for upload."));
+                return false;
+            }
+
+            // if multiple is not allowed and a file has already been uploaded, don't allow uploading more
+            if (!IsMultiple && $FileuploadFieldObj.closest('.Field').find('.AttachmentList tbody tr').length > 0) {
+                alert(Core.Language.Translate("Sorry, you can only upload one file here."));
+                return false;
+            }
+
+            if (MaxFiles && $FileuploadFieldObj.closest('.Field').find('.AttachmentList tbody tr').length >= MaxFiles) {
+                alert(Core.Language.Translate("Sorry, you can only upload %s files.", [ MaxFiles ]));
+                return false;
+            }
+
+            if (MaxFiles && SelectedFiles.length > MaxFiles) {
+                alert(Core.Language.Translate("Please only select at most %s files for upload.", [ MaxFiles ]));
+                return false;
+            }
+
+            // check for allowed file types
+            if (FileTypes) {
+                FileTypes = FileTypes.split(',');
+            }
+
+            $DropObj.prev('input[type=file]').removeClass('Error');
+
+            // collect size of already uploaded files
+            $.each($FileuploadFieldObj.closest('.Field').find('.AttachmentList tbody tr td.Filesize'), function() {
+                var FileSize = parseFloat($(this).attr('data-file-size'));
+
+                if (FileSize) {
+                    UsedSpace += FileSize;
+                }
+            });
+
+            $.each(SelectedFiles, function(index, File) {
+
+                var $CurrentRowObj,
+                    FileExtension = File.name.slice((File.name.lastIndexOf(".") - 1 >>> 0) + 2),
+                    AttachmentItem = Core.Template.Render('AjaxDnDUpload/AttachmentItemUploading', {
+                        'Filename' : File.name,
+                        'Filetype' : File.type
+                    });
+
+                // check uploaded file size
+                if (File.size > (WebMaxFileUpload - UsedSpace)) {
+                    NoSpaceLeft.push(
+                        File.name + ' (' + Core.App.HumanReadableDataSize(File.size) + ')'
+                    );
+                    return true;
+                }
+                UsedSpace += File.size;
+
+                // check for allowed file types
+                if (typeof FileTypes === 'object' && FileTypes.indexOf(FileExtension) < 0) {
+                    FileTypeNotAllowed.push(File.name);
+                    return true;
+                }
+
+                // check for max file size per file
+                if (MaxSizePerFile && File.size > MaxSizePerFile) {
+                    FilesTooBig.push(File.name);
+                    return true;
+                }
+
+                // don't allow uploading multiple files with the same name
+                if ($ContainerObj.find('.AttachmentList tbody tr td.Filename:contains(' + File.name + ')').length) {
+                    AttemptedToUploadAgain.push(File.name);
+                    return true;
+                }
+
+                $DropObj.addClass('Uploading');
+                $ContainerObj.find('.AttachmentList').show();
+
+                $(AttachmentItem).prependTo($ContainerObj.find('.AttachmentList tbody')).fadeIn();
+                $CurrentRowObj = $ContainerObj.find('.AttachmentList tbody tr:first-child');
+
+                Upload = new FormData();
+                Upload.append('Files', File);
+
+                $.ajax({
+                    url: Core.Config.Get('CGIHandle') + '?Action=AjaxAttachment;Subaction=Upload;FormID=' + FormID + ';ChallengeToken=' + ChallengeToken,
+                    type: 'post',
+                    data: Upload,
+                    xhr: function() {
+                        XHRObj = $.ajaxSettings.xhr();
+                        if(XHRObj.upload){
+                            XHRObj.upload.addEventListener(
+                                'progress',
+                                function(Upload) {
+                                    var Percentage = (Upload.loaded * 100) / Upload.total;
+                                    $CurrentRowObj.find('.Progress').animate({
+                                        'width': Percentage + '%'
+                                    });
+                                    if (Percentage === 100) {
+                                        $CurrentRowObj.find('.Progress').delay(1000).fadeOut(function() {
+                                            $(this).remove();
+                                        });
+                                    }
+                                },
+                                false
+                            );
+                        }
+                        return XHRObj;
+                    },
+                    dataType: 'json',
+                    cache: false,
+                    contentType: false,
+                    processData: false,
+                    success: function(Response) {
+
+                        $.each(Response, function(index, Attachment) {
+
+                            // walk through the list to see if we can update an entry
+                            var AttachmentItem,
+                                $ExistingItemObj = $ContainerObj.find('.AttachmentList tbody tr td.Filename:contains(' + Attachment.Filename + ')'),
+                                $TargetObj;
+
+                            // update the existing item if one exists
+                            if ($ExistingItemObj.length) {
+
+                                $TargetObj = $ExistingItemObj.closest('tr');
+
+                                if ($TargetObj.find('a').data('file-id')) {
+                                    return;
+                                }
+
+                                $TargetObj
+                                    .find('.Filetype')
+                                    .text(Attachment.ContentType)
+                                    .closest('tr')
+                                    .find('.Filesize')
+                                    .text(Attachment.HumanReadableDataSize)
+                                    .attr('data-file-size', Attachment.Filesize)
+                                    .next('td')
+                                    .find('a')
+                                    .removeClass('Hidden')
+                                    .data('file-id', Attachment.FileID);
+                            }
+                            else {
+
+                                AttachmentItem = Core.Template.Render('AjaxDnDUpload/AttachmentItem', {
+                                    'Filename' : Attachment.Filename,
+                                    'Filetype' : Attachment.ContentType,
+                                    'Filesize' : Attachment.Filesize,
+                                    'FileID'   : Attachment.FileID,
+                                });
+
+                                $(AttachmentItem).prependTo($ContainerObj.find('.AttachmentList tbody')).fadeIn();
+                            }
+
+                            // Append input field for validation (see bug#13081).
+                            if (!$('#AttachmentExists').length) {
+                                $('.AttachmentListContainer').append('<input type="hidden" id="AttachmentExists" name="AttachmentExists" value="1" />');
+                            }
+                        });
+
+                        // we need to empty the relevant file upload field because it would otherwise
+                        // transfer the selected files again (only on click select, not on drag & drop)
+                        $DropObj.prev('input[type=file]').val('');
+                        $DropObj.removeClass('Uploading');
+                    },
+                    error: function() {
+                        // TODO: show an error tooltip?
+                        $DropObj.removeClass('Uploading');
+                    }
+                });
+            });
+
+            if (FileTypeNotAllowed.length || FilesTooBig.length || NoSpaceLeft.length || AttemptedToUploadAgain.length) {
+
+                FileTypeNotAllowedText = '';
+                FilesTooBigText = '';
+                AttemptedToUploadAgainText = '';
+                NoSpaceLeftText = '';
+
+                if (FileTypeNotAllowed.length) {
+                    FileTypeNotAllowedText =
+                        Core.Language.Translate(
+                            'The following files are not allowed to be uploaded: %s',
+                            '<br>' + FileTypeNotAllowed.join(',<br>') + '<br><br>'
+                        );
+                }
+
+                if (FilesTooBig.length) {
+                    FilesTooBigText =
+                        Core.Language.Translate(
+                            'The following files exceed the maximum allowed size per file of %s and were not uploaded: %s',
+                            MaxSizePerFileHR,
+                            '<br>' + FilesTooBig.join(',<br>') + '<br><br>'
+                        );
+                }
+
+                if (AttemptedToUploadAgain.length) {
+                    AttemptedToUploadAgainText =
+                        Core.Language.Translate(
+                            'The following files were already uploaded and have not been uploaded again: %s',
+                            '<br>' + AttemptedToUploadAgain.join(',<br>') + '<br><br>'
+                        );
+                }
+
+                if (NoSpaceLeft.length) {
+                    NoSpaceLeftText =
+                        Core.Language.Translate(
+                            'No space left for the following files: %s',
+                            '<br>' + NoSpaceLeft.join(',<br>')
+                        )
+                        + '<br><br>'
+                        + Core.Language.Translate(
+                            'Available space %s of %s.',
+                            Core.App.HumanReadableDataSize(WebMaxFileUpload - UsedSpace),
+                            Core.App.HumanReadableDataSize(WebMaxFileUpload)
+                        );
+                }
+                Core.UI.Dialog.ShowAlert(Core.Language.Translate('Upload information'), FileTypeNotAllowedText + FilesTooBigText + AttemptedToUploadAgainText + NoSpaceLeftText);
+            }
+        }
+
+        $('.AttachmentList').each(function() {
+            if ($(this).find('tbody tr').length) {
+                $('.AttachmentList').show();
+            }
+        });
+
+        // Attachment deletion
+        $('.AttachmentList').on('click', '.AttachmentDelete', function() {
+
+            var $TriggerObj = $(this),
+                $AttachmentListContainerObj = $TriggerObj.closest('.AttachmentListContainer'),
+                $UploadFieldObj = $AttachmentListContainerObj.next('.AjaxDnDUpload'),
+                FormID = $UploadFieldObj.data('form-id') ? $UploadFieldObj.data('form-id') : $(this).closest('form').find('input[name=FormID]').val(),
+                Data = {
+                    Action: $(this).data('delete-action') ? $(this).data('delete-action') : 'AjaxAttachment',
+                    Subaction: 'Delete',
+                    FileID: $(this).data('file-id'),
+                    FormID: FormID,
+                    ObjectID: $(this).data('object-id'),
+                    FieldID: $(this).data('field-id'),
+                };
+
+            $TriggerObj.closest('.AttachmentListContainer').find('.Busy').fadeIn();
+
+            Core.AJAX.FunctionCall(Core.Config.Get('CGIHandle'), Data, function (Response) {
+                if (Response && Response.Message && Response.Message == 'Success') {
+                    $TriggerObj.closest('tr').fadeOut(function() {
+
+                        $(this).remove();
+
+                        if (Response.Data && Response.Data.length) {
+
+                            // go through all attachments and update the FileIDs
+                            $.each(Response.Data, function(index, Attachment) {
+                                $AttachmentListContainerObj.find('.AttachmentList td:contains(' + Attachment.Filename + ')').closest('tr').find('a').data('file-id', Attachment.FileID);
+                            });
+                            $AttachmentListContainerObj.find('.Busy').fadeOut();
+                        }
+                        else {
+                            $AttachmentListContainerObj.find('.AttachmentList').hide();
+                            $AttachmentListContainerObj.find('.Busy').hide();
+
+                            // Remove input field because validation is not needed when there is no attachments (see bug#13081).
+                            $('#AttachmentExists').remove();
+                        }
+                    });
+                }
+                else {
+                    alert(Core.Language.Translate('An unknown error occurred when deleting the attachment. Please try again. If the error persists, please contact your system administrator.'));
+                    $AttachmentListContainerObj.find('.Busy').hide();
+                }
+            });
+
+            return false;
+        });
+
+        $('input[type=file].AjaxDnDUpload').each(function() {
+
+            var IsMultiple = ($(this).attr('multiple') == 'multiple'),
+                UploadContainer = Core.Template.Render('AjaxDnDUpload/UploadContainer', {
+                    'IsMultiple': IsMultiple
+                });
+
+            $(this)
+                .val('')
+                .hide()
+                .on('change', function(Event) {
+                    UploadFiles(Event.target.files, $(this).next('.DnDUpload'));
+                })
+                .after($(UploadContainer))
+                .next('.DnDUpload')
+                .on('click keydown', function(Event) {
+
+                    if (Event.keyCode && Event.keyCode == 9) {
+                        return true;
+                    }
+
+                    // The file selection dialog should also appear on focusing the element and pressing enter/space.
+                    if (Event.keyCode && (Event.keyCode != 13 && Event.keyCode != 32)) {
+                        return false;
+                    }
+
+                    // If this certain upload field does not allow uploading more than one file and a file has
+                    // already been uploaded, prevent the user from uploading more files.
+                    if (!IsMultiple && $(this).closest('.Field').find('.AttachmentList tbody tr').length > 0) {
+                        alert(Core.Language.Translate("Sorry, you can only upload one file here."));
+                        return false;
+                    }
+
+                    $(this).prev('input.AjaxDnDUpload').trigger('click');
+                })
+                .on('drag dragstart dragend dragover dragenter dragleave drop', function(Event) {
+                    Event.preventDefault();
+                    Event.stopPropagation();
+                })
+                .on('dragover dragenter', function() {
+                    $(this).addClass('DragOver');
+                })
+                .on('dragleave dragend drop', function() {
+                    $(this).removeClass('DragOver');
+                })
+                .on('drop', function(Event) {
+                    UploadFiles(Event.originalEvent.dataTransfer.files, $(this));
+                });
+        });
+    };
+
+    /**
      * @name InitStickyWidget
      * @memberof Core.UI
      * @function
@@ -456,10 +903,14 @@ Core.UI = (function (TargetNS) {
             return;
         }
 
+        if ($Element.hasClass('IsSticky')) {
+            return;
+        }
+
         function RepositionElement($Element, Width) {
             if ($(window).scrollTop() > Position.top) {
 
-                if ($Element.css('position') === 'fixed') {
+                if ($Element.hasClass('IsSticky')) {
                     return false;
                 }
 
@@ -467,10 +918,10 @@ Core.UI = (function (TargetNS) {
                     'position' : 'fixed',
                     'top'      : '9px',
                     'width'    : Width
-                });
+                }).addClass('IsSticky');
             }
             else {
-                $Element.css('position', 'static');
+                $Element.css('position', 'static').removeClass('IsSticky');
             }
         }
 
@@ -489,8 +940,10 @@ Core.UI = (function (TargetNS) {
      */
     TargetNS.Init = function() {
         Core.UI.InitWidgetActionToggle();
+        Core.UI.InitWidgetTabs();
         Core.UI.InitMessageBoxClose();
         Core.UI.InitMasterAction();
+        Core.UI.InitAjaxDnDUpload();
         Core.UI.InitStickyElement();
     };
 

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,7 +12,7 @@ use utf8;
 
 use vars (qw($Self));
 
-use Kernel::System::DateTime qw(SystemTimeZoneGet);
+use Kernel::System::DateTime;
 
 my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
@@ -478,8 +478,8 @@ for my $TestConfig (@TestConfigs) {
 # Tests for SystemTimeZoneGet()
 #
 my $ExpectedSystemTimeZone = 'Europe/Berlin';
-$ENV{TZ} = $ExpectedSystemTimeZone;
-my $SystemTimeZone = SystemTimeZoneGet();
+local $ENV{TZ} = $ExpectedSystemTimeZone;
+my $SystemTimeZone = Kernel::System::DateTime->SystemTimeZoneGet();
 
 $Self->Is(
     $SystemTimeZone,

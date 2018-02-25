@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -170,11 +170,13 @@ Core.Agent.Admin = Core.Agent.Admin || {};
                         $DialogFooterObj.find('.ButtonsRegular').hide();
 
                         // success
-                        if (Response && parseInt(Response.Result, 10) === 1) {
+                        if (Response && Response.Result && Response.Result.Success == 1) {
 
                             $DialogContentObj.find('.Overlay i.Active').hide();
                             $DialogContentObj.find('.Overlay i.Success').fadeIn();
-                            $DialogContentObj.find('em').text(Core.Language.Translate("Deployment successful. You're being redirected..."));
+                            $DialogContentObj.find('em').text(
+                                Core.Language.Translate("Deployment successful. You're being redirected...")
+                            );
 
                             window.setTimeout(function() {
 
@@ -194,7 +196,15 @@ Core.Agent.Admin = Core.Agent.Admin || {};
                             $DialogFooterObj.find('.ButtonsFinish').show();
                             $DialogContentObj.find('.Overlay i.Active').hide();
                             $DialogContentObj.find('.Overlay i.Error').fadeIn();
-                            $DialogContentObj.find('em').text(Core.Language.Translate('There was an error. Please save all settings you are editing and check the logs for more information.'));
+                            $DialogContentObj.find('em').text(
+                                Core.Language.Translate('There was an error. Please save all settings you are editing and check the logs for more information.')
+                            );
+                        }
+
+                        if (Response && Response.Result && Response.Result.Error !== undefined) {
+                            $DialogContentObj.find('em').after(
+                                Response.Result.Error
+                            );
                         }
                     }
                 );
@@ -218,17 +228,48 @@ Core.Agent.Admin = Core.Agent.Admin || {};
     TargetNS.InitDialogReset = function($Object) {
         var DialogTemplate,
             $DialogObj,
+            URL,
+            Data,
             Name,
-            ModificationAllowed = $Object.attr("data-user-modification");
+            ModificationAllowed = $Object.attr("data-user-modification"),
+            OTRSBusinessIsInstalled = parseInt(Core.Config.Get('OTRSBusinessIsInstalled'), 10);
 
         Name = $Object.closest(".WidgetSimple").find(".Header h2").text();
         DialogTemplate = Core.Template.Render('SysConfig/DialogReset',{
             Name: Name,
-            ModificationAllowed: ModificationAllowed
+            ModificationAllowed: ModificationAllowed,
+            OTRSBusinessIsInstalled: OTRSBusinessIsInstalled
         });
         $DialogObj = $(DialogTemplate);
 
         Core.UI.Dialog.ShowContentDialog($DialogObj, Core.Language.Translate('Reset setting'), '150px', 'Center', true);
+
+
+        // Check how many users have changed it's value
+        if ($Object.attr("data-user-modification") == "1" && OTRSBusinessIsInstalled == "1") {
+            URL = Core.Config.Get('Baselink') + 'Action=AdminSystemConfiguration;Subaction=UserModificationsCount';
+            Data = {
+                Name: Name,
+            },
+
+            Core.AJAX.FunctionCall(
+                URL,
+                Data,
+                function(Response) {
+                    if (Response == "") {
+                        Response = 0;
+                    }
+
+                    $(".UserModificationCount")
+                        .html(Response)
+                        .parent()
+                        .removeClass("Hidden")
+                        .parent()
+                        .find("i")
+                        .addClass("Hidden");
+                }
+            );
+        }
 
         $("button#ResetConfirm").off("click").on("click", function() {
             var ResetOptions = $("#ResetOptions").val();
@@ -480,7 +521,7 @@ Core.Agent.Admin = Core.Agent.Admin || {};
         });
 
         $('#EditAll').on('click', function() {
-            $('.Setting:not(.IsLockedByAnotherUser):not(.IsLockedByMe):visible').find('a.SettingEdit').trigger('click');
+            $('.Setting:not(.IsDisabled):not(.IsLockedByAnotherUser):not(.IsLockedByMe):visible').find('a.SettingEdit').trigger('click');
             return false;
         });
 
@@ -497,11 +538,19 @@ Core.Agent.Admin = Core.Agent.Admin || {};
         }
 
         // Init setting toggle
-        $(".SettingDisabled, .SettingEnabled").on('click', function () {
+        $(".SettingDisabled, .SettingEnabled, .SettingEnable").on('click', function () {
             EnableModification($(this));
             Core.SystemConfiguration.Update($(this), 1, 0);
             return false;
         });
+
+        if (parseInt(Core.Config.Get('OTRSBusinessIsInstalled'), 10) == "1") {
+            $(".UserModificationActive, .UserModificationNotActive").on('click', function () {
+                EnableModification($(this));
+                Core.SystemConfiguration.Update($(this), 0, 1);
+                return false;
+            });
+        }
     };
 
     /**
@@ -782,6 +831,39 @@ Core.Agent.Admin = Core.Agent.Admin || {};
             window.history.back();
             return false;
         });
+
+        // show a custom title tooltip for disabled keys to let users understand why some keys cant be edited
+        $('.SettingsList').on('mouseenter', 'input.Key[readonly]', function() {
+            $(this).data('original-title', $(this).attr('title'));
+            $(this).attr('title', Core.Language.Translate('Keys with values can\'t be renamed. Please remove this key/value pair instead and re-add it afterwards.'));
+        });
+        $('.SettingsList').on('mouseleave', 'input.Key[readonly]', function() {
+            var OriginalTitle = $(this).data('original-title');
+            if (OriginalTitle) {
+                $(this).attr('title', $(this).data('original-title'));
+                $(this).removeData('original-title');
+            }
+        });
+
+        // toggle hidden checkboxes on click of WorkingHoursItems
+        $('.ContentColumn').on('click', '.WorkingHoursItem', function() {
+
+            var $CheckboxObj = $(this).find('input[type=checkbox]');
+            if (!$(this).closest('.WidgetSimple.Setting').hasClass('IsLockedByMe')) {
+                return false;
+            }
+
+            if ($CheckboxObj.prop('checked')) {
+                $(this).removeClass('Checked');
+                $CheckboxObj.prop('checked', false);
+            }
+            else {
+                $(this).addClass('Checked');
+                $CheckboxObj.prop('checked', true);
+            }
+        });
+
+        Core.UI.Table.InitTableFilter($('#FilterDeployments'), $('#Deployments'));
     };
 
     /**
@@ -877,6 +959,7 @@ Core.Agent.Admin = Core.Agent.Admin || {};
                 if ($Widget.hasClass('MenuExpanded')) {
                     $Widget.find('.WidgetMessage.Bottom').show();
                 }
+
                 Core.App.Publish('SystemConfiguration.SettingListUpdate');
             }
         );
@@ -908,7 +991,6 @@ Core.Agent.Admin = Core.Agent.Admin || {};
             function(Response) {
 
                 if (Response.Error != null) {
-                    // TODO: Display user name
                     alert(Response.Error);
                     // hide loader
                     Core.UI.WidgetOverlayHide($Widget);
@@ -992,7 +1074,7 @@ Core.Agent.Admin = Core.Agent.Admin || {};
                 $Widget.addClass('IsLockedByMe');
 
                 // focus the first visible input field
-                $Widget.find('input[type=text]:visible').first().focus();
+                $Widget.find('input[type=text]:not(.InputField_Search):visible').first().focus();
 
                 Core.App.Publish('SystemConfiguration.SettingListUpdate');
             }

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -920,6 +920,30 @@ $Self->Is(
     $EmailParserObject->GetParam( WHAT => 'Envelope-To' ),
     'wop+autoreply=no@ticket.noris.net',
     "#24 GetParam(WHAT => 'Envelope-To') UTF-7 not decoded",
+);
+
+# test #25 (bug #12108)
+@Array = ();
+open( $IN, "<", "$Home/scripts/test/sample/EmailParser/UTF-7.box" );    ## no critic
+while (<$IN>) {
+    push( @Array, $_ );
+}
+close($IN);
+
+use MIME::Parser;
+my $Parser = MIME::Parser->new();
+
+# prevents writing to filesystem
+$Parser->output_to_core(1);
+my $Entity = $Parser->parse_data( \@Array );
+$EmailParserObject = Kernel::System::EmailParser->new(
+    Entity => $Entity,
+);
+
+$Self->Is(
+    $EmailParserObject->GetParam( WHAT => 'Envelope-To' ),
+    'wop+autoreply=no@ticket.noris.net',
+    "#25 GetParam(WHAT => 'Envelope-To') usage of EmailParser in Entity mode",
 );
 
 1;

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,7 +8,7 @@
 
 [% RenderBlockStart("Overview") %]
 <div class="MainBox ARIARoleMain LayoutFixedSidebar SidebarFirst">
-    <h1>[% Translate("SLA Management") | html %]</h1>
+    <h1 class="InvisibleText">[% Translate("SLA Management") | html %]</h1>
 
     [% BreadcrumbPath = [
             {
@@ -98,7 +98,7 @@
 [% RenderBlockStart("OverviewListRow") %]
                         <tr [% IF Data.ValidID && Data.ValidID != 1 %]class="Invalid"[% END %]>
                             <td><a class="AsBlock" href="[% Env("Baselink") %]Action=[% Env("Action") %];Subaction=SLAEdit;SLAID=[% Data.SLAID | uri %]">[% Data.Name | html %]</a></td>
-                            <td>[% Translate(Data.Service) | html %]</td>
+                            <td>[% Data.Service | html %]</td>
                             <td title="[% Data.Comment | html %]">[% Data.Comment | truncate(26) | html %]</td>
                             <td>[% Translate(Data.Valid) | html %]</td>
                             <td>[% Data.ChangeTime | Localize("TimeShort") %]</td>
@@ -123,7 +123,7 @@
             </div>
             <div class="Content">
 
-                <form action="[% Env("CGIHandle") %]" method="post" class="Validate">
+                <form action="[% Env("CGIHandle") %]" method="post" class="Validate PreventMultipleSubmits">
                     <input type="hidden" name="Action" value="[% Env("Action") %]"/>
                     <input type="hidden" name="Subaction" value="SLASave"/>
                     <input type="hidden" name="SLAID" value="[% Data.SLAID | html %]"/>

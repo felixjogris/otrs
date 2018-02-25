@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -87,7 +87,7 @@ sub Run {
             AppointmentID => $Param{Data}->{AppointmentID},
         );
         %Calendar = $CalendarObject->CalendarGet(
-            CalendarID => $Appointment{CalendarID},
+            CalendarID => $Appointment{CalendarID} || $Param{Data}->{CalendarID},
         );
     }
     elsif ( $Param{Data}->{CalendarID} ) {
@@ -280,26 +280,6 @@ sub Run {
                 );
             }
         }
-
-        if ( %AlreadySent && $Param{Data}->{ArticleID} && $Param{Data}->{ArticleType} ) {
-
-            # update to field
-            my $UpdateToSuccess = $Self->_ArticleToUpdate(
-                ArticleID   => $Param{Data}->{ArticleID},
-                ArticleType => $Param{Data}->{ArticleType},
-                UserIDs     => \%AlreadySent,
-                UserID      => $Param{UserID},
-            );
-
-            # check for errors
-            if ( !$UpdateToSuccess ) {
-
-                $Kernel::OM->Get('Kernel::System::Log')->Log(
-                    Priority => 'error',
-                    Message  => "Could not update To field for Article: $Param{Data}->{ArticleID}.",
-                );
-            }
-        }
     }
 
     # update appointment future tasks
@@ -385,7 +365,7 @@ sub _NotificationFilter {
             }
             else {
 
-                if ( $Value eq $Param{Appointment}->{$Key} ) {
+                if ( defined $Param{Appointment}->{$Key} && $Value eq $Param{Appointment}->{$Key} ) {
                     $Match = 1;
                     last VALUE;
                 }
@@ -452,8 +432,8 @@ sub _RecipientsGet {
 
                     # get calendar information
                     my %Calendar = $CalendarObject->CalendarGet(
-                        CalendarID => $Appointment{CalendarID},
-                        UserID     => 1,
+                        CalendarID => $Appointment{CalendarID} || $Param{Calendar}->{CalendarID},
+                        UserID => 1,
                     );
 
                     # get a list of read access users for the related calendar

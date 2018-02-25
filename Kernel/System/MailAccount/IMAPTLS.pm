@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -17,6 +17,7 @@ use Kernel::System::PostMaster;
 
 our @ObjectDependencies = (
     'Kernel::Config',
+    'Kernel::System::CommunicationLog',
     'Kernel::System::Log',
     'Kernel::System::Main',
 );
@@ -37,11 +38,10 @@ sub Connect {
     # check needed stuff
     for (qw(Login Password Host Timeout Debug)) {
         if ( !defined $Param{$_} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "Need $_!"
+            return (
+                Successful => 0,
+                Message    => "Need $_!",
             );
-            return;
         }
     }
 
@@ -74,34 +74,83 @@ sub Connect {
 sub Fetch {
     my ( $Self, %Param ) = @_;
 
+    # start a new incoming communication
+    my $CommunicationLogObject = $Kernel::OM->Create(
+        'Kernel::System::CommunicationLog',
+        ObjectParams => {
+            Transport   => 'Email',
+            Direction   => 'Incoming',
+            AccountType => $Param{Type},
+            AccountID   => $Param{ID},
+        },
+    );
+
     # fetch again if still messages on the account
+    my $CommunicationLogStatus = 'Successful';
     COUNT:
     for ( 1 .. 200 ) {
-        return if !$Self->_Fetch(%Param);
+        my $Fetch = $Self->_Fetch(
+            %Param,
+            CommunicationLogObject => $CommunicationLogObject,
+        );
+        if ( !$Fetch ) {
+            $CommunicationLogStatus = 'Failed';
+        }
+
         last COUNT if !$Self->{Reconnect};
     }
+
+    $CommunicationLogObject->CommunicationStop(
+        Status => $CommunicationLogStatus,
+    );
+
     return 1;
 }
 
 sub _Fetch {
     my ( $Self, %Param ) = @_;
 
+    my $CommunicationLogObject = $Param{CommunicationLogObject};
+
+    $CommunicationLogObject->ObjectLogStart(
+        ObjectLogType => 'Connection',
+    );
+
     # check needed stuff
     for (qw(Login Password Host Trusted QueueID)) {
         if ( !defined $Param{$_} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "$_ not defined!"
+            $CommunicationLogObject->ObjectLog(
+                ObjectLogType => 'Connection',
+                Priority      => 'Error',
+                Key           => 'Kernel::System::MailAccount::IMAPTLS',
+                Value         => "$_ not defined!",
             );
+
+            $CommunicationLogObject->ObjectLogStop(
+                ObjectLogType => 'Connection',
+                Status        => 'Failed',
+            );
+            $CommunicationLogObject->CommunicationStop( Status => 'Failed' );
+
             return;
         }
     }
     for (qw(Login Password Host)) {
         if ( !$Param{$_} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "Need $_!"
+            $CommunicationLogObject->ObjectLog(
+                ObjectLogType => 'Connection',
+                Priority      => 'Error',
+                Key           => 'Kernel::System::MailAccount::IMAPTLS',
+                Value         => "Need $_!",
             );
+
+            $CommunicationLogObject->ObjectLogStop(
+                ObjectLogType => 'Connection',
+                Status        => 'Failed',
+            );
+
+            $CommunicationLogObject->CommunicationStop( Status => 'Failed' );
+
             return;
         }
     }
@@ -125,43 +174,122 @@ sub _Fetch {
 
     $Self->{Reconnect} = 0;
 
-    my %Connect = $Self->Connect(
-        Host     => $Param{Host},
-        Login    => $Param{Login},
-        Password => $Param{Password},
-        Timeout  => $Timeout,
-        Debug    => $Debug
+    $CommunicationLogObject->ObjectLog(
+        ObjectLogType => 'Connection',
+        Priority      => 'Debug',
+        Key           => 'Kernel::System::MailAccount::IMAPTLS',
+        Value         => "Open connection to '$Param{Host}' ($Param{Login}).",
     );
 
-    if ( !$Connect{Successful} ) {
-        $Kernel::OM->Get('Kernel::System::Log')->Log(
-            Priority => 'error',
-            Message  => "$Connect{Message}",
+    my %Connect = ();
+    eval {
+        %Connect = $Self->Connect(
+            Host     => $Param{Host},
+            Login    => $Param{Login},
+            Password => $Param{Password},
+            Timeout  => $Timeout,
+            Debug    => $Debug
         );
+    } || do {
+        my $Error = $@;
+        %Connect = (
+            Successful => 0,
+            Message =>
+                "Something went wrong while trying to connect to 'IMAPTLS => $Param{Login}/$Param{Host}': ${ Error }",
+        );
+    };
+
+    if ( !$Connect{Successful} ) {
+        $CommunicationLogObject->ObjectLog(
+            ObjectLogType => 'Connection',
+            Priority      => 'Error',
+            Key           => 'Kernel::System::MailAccount::IMAPTLS',
+            Value         => $Connect{Message},
+        );
+
+        $CommunicationLogObject->ObjectLogStop(
+            ObjectLogType => 'Connection',
+            Status        => 'Failed',
+        );
+
+        $CommunicationLogObject->CommunicationStop( Status => 'Failed' );
+
         return;
     }
 
+    my $IMAPOperation = sub {
+        my $Operation = shift;
+        my @Params    = @_;
+
+        my $IMAPObject = $Connect{IMAPObject};
+        my $ScalarResult;
+        my @ArrayResult = ();
+        my $Wantarray   = wantarray;
+
+        eval {
+            if ($Wantarray) {
+                @ArrayResult = $IMAPObject->$Operation( @Params, );
+            }
+            else {
+                $ScalarResult = $IMAPObject->$Operation( @Params, );
+            }
+
+            return 1;
+        } || do {
+            my $Error = $@;
+            $Kernel::OM->Get('Kernel::System::Log')->Log(
+                Priority => 'error',
+                Message  => sprintf(
+                    "Error while executing 'IMAPTLS->%s(%s)': %s",
+                    $Operation,
+                    join( ',', @Params ),
+                    $Error,
+                ),
+            );
+        };
+
+        return @ArrayResult if $Wantarray;
+        return $ScalarResult;
+    };
+
+    my $ConnectionWithErrors = 0;
+    my $MessagesWithError    = 0;
+
     # read folder from MailAccount configuration
     my $IMAPFolder = $Param{IMAPFolder} || 'INBOX';
+    my $NumberOfMessages = 0;
+    my $Messages;
 
-    my $IMAPObject = $Connect{IMAPObject};
-    $IMAPObject->select($IMAPFolder) || die "Could not select: $@\n";
+    eval {
+        $IMAPOperation->( 'select', $IMAPFolder, ) || die "Could not select: $@\n";
+        $Messages = $IMAPOperation->( 'messages', ) || die "Could not retrieve messages : $@\n";
+        $NumberOfMessages = scalar @{$Messages};
 
-    my $Messages = $IMAPObject->messages()
-        || die "Could not retrieve messages : $@\n";
-    my $NumberOfMessages = scalar @{$Messages};
+        if ($CMD) {
+            print "$AuthType: I found $NumberOfMessages messages on $Param{Login}/$Param{Host}. "
+        }
 
-    if ($CMD) {
-        print "$AuthType: I found $NumberOfMessages messages on $Param{Login}/$Param{Host}. "
-    }
+        return 1;
+    } || do {
+        my $Error = $@;
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => sprintf(
+                "Error while retrieving the messages 'IMAPTLS': %s",
+                $Error,
+            ),
+        );
+
+        $ConnectionWithErrors = 1;
+    };
 
     # fetch messages
-    if ( !$NumberOfMessages ) {
+    if ( $Messages && !$NumberOfMessages ) {
         if ($CMD) {
             print "$AuthType: No messages on $Param{Login}/$Param{Host}\n";
         }
     }
-    else {
+    elsif ($NumberOfMessages) {
         MESSAGE_NO:
         for my $Messageno ( @{$Messages} ) {
 
@@ -180,14 +308,41 @@ sub _Fetch {
             }
 
             # check message size
-            my $MessageSize = int( $IMAPObject->size($Messageno) / 1024 );
-            if ( $MessageSize > $MaxEmailSize ) {
-                $Kernel::OM->Get('Kernel::System::Log')->Log(
-                    Priority => 'error',
-                    Message =>
-                        "$AuthType: Can't fetch email $Messageno from $Param{Login}/$Param{Host}. "
-                        . "Email too big ($MessageSize KB - max $MaxEmailSize KB)!",
+            my $MessageSize = $IMAPOperation->( 'size', $Messageno, );
+            if ( !( defined $MessageSize ) ) {
+                my $ErrorMessage
+                    = "$AuthType: Can't determine the size of email '$Messageno/$NumberOfMessages' from $Param{Login}/$Param{Host}!";
+
+                $CommunicationLogObject->ObjectLog(
+                    ObjectLogType => 'Connection',
+                    Priority      => 'Error',
+                    Key           => 'Kernel::System::MailAccount::IMAPTLS',
+                    Value         => $ErrorMessage,
                 );
+
+                $ConnectionWithErrors = 1;
+
+                if ($CMD) {
+                    print "\n";
+                }
+
+                next MESSAGE_NO;
+            }
+
+            $MessageSize = int( $MessageSize / 1024 );
+            if ( $MessageSize > $MaxEmailSize ) {
+
+                my $ErrorMessage = "$AuthType: Can't fetch email $Messageno from $Param{Login}/$Param{Host}. "
+                    . "Email too big ($MessageSize KB - max $MaxEmailSize KB)!";
+
+                $CommunicationLogObject->ObjectLog(
+                    ObjectLogType => 'Connection',
+                    Priority      => 'Error',
+                    Key           => 'Kernel::System::MailAccount::IMAPTLS',
+                    Value         => $ErrorMessage,
+                );
+
+                $ConnectionWithErrors = 1;
             }
             else {
 
@@ -199,35 +354,78 @@ sub _Fetch {
                 }
 
                 # get message (header and body)
-                my $Message = $IMAPObject->message_string($Messageno);
-
+                my $Message = $IMAPOperation->( 'message_string', $Messageno, );
                 if ( !$Message ) {
-                    $Kernel::OM->Get('Kernel::System::Log')->Log(
-                        Priority => 'error',
-                        Message  => "$AuthType: Can't process mail, email no $Messageno is empty!",
+
+                    my $ErrorMessage = "$AuthType: Can't process mail, email no $Messageno is empty!";
+
+                    $CommunicationLogObject->ObjectLog(
+                        ObjectLogType => 'Connection',
+                        Priority      => 'Error',
+                        Key           => 'Kernel::System::MailAccount::IMAPTLS',
+                        Value         => $ErrorMessage,
                     );
+
+                    $ConnectionWithErrors = 1;
                 }
                 else {
+                    $CommunicationLogObject->ObjectLog(
+                        ObjectLogType => 'Connection',
+                        Priority      => 'Debug',
+                        Key           => 'Kernel::System::MailAccount::IMAPTLS',
+                        Value         => "Message '$Messageno' successfully received from server.",
+                    );
+
+                    $CommunicationLogObject->ObjectLogStart( ObjectLogType => 'Message' );
+                    my $MessageStatus = 'Successful';
+
                     my $PostMasterObject = Kernel::System::PostMaster->new(
                         %{$Self},
-                        Email   => \$Message,
-                        Trusted => $Param{Trusted} || 0,
-                        Debug   => $Debug,
+                        Email                  => \$Message,
+                        Trusted                => $Param{Trusted} || 0,
+                        Debug                  => $Debug,
+                        CommunicationLogObject => $CommunicationLogObject,
                     );
-                    my @Return = $PostMasterObject->Run( QueueID => $Param{QueueID} || 0 );
+
+                    my @Return = eval {
+                        return $PostMasterObject->Run( QueueID => $Param{QueueID} || 0 );
+                    };
+                    my $Exception = $@ || undef;
+
                     if ( !$Return[0] ) {
-                        my $Lines = $IMAPObject->get($Messageno);
+                        $MessagesWithError += 1;
+
+                        if ($Exception) {
+                            $Kernel::OM->Get('Kernel::System::Log')->Log(
+                                Priority => 'error',
+                                Message  => 'Exception while processing mail: ' . $Exception,
+                            );
+                        }
+
+                        my $Lines = $IMAPOperation->( 'get', $Messageno, );
                         my $File = $Self->_ProcessFailed( Email => $Message );
-                        $Kernel::OM->Get('Kernel::System::Log')->Log(
-                            Priority => 'error',
-                            Message  => "$AuthType: Can't process mail, see log sub system ("
-                                . "$File, report it on http://bugs.otrs.org/)!",
+
+                        my $ErrorMessage = "$AuthType: Can't process mail, see log sub system ("
+                            . "$File, report it on http://bugs.otrs.org/)!";
+
+                        $CommunicationLogObject->ObjectLog(
+                            ObjectLogType => 'Connection',
+                            Priority      => 'Error',
+                            Key           => 'Kernel::System::MailAccount::IMAPTLS',
+                            Value         => $ErrorMessage,
                         );
+
+                        $MessageStatus = 'Failed';
                     }
 
                     # mark email to delete once it was processed
-                    $IMAPObject->delete_message($Messageno);
+                    $IMAPOperation->( 'delete_message', $Messageno, );
                     undef $PostMasterObject;
+
+                    $CommunicationLogObject->ObjectLogStop(
+                        ObjectLogType => 'Message',
+                        Status        => $MessageStatus,
+                    );
                 }
 
                 # check limit
@@ -245,17 +443,34 @@ sub _Fetch {
 
     # log status
     if ( $Debug > 0 || $FetchCounter ) {
-        $Kernel::OM->Get('Kernel::System::Log')->Log(
-            Priority => 'notice',
-            Message  => "$AuthType: Fetched $FetchCounter email(s) from $Param{Login}/$Param{Host}.",
+        $CommunicationLogObject->ObjectLog(
+            ObjectLogType => 'Connection',
+            Priority      => 'Info',
+            Key           => 'Kernel::System::MailAccount::IMAPTLS',
+            Value         => "$AuthType: Fetched $FetchCounter email(s) from $Param{Login}/$Param{Host}.",
         );
     }
-    $IMAPObject->close();
+    $IMAPOperation->( 'close', );
     if ($CMD) {
         print "$AuthType: Connection to $Param{Host} closed.\n\n";
     }
 
-    # return if everything is done
+    if ($ConnectionWithErrors) {
+        $CommunicationLogObject->ObjectLogStop(
+            ObjectLogType => 'Connection',
+            Status        => 'Failed',
+        );
+
+        return;
+    }
+
+    $CommunicationLogObject->ObjectLogStop(
+        ObjectLogType => 'Connection',
+        Status        => 'Successful',
+    );
+    $CommunicationLogObject->CommunicationStop( Status => 'Successful' );
+
+    return if $MessagesWithError;
     return 1;
 }
 
@@ -263,14 +478,15 @@ sub _ProcessFailed {
     my ( $Self, %Param ) = @_;
 
     # check needed stuff
-    for (qw(Email)) {
-        if ( !defined $Param{$_} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "$_ not defined!"
-            );
-            return;
-        }
+    if ( !defined $Param{Email} ) {
+
+        my $ErrorMessage = "'Email' not defined!";
+
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => $ErrorMessage,
+        );
+        return;
     }
 
     # get main object

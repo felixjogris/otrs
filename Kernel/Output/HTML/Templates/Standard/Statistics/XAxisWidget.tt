@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -28,7 +28,7 @@
             [% Translate("Absolute period") | html %]:
         </label>
         <div class="Field">
-            [% Translate("Between") | html %] [% Data.TimeStart %] [% Translate("and") | html %] [% Data.TimeStop %]
+            [% Translate("Between %s and %s") | html | ReplacePlaceholders(Data.TimeStart, Data.TimeStop) %]
         </div>
         <div class="Clear"></div>
 
@@ -37,7 +37,7 @@
             [% Translate("Relative period") | html %]:
         </label>
         <div class="Field">
-            [% Translate("The past complete %s and the current+upcoming complete %s %s", Data.TimeRelativeCount, Data.TimeRelativeUpcomingCount, Data.TimeRelativeUnit) %]
+            [% Translate("The past complete %s and the current+upcoming complete %s %s") | html | ReplacePlaceholders(Data.TimeRelativeCount, Data.TimeRelativeUpcomingCount, Data.TimeRelativeUnit) %]
             <p class="FieldExplanation">[% Translate("The selected time period defines the default time frame for this statistic to collect data from.") | html %]</p>
         </div>
         <div class="Clear"></div>

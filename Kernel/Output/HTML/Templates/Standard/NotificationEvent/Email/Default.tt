@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -10,7 +10,6 @@
 <html>
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-    <title>[% Data.Subject | html %]</title>
     <style type="text/css">
     body {
         width: 100% !important;
@@ -183,7 +182,7 @@
                                                                 <tr>
                                                                     <td colspan="2" valign="middle">
                                                                         <div style="color: #999; font-size: 11px; text-align: center;">
-                                                                            [% Translate("Powered by") | html %] [% Config("Product") %] [% Config("Version").remove('\.0\..*') %]
+                                                                            [% Translate("Powered by") | html %] [% Config("Product") | html %] [% Config("Version").remove('\.0\..*') | html %]
                                                                         </div>
                                                                     </td>
                                                                 </tr>

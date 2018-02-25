@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -86,6 +86,7 @@ Core.Agent.Admin.GenericInterfaceDebugger = (function (TargetNS) {
             Subaction: 'GetRequestList',
             WebserviceID: TargetNS.WebserviceID,
             FilterLimit: $('#FilterLimit').val() || '',
+            FilterSort: $('#FilterSort').val() || '',
             FilterRemoteIP: $('#FilterRemoteIP').val() || '',
             FilterType: $('#FilterType').val() || ''
         };
@@ -117,6 +118,7 @@ Core.Agent.Admin.GenericInterfaceDebugger = (function (TargetNS) {
                 HTML += '<tr>';
                 HTML += '<td><a href="#" class="AsBlock">' + this.CommunicationType + '<input type="hidden" class="CommunicationID" value="' + this.CommunicationID + '" /></a></td>';
                 HTML += '<td><a href="#" class="AsBlock">' + this.Created + '</a></td>';
+                HTML += '<td><a href="#" class="AsBlock">' + this.CommunicationID + '</a></td>';
                 HTML += '<td><a href="#" class="AsBlock">' + (this.RemoteIP || '-') + '</a></td>';
                 HTML += '</tr>';
             });
@@ -125,6 +127,9 @@ Core.Agent.Admin.GenericInterfaceDebugger = (function (TargetNS) {
 
             $('#RequestList a').on('click', function() {
                 var CommunicationID = $(this).blur().parents('tr').find('input.CommunicationID').val();
+
+                // highlight selected entry
+                $(this).parents('tr').addClass('Active').siblings().removeClass('Active');
 
                 TargetNS.LoadCommunicationDetails(CommunicationID);
 
@@ -160,14 +165,18 @@ Core.Agent.Admin.GenericInterfaceDebugger = (function (TargetNS) {
                 return;
             }
 
+            $('#CommunicationDetails > .Header').empty();
             $('#CommunicationDetails > .Content').empty();
             $('.RequestListWidget').removeClass('Loading');
 
             if (!Response.LogData.Data.length) {
+                $('#CommunicationDetails > .Header').append('<h2>' + Core.Language.Translate('Request Details') + '</h2>');
                 $('#CommunicationDetails > .Content').append('<p class="ErrorMessage">' + Core.Language.Translate('No data found.') + '</p>');
                 $('#CommunicationDetails').css('visibility', 'visible').show();
             }
             else {
+                $('#CommunicationDetails > .Header').append('<h2>' + Core.Language.Translate('Request Details for Communication ID') + ' ' + CommunicationID + '</h2>');
+
                 $.each(Response.LogData.Data, function(){
                     var $Container = $('<div class="WidgetSimple Expanded"></div>'),
                         $Header = $('<div class="Header"></div>'),

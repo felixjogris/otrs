@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -17,7 +17,6 @@ our @ObjectDependencies = (
     'Kernel::Config',
     'Kernel::System::Log',
     'Kernel::System::Ticket',
-    'Kernel::System::SysConfig',
 );
 
 =head1 NAME
@@ -270,14 +269,7 @@ sub ObjectSearch {
     # set focus
     my %Search;
     if ( $Param{SearchParams}->{TicketFulltext} ) {
-        %Search = (
-            From          => '*' . $Param{SearchParams}->{TicketFulltext} . '*',
-            To            => '*' . $Param{SearchParams}->{TicketFulltext} . '*',
-            Cc            => '*' . $Param{SearchParams}->{TicketFulltext} . '*',
-            Subject       => '*' . $Param{SearchParams}->{TicketFulltext} . '*',
-            Body          => '*' . $Param{SearchParams}->{TicketFulltext} . '*',
-            ContentSearch => 'OR',
-        );
+        $Search{Fulltext} = '*' . $Param{SearchParams}->{TicketFulltext} . '*';
     }
     if ( $Param{SearchParams}->{TicketTitle} ) {
         $Search{Title} = '*' . $Param{SearchParams}->{TicketTitle} . '*';
@@ -439,15 +431,6 @@ sub LinkAddPost {
             Name         => "\%\%$TicketNumber\%\%$Param{SourceKey}\%\%$Param{Key}",
         );
 
-        # ticket event
-        $TicketObject->EventHandler(
-            Event => 'TicketSourceLinkAdd' . $Param{Type},
-            Data  => {
-                TicketID => $Param{Key},
-            },
-            UserID => $Param{UserID},
-        );
-
         return 1;
     }
 
@@ -465,15 +448,6 @@ sub LinkAddPost {
             CreateUserID => $Param{UserID},
             HistoryType  => 'TicketLinkAdd',
             Name         => "\%\%$TicketNumber\%\%$Param{TargetKey}\%\%$Param{Key}",
-        );
-
-        # ticket event
-        $TicketObject->EventHandler(
-            Event  => 'TicketTargetLinkAdd' . $Param{Type},
-            UserID => $Param{UserID},
-            Data   => {
-                TicketID => $Param{Key},
-            },
         );
 
         return 1;
@@ -588,15 +562,6 @@ sub LinkDeletePost {
             Name         => "\%\%$TicketNumber\%\%$Param{SourceKey}\%\%$Param{Key}",
         );
 
-        # ticket event
-        $TicketObject->EventHandler(
-            Event => 'TicketSourceLinkDelete' . $Param{Type},
-            Data  => {
-                TicketID => $Param{Key},
-            },
-            UserID => $Param{UserID},
-        );
-
         return 1;
     }
 
@@ -616,110 +581,10 @@ sub LinkDeletePost {
             Name         => "\%\%$TicketNumber\%\%$Param{TargetKey}\%\%$Param{Key}",
         );
 
-        # ticket event
-        $TicketObject->EventHandler(
-            Event => 'TicketTargetLinkDelete' . $Param{Type},
-            Data  => {
-                TicketID => $Param{Key},
-            },
-            UserID => $Param{UserID},
-        );
-
         return 1;
     }
 
     return 1;
-}
-
-=head2 EventTypeConfigUpdate()
-
-Updates the ticket event configuration based on configured link types.
-
-    my $Success = $LinkObjectTicketObject->EventTypeConfigUpdate();
-
-Returns true if successful.
-
-=cut
-
-sub EventTypeConfigUpdate {
-    my ( $Self, %Param ) = @_;
-
-    my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-
-    my $LinkTypes    = $ConfigObject->Get('LinkObject::Type') || {};
-    my $TicketEvents = $ConfigObject->Get('Events')->{Ticket} || [];
-
-    # Add missing ticket events for all configured link object types.
-    for my $LinkType ( sort keys %{$LinkTypes} ) {
-        for my $ObjectType (qw(Source Target)) {
-            for my $EventType (qw(Add Delete)) {
-                my $Event = "Ticket${ObjectType}Link${EventType}$LinkType";
-                if ( !grep { $_ eq $Event } @{$TicketEvents} ) {
-                    push @{$TicketEvents}, $Event;
-                }
-            }
-        }
-    }
-
-    return if !IsArrayRefWithData($TicketEvents);
-
-    my $SettingName = 'Events###Ticket';
-
-    # If called from a unit test, use passed unit test helper object to change the settings.
-    if ( $Param{Helper} ) {
-        return $Param{Helper}->ConfigSettingChange(
-            Valid => 1,
-            Key   => $SettingName,
-            Value => $TicketEvents,
-        );
-    }
-
-    my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');
-
-    # Otherwise, retrieve the effective setting value from SysConfig.
-    my %Setting = $SysConfigObject->SettingGet(
-        Name     => $SettingName,
-        Deployed => 1,
-    );
-    return if !IsHashRefWithData( \%Setting );
-
-    $Setting{EffectiveValue} = $TicketEvents;
-
-    # Lock the setting to admin user.
-    my $ExclusiveLockGUID = $SysConfigObject->SettingLock(
-        Name   => $SettingName,
-        Force  => 1,
-        UserID => 1,
-    );
-    $Setting{ExclusiveLockGUID} = $ExclusiveLockGUID;
-
-    # Update the setting.
-    my %UpdateSuccess = $SysConfigObject->SettingUpdate(
-        %Setting,
-        UserID => 1,
-    );
-
-    if ( !$UpdateSuccess{Success} ) {
-        $Kernel::OM->Get('Kernel::System::Log')->Log(
-            Priority => 'error',
-            Message  => $UpdateSuccess{Error} // "Error while updating $SettingName!",
-        );
-
-        # Unlock the setting.
-        $SysConfigObject->SettingUnlock(
-            Name => $SettingName,
-        );
-
-        return;
-    }
-
-    # Deploy the configuration.
-    return $SysConfigObject->ConfigurationDeploy(
-        Comments      => "$SettingName Configuration Updated",
-        DirtySettings => [$SettingName],
-        UserID        => 1,
-        Force         => 1,
-    );
 }
 
 1;

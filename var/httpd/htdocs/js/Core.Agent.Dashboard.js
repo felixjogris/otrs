@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -119,59 +119,55 @@ Core.Agent.Dashboard = (function (TargetNS) {
         // Initializes dashboard ticket generic widgets functionality
         TargetNS.InitTicketGeneric();
 
-        // Disable drag and drop of dashboard widgets on mobile / touch devices
-        // to prevent accidentally moved widgets while tabbing/swiping
-        if (!Core.App.Responsive.IsTouchDevice()) {
-            Core.UI.DnD.Sortable(
-                $('.SidebarColumn'),
-                {
-                    Handle: '.Header h2',
-                    Items: '.CanDrag',
-                    Placeholder: 'DropPlaceholder',
-                    Tolerance: 'pointer',
-                    Distance: 15,
-                    Opacity: 0.6,
-                    Update: function () {
-                        var url = 'Action=' + Core.Config.Get('Action') + ';Subaction=UpdatePosition;';
-                        $('.CanDrag').each(
-                            function () {
-                                url = url + ';Backend=' + $(this).attr('id');
-                            }
-                        );
-                        Core.AJAX.FunctionCall(
-                            Core.Config.Get('CGIHandle'),
-                            url,
-                            function () {}
-                        );
-                    }
+        Core.UI.DnD.Sortable(
+            $('.SidebarColumn'),
+            {
+                Handle: '.Header h2',
+                Items: '.CanDrag',
+                Placeholder: 'DropPlaceholder',
+                Tolerance: 'pointer',
+                Distance: 15,
+                Opacity: 0.6,
+                Update: function () {
+                    var url = 'Action=' + Core.Config.Get('Action') + ';Subaction=UpdatePosition;';
+                    $('.CanDrag').each(
+                        function () {
+                            url = url + ';Backend=' + $(this).attr('id');
+                        }
+                    );
+                    Core.AJAX.FunctionCall(
+                        Core.Config.Get('CGIHandle'),
+                        url,
+                        function () {}
+                    );
                 }
-            );
+            }
+        );
 
-            Core.UI.DnD.Sortable(
-                $('.ContentColumn'),
-                {
-                    Handle: '.Header h2',
-                    Items: '.CanDrag',
-                    Placeholder: 'DropPlaceholder',
-                    Tolerance: 'pointer',
-                    Distance: 15,
-                    Opacity: 0.6,
-                    Update: function () {
-                        var url = 'Action=' + Core.Config.Get('Action') + ';Subaction=UpdatePosition;';
-                        $('.CanDrag').each(
-                            function () {
-                                url = url + ';Backend=' + $(this).attr('id');
-                            }
-                        );
-                        Core.AJAX.FunctionCall(
-                            Core.Config.Get('CGIHandle'),
-                            url,
-                            function () {}
-                        );
-                    }
+        Core.UI.DnD.Sortable(
+            $('.ContentColumn'),
+            {
+                Handle: '.Header h2',
+                Items: '.CanDrag',
+                Placeholder: 'DropPlaceholder',
+                Tolerance: 'pointer',
+                Distance: 15,
+                Opacity: 0.6,
+                Update: function () {
+                    var url = 'Action=' + Core.Config.Get('Action') + ';Subaction=UpdatePosition;';
+                    $('.CanDrag').each(
+                        function () {
+                            url = url + ';Backend=' + $(this).attr('id');
+                        }
+                    );
+                    Core.AJAX.FunctionCall(
+                        Core.Config.Get('CGIHandle'),
+                        url,
+                        function () {}
+                    );
                 }
-            );
-        }
+            }
+        );
 
         $('.SettingsWidget').find('label').each(function() {
             if ($(this).find('input').prop('checked')) {
@@ -200,6 +196,7 @@ Core.Agent.Dashboard = (function (TargetNS) {
         if (isJQueryObject($ClickedElement) && $ClickedElement.length) {
             $ClickedElement.click(function () {
                 var URL = Core.Config.Get('Baselink') + Core.AJAX.SerializeForm($Form),
+                    InitContainer = Core.Config.Get('InitContainer' + ElementID),
                     ValidationErrors = false;
 
                 // check for elements to validate
@@ -229,6 +226,10 @@ Core.Agent.Dashboard = (function (TargetNS) {
                 if (ValidationErrors) {
                     window.alert(Core.Language.Translate('Please check the fields marked as red for valid inputs.'));
                     return false;
+                }
+
+                if (typeof InitContainer !== 'undefined') {
+                    URL += ';SortBy=' + InitContainer.SortBy + ';OrderBy=' + InitContainer.OrderBy;
                 }
 
                 Core.AJAX.ContentUpdate($('#' + ElementID), URL, function () {
@@ -503,9 +504,10 @@ Core.Agent.Dashboard = (function (TargetNS) {
                 Core.Config.Set('Timer_' + CustomerUserRefresh.NameHTML, window.setTimeout(function() {
 
                     // get active filter
-                    var Filter = $('#Dashboard' + Core.App.EscapeSelector(CustomerUserRefresh.Name) + '-box').find('.Tab.Actions li.Selected a').attr('data-filter');
+                    var Filter = $('#Dashboard' + Core.App.EscapeSelector(CustomerUserRefresh.Name) + '-box').find('.Tab.Actions li.Selected a').attr('data-filter'),
+                    AdditionalFilter = $('#Dashboard' + Core.App.EscapeSelector(CustomerUserRefresh.Name) + '-box').find('.Tab.Actions li.AdditionalFilter.Selected a').attr('data-filter');
                     $('#Dashboard' + Core.App.EscapeSelector(CustomerUserRefresh.Name) + '-box').addClass('Loading');
-                    Core.AJAX.ContentUpdate($('#Dashboard' + Core.App.EscapeSelector(CustomerUserRefresh.Name)), Core.Config.Get('Baselink') + 'Action=' + Core.Config.Get('Action') + ';Subaction=Element;Name=' + CustomerUserRefresh.Name + ';Filter=' + Filter + ';CustomerID=' + CustomerUserRefresh.CustomerID, function () {
+                    Core.AJAX.ContentUpdate($('#Dashboard' + Core.App.EscapeSelector(CustomerUserRefresh.Name)), Core.Config.Get('Baselink') + 'Action=' + Core.Config.Get('Action') + ';Subaction=Element;Name=' + CustomerUserRefresh.Name + ';AdditionalFilter=' + AdditionalFilter + ';Filter=' + Filter + ';CustomerID=' + CustomerUserRefresh.CustomerID, function () {
                         $('#Dashboard' + Core.App.EscapeSelector(CustomerUserRefresh.Name) + '-box').removeClass('Loading');
                     });
                     clearTimeout(Core.Config.Get('Timer_' + CustomerUserRefresh.NameHTML));
@@ -737,7 +739,7 @@ Core.Agent.Dashboard = (function (TargetNS) {
                     'svg.GraphWidget' + StatsData.Name,
                     {
                         PreferencesKey: 'GraphWidget' + StatsData.Name,
-                        PreferencesData: StatsData.Preferences,
+                        PreferencesData: Core.JSON.Parse(StatsData.Preferences),
                         Duration: 250
                     }
                 );
@@ -984,11 +986,13 @@ Core.Agent.Dashboard = (function (TargetNS) {
     function GenericHeaderMeta (HeaderMeta) {
 
         $('#' + Core.App.EscapeSelector(HeaderMeta.HeaderColumnName) + 'FlagOverviewControl' + Core.App.EscapeSelector(HeaderMeta.Name)).off('click').on('click', function (Event) {
-            var Filter, LinkPage, ColumnFilterName, CustomerID;
+            var Filter, AdditionalFilter, LinkPage, ColumnFilterName, CustomerID, CustomerUserID;
 
-            Filter  = $('#Filter' + Core.App.EscapeSelector(HeaderMeta.Name)).val() || 'All';
-            LinkPage = '';
-            CustomerID = $('input[name=CustomerID]').val() || '';
+            Filter           = $('#Filter' + Core.App.EscapeSelector(HeaderMeta.Name)).val() || 'All';
+            AdditionalFilter = $('#AdditionalFilter' + Core.App.EscapeSelector(HeaderMeta.Name)).val() || '';
+            LinkPage         = '';
+            CustomerID       = $('input[name=CustomerID]').val() || '';
+            CustomerUserID   = $('input[name=CustomerUserID]').val() || '';
 
             // get all column filters
             $('.ColumnFilter').each(function(){
@@ -1003,7 +1007,7 @@ Core.Agent.Dashboard = (function (TargetNS) {
             });
 
             $('#Dashboard' + Core.App.EscapeSelector(HeaderMeta.Name) + '-box').addClass('Loading');
-            Core.AJAX.ContentUpdate($('#Dashboard' + Core.App.EscapeSelector(HeaderMeta.Name)), Core.Config.Get('Baselink') + 'Action=' + Core.Config.Get('Action') + ';Subaction=Element;Name=' + HeaderMeta.Name + ';Filter=' + Filter + ';' + LinkPage + ';CustomerID=' + CustomerID + ';SortBy=' + HeaderMeta.HeaderColumnName + ';OrderBy=' + HeaderMeta.OrderBy, function () {
+            Core.AJAX.ContentUpdate($('#Dashboard' + Core.App.EscapeSelector(HeaderMeta.Name)), Core.Config.Get('Baselink') + 'Action=' + Core.Config.Get('Action') + ';Subaction=Element;Name=' + HeaderMeta.Name + ';AdditionalFilter=' + AdditionalFilter + ';Filter=' + Filter + ';' + LinkPage + ';CustomerID=' + CustomerID + ';CustomerUserID=' + CustomerUserID + ';SortBy=' + HeaderMeta.HeaderColumnName + ';OrderBy=' + HeaderMeta.OrderBy + ';SortingColumn=' + HeaderMeta.SortingColumn, function () {
                 $('#Dashboard' + Core.App.EscapeSelector(HeaderMeta.Name) + '-box').removeClass('Loading');
             });
             Event.preventDefault();
@@ -1023,11 +1027,13 @@ Core.Agent.Dashboard = (function (TargetNS) {
     function GenericHeaderTicketNumberColumn (TicketNumberColumn) {
 
         $('#TicketNumberOverviewControl' + Core.App.EscapeSelector(TicketNumberColumn.Name)).off('click').on('click', function (Event) {
-            var Filter, LinkPage, ColumnFilterName, CustomerID;
+            var Filter, AdditionalFilter, LinkPage, ColumnFilterName, CustomerID, CustomerUserID;
 
-            Filter  = $('#Filter' + Core.App.EscapeSelector(TicketNumberColumn.Name)).val() || 'All';
-            LinkPage = '';
-            CustomerID = $('input[name=CustomerID]').val() || '';
+            Filter           = $('#Filter' + Core.App.EscapeSelector(TicketNumberColumn.Name)).val() || 'All';
+            AdditionalFilter = $('#AdditionalFilter' + Core.App.EscapeSelector(TicketNumberColumn.Name)).val() || '';
+            LinkPage         = '';
+            CustomerID       = $('input[name=CustomerID]').val() || '';
+            CustomerUserID   = $('input[name=CustomerUserID]').val() || '';
 
             // get all column filters
             $('.ColumnFilter').each(function(){
@@ -1042,7 +1048,7 @@ Core.Agent.Dashboard = (function (TargetNS) {
             });
 
             $('#Dashboard' + Core.App.EscapeSelector(TicketNumberColumn.Name) + '-box').addClass('Loading');
-            Core.AJAX.ContentUpdate($('#Dashboard' + Core.App.EscapeSelector(TicketNumberColumn.Name) + ''), Core.Config.Get('Baselink') + 'Action=' + Core.Config.Get('Action') + ';Subaction=Element;Name=' + TicketNumberColumn.Name + ';Filter=' + Filter + ';' + LinkPage + ';CustomerID=' + CustomerID + ';SortBy=TicketNumber;OrderBy=' + TicketNumberColumn.OrderBy, function () {
+            Core.AJAX.ContentUpdate($('#Dashboard' + Core.App.EscapeSelector(TicketNumberColumn.Name) + ''), Core.Config.Get('Baselink') + 'Action=' + Core.Config.Get('Action') + ';Subaction=Element;Name=' + TicketNumberColumn.Name + ';AdditionalFilter=' + AdditionalFilter + ';Filter=' + Filter + ';' + LinkPage + ';CustomerID=' + CustomerID + ';CustomerUserID=' + CustomerUserID + ';SortBy=TicketNumber;OrderBy=' + TicketNumberColumn.OrderBy + ';SortingColumn=' + TicketNumberColumn.SortingColumn, function () {
                 $('#Dashboard' + Core.App.EscapeSelector(TicketNumberColumn.Name) + '-box').removeClass('Loading');
             });
             Event.preventDefault();
@@ -1060,13 +1066,15 @@ Core.Agent.Dashboard = (function (TargetNS) {
      *      Initializes the filterable and sortable column event.
      */
     function GenericHeaderColumnFilterSort (ColumnFilterSort) {
-        var LinkPage, ColumnFilterName, Filter, ColumnFilterID, CustomerID;
+        var LinkPage, ColumnFilterName, Filter, AdditionalFilter, ColumnFilterID, CustomerID, CustomerUserID;
 
         $('#ColumnFilter' + Core.App.EscapeSelector(ColumnFilterSort.HeaderColumnName) + Core.App.EscapeSelector(ColumnFilterSort.Name)).off('change').on('change', function(){
 
-            LinkPage = '';
-            Filter   = $('#Filter' + Core.App.EscapeSelector(ColumnFilterSort.Name)).val() || 'All';
-            CustomerID = $('input[name=CustomerID]').val() || '';
+            LinkPage         = '';
+            Filter           = $('#Filter' + Core.App.EscapeSelector(ColumnFilterSort.Name)).val() || 'All';
+            AdditionalFilter = $('#AdditionalFilter' + Core.App.EscapeSelector(ColumnFilterSort.Name)).val() || '';
+            CustomerID       = $('input[name=CustomerID]').val() || '';
+            CustomerUserID   = $('input[name=CustomerUserID]').val() || '';
 
             // set ColumnFilter value for current ColumnFilter
             ColumnFilterName = $(this).attr('name');
@@ -1093,7 +1101,7 @@ Core.Agent.Dashboard = (function (TargetNS) {
             });
 
             $('#Dashboard' + Core.App.EscapeSelector(ColumnFilterSort.Name) + '-box').addClass('Loading');
-            Core.AJAX.ContentUpdate($('#Dashboard' + Core.App.EscapeSelector(ColumnFilterSort.Name)), Core.Config.Get('Baselink') + 'Action=' + Core.Config.Get('Action') + ';Subaction=Element;Name=' + ColumnFilterSort.Name + ';Filter=' + Filter + ';CustomerID=' + CustomerID + ';SortBy=' + ColumnFilterSort.SortBy + ';OrderBy=' + ColumnFilterSort.OrderBy + ';' + LinkPage, function () {
+            Core.AJAX.ContentUpdate($('#Dashboard' + Core.App.EscapeSelector(ColumnFilterSort.Name)), Core.Config.Get('Baselink') + 'Action=' + Core.Config.Get('Action') + ';Subaction=Element;Name=' + ColumnFilterSort.Name + ';AdditionalFilter=' + AdditionalFilter + ';Filter=' + Filter + ';CustomerID=' + CustomerID + ';CustomerUserID=' + CustomerUserID + ';SortBy=' + ColumnFilterSort.SortBy + ';OrderBy=' + ColumnFilterSort.OrderBy + ';SortingColumn=' + ColumnFilterSort.SortingColumn + ';AddFilters=1;' + LinkPage, function () {
                 $('#Dashboard' + Core.App.EscapeSelector(ColumnFilterSort.Name) + '-box').removeClass('Loading');
             });
             return false;
@@ -1101,9 +1109,11 @@ Core.Agent.Dashboard = (function (TargetNS) {
 
         $('#' + Core.App.EscapeSelector(ColumnFilterSort.HeaderColumnName) + 'OverviewControl' + Core.App.EscapeSelector(ColumnFilterSort.Name)).off('click').on('click', function (Event) {
 
-            LinkPage = '';
-            Filter   = $('#Filter' + Core.App.EscapeSelector(ColumnFilterSort.Name)).val() || 'All';
-            CustomerID = $('input[name=CustomerID]').val() || '';
+            LinkPage         = '';
+            Filter           = $('#Filter' + Core.App.EscapeSelector(ColumnFilterSort.Name)).val() || 'All';
+            AdditionalFilter = $('#AdditionalFilter' + Core.App.EscapeSelector(ColumnFilterSort.Name)).val() || '';
+            CustomerID       = $('input[name=CustomerID]').val() || '';
+            CustomerUserID   = $('input[name=CustomerUserID]').val() || '';
 
             // set ColumnFilter value for current ColumnFilter
             ColumnFilterName = $(this).attr('name');
@@ -1130,7 +1140,7 @@ Core.Agent.Dashboard = (function (TargetNS) {
             });
 
             $('#Dashboard' + Core.App.EscapeSelector(ColumnFilterSort.Name) + '-box').addClass('Loading');
-            Core.AJAX.ContentUpdate($('#Dashboard' + Core.App.EscapeSelector(ColumnFilterSort.Name)), Core.Config.Get('Baselink') + 'Action=' + Core.Config.Get('Action') + ';Subaction=Element;Name=' + ColumnFilterSort.Name + ';Filter=' + Filter + ';CustomerID=' + CustomerID + ';SortBy=' + ColumnFilterSort.HeaderColumnName + ';OrderBy=' + ColumnFilterSort.OrderBy + ';' + LinkPage, function () {
+            Core.AJAX.ContentUpdate($('#Dashboard' + Core.App.EscapeSelector(ColumnFilterSort.Name)), Core.Config.Get('Baselink') + 'Action=' + Core.Config.Get('Action') + ';Subaction=Element;Name=' + ColumnFilterSort.Name + ';AdditionalFilter=' + AdditionalFilter + ';Filter=' + Filter + ';CustomerID=' + CustomerID + ';CustomerUserID=' + CustomerUserID + ';SortBy=' + ColumnFilterSort.HeaderColumnName + ';OrderBy=' + ColumnFilterSort.OrderBy + ';SortingColumn=' + ColumnFilterSort.SortingColumn + ';' + LinkPage, function () {
                 $('#Dashboard' + Core.App.EscapeSelector(ColumnFilterSort.Name) + '-box').removeClass('Loading');
             });
             Event.preventDefault();
@@ -1148,13 +1158,15 @@ Core.Agent.Dashboard = (function (TargetNS) {
      *      Initializes the sortable column event.
      */
     function GenericHeaderColumnSortable (ColumnSortable) {
-        var LinkPage, ColumnFilterName, Filter, ColumnFilterID, CustomerID;
+        var LinkPage, ColumnFilterName, Filter, AdditionalFilter, ColumnFilterID, CustomerID, CustomerUserID;
 
         $('#' + Core.App.EscapeSelector(ColumnSortable.HeaderColumnName) + 'OverviewControl' + Core.App.EscapeSelector(ColumnSortable.Name)).off('click').on('click', function (Event) {
 
-            LinkPage = '';
-            Filter   = $('#Filter' + Core.App.EscapeSelector(ColumnSortable.Name)).val() || 'All';
-            CustomerID = $('input[name=CustomerID]').val() || '';
+            LinkPage         = '';
+            Filter           = $('#Filter' + Core.App.EscapeSelector(ColumnSortable.Name)).val() || 'All';
+            AdditionalFilter = $('#AdditionalFilter' + Core.App.EscapeSelector(ColumnSortable.Name)).val() || '';
+            CustomerID       = $('input[name=CustomerID]').val() || '';
+            CustomerUserID   = $('input[name=CustomerUserID]').val() || '';
 
             // set ColumnFilter value for current ColumnFilter
             ColumnFilterName = $(this).attr('name');
@@ -1181,7 +1193,7 @@ Core.Agent.Dashboard = (function (TargetNS) {
             });
 
             $('#Dashboard' + Core.App.EscapeSelector(ColumnSortable.Name) + '-box').addClass('Loading');
-            Core.AJAX.ContentUpdate($('#Dashboard' + Core.App.EscapeSelector(ColumnSortable.Name)), Core.Config.Get('Baselink') + 'Action=' + Core.Config.Get('Action') + ';Subaction=Element;Name=' + ColumnSortable.Name + ';Filter=' + Filter + ';CustomerID=' + CustomerID +';SortBy=' + ColumnSortable.HeaderColumnName + ';OrderBy=' + ColumnSortable.OrderBy + ';' + LinkPage, function () {
+            Core.AJAX.ContentUpdate($('#Dashboard' + Core.App.EscapeSelector(ColumnSortable.Name)), Core.Config.Get('Baselink') + 'Action=' + Core.Config.Get('Action') + ';Subaction=Element;Name=' + ColumnSortable.Name + ';AdditionalFilter=' + AdditionalFilter +  ';Filter=' + Filter + ';CustomerID=' + CustomerID + ';CustomerUserID=' + CustomerUserID + ';SortBy=' + ColumnSortable.HeaderColumnName + ';OrderBy=' + ColumnSortable.OrderBy + ';SortingColumn=' + ColumnSortable.SortingColumn + ';' + LinkPage, function () {
                 $('#Dashboard' + Core.App.EscapeSelector(ColumnSortable.Name) + '-box').removeClass('Loading');
             });
             Event.preventDefault();
@@ -1200,11 +1212,13 @@ Core.Agent.Dashboard = (function (TargetNS) {
      */
     function GenericHeaderColumnFilter (ColumnFilter) {
         $('#ColumnFilter' + Core.App.EscapeSelector(ColumnFilter.HeaderColumnName) + Core.App.EscapeSelector(ColumnFilter.Name)).off('change').on('change', function(){
-            var LinkPage, ColumnFilterName, Filter, ColumnFilterID, CustomerID;
+            var LinkPage, ColumnFilterName, Filter, AdditionalFilter, ColumnFilterID, CustomerID, CustomerUserID;
 
-            LinkPage = '';
-            Filter   = $('#Filter' + Core.App.EscapeSelector(ColumnFilter.Name)).val() || 'All';
-            CustomerID = $('input[name=CustomerID]').val() || '';
+            LinkPage         = '';
+            Filter           = $('#Filter' + Core.App.EscapeSelector(ColumnFilter.Name)).val() || 'All';
+            AdditionalFilter = $('#AdditionalFilter' + Core.App.EscapeSelector(ColumnFilter.Name)).val() || '';
+            CustomerID       = $('input[name=CustomerID]').val() || '';
+            CustomerUserID   = $('input[name=CustomerUserID]').val() || '';
 
             // set ColumnFilter value for current ColumnFilter
             ColumnFilterName = $(this).attr('name');
@@ -1231,7 +1245,7 @@ Core.Agent.Dashboard = (function (TargetNS) {
             });
 
             $('#Dashboard' + Core.App.EscapeSelector(ColumnFilter.Name) + '-box').addClass('Loading');
-            Core.AJAX.ContentUpdate($('#Dashboard' + Core.App.EscapeSelector(ColumnFilter.Name)), Core.Config.Get('Baselink') + 'Action=' + Core.Config.Get('Action') + ';Subaction=Element;Name=' + ColumnFilter.Name + ';Filter=' + Filter + ';CustomerID=' + CustomerID + ';SortBy=' + ColumnFilter.SortBy + ';OrderBy=' + ColumnFilter.OrderBy + ';' + LinkPage, function () {
+            Core.AJAX.ContentUpdate($('#Dashboard' + Core.App.EscapeSelector(ColumnFilter.Name)), Core.Config.Get('Baselink') + 'Action=' + Core.Config.Get('Action') + ';Subaction=Element;Name=' + ColumnFilter.Name + ';AdditionalFilter=' + AdditionalFilter + ';Filter=' + Filter + ';CustomerID=' + CustomerID + ';CustomerUserID=' + CustomerUserID + ';SortBy=' + ColumnFilter.SortBy + ';OrderBy=' + ColumnFilter.OrderBy + ';AddFilters=1;' + LinkPage, function () {
                 $('#Dashboard' + Core.App.EscapeSelector(ColumnFilter.Name) + '-box').removeClass('Loading');
             });
             return false;
@@ -1306,6 +1320,7 @@ Core.Agent.Dashboard = (function (TargetNS) {
 
                             if (!$TriggerObj.parent().find('.SelectedValue').length) {
                                 Core.AJAX.FormUpdate($TriggerObj.parents('form'), 'AJAXFilterUpdate', FilterName, [ FilterName ], function() {
+
                                     var AutoCompleteValue = $ColumnSettingsContainer
                                             .find('select')
                                             .val(),
@@ -1347,10 +1362,11 @@ Core.Agent.Dashboard = (function (TargetNS) {
             Core.Config.Set('Timer_' + WidgetRefreshData.NameHTML, window.setTimeout(function() {
 
                 // get active filter
-                var Filter      = $('#Dashboard' + Core.App.EscapeSelector(WidgetRefreshData.Name) + '-box').find('.Tab.Actions li.Selected a').attr('data-filter'),
-                    $OrderByObj = $('#Dashboard' + Core.App.EscapeSelector(WidgetRefreshData.Name) + '-box').find('th.SortDescendingLarge, th.SortAscendingLarge'),
-                    SortBy      = $OrderByObj.attr('data-column') || '',
-                    OrderBy     = '';
+                var Filter           = $('#Dashboard' + Core.App.EscapeSelector(WidgetRefreshData.Name) + '-box').find('.Tab.Actions li.Selected a').attr('data-filter'),
+                    AdditionalFilter = $('#Dashboard' + Core.App.EscapeSelector(WidgetRefreshData.Name) + '-box').find('.Tab.Actions li.AdditionalFilter.Selected a').attr('data-filter') || '',
+                    $OrderByObj      = $('#Dashboard' + Core.App.EscapeSelector(WidgetRefreshData.Name) + '-box').find('th.SortDescendingLarge, th.SortAscendingLarge'),
+                    SortBy           = $OrderByObj.attr('data-column') || '',
+                    OrderBy          = '';
 
                 if ($OrderByObj && $OrderByObj.hasClass('SortDescendingLarge')) {
                     OrderBy = 'Down';
@@ -1360,7 +1376,7 @@ Core.Agent.Dashboard = (function (TargetNS) {
                 }
 
                 $('#Dashboard' + Core.App.EscapeSelector(WidgetRefreshData.Name) + '-box').addClass('Loading');
-                Core.AJAX.ContentUpdate($('#Dashboard' + Core.App.EscapeSelector(WidgetRefreshData.Name)), Core.Config.Get('Baselink') + 'Action=' + Core.Config.Get('Action') + ';Subaction=Element;Name=' + WidgetRefreshData.Name + ';Filter=' + Filter + ';CustomerID=' + WidgetRefreshData.CustomerID + ';SortBy=' + SortBy + ';OrderBy=' + OrderBy, function () {
+                Core.AJAX.ContentUpdate($('#Dashboard' + Core.App.EscapeSelector(WidgetRefreshData.Name)), Core.Config.Get('Baselink') + 'Action=' + Core.Config.Get('Action') + ';Subaction=Element;Name=' + WidgetRefreshData.Name + ';AdditionalFilter=' + AdditionalFilter + ';Filter=' + Filter + ';CustomerID=' + WidgetRefreshData.CustomerID + ';SortBy=' + SortBy + ';OrderBy=' + OrderBy, function () {
                     $('#Dashboard' + Core.App.EscapeSelector(WidgetRefreshData.Name) + '-box').removeClass('Loading');
                 });
                 clearTimeout(Core.Config.Get('Timer_' + WidgetRefreshData.NameHTML));
@@ -1386,9 +1402,10 @@ Core.Agent.Dashboard = (function (TargetNS) {
                 .on('click', function() {
 
                     // get active filter
-                    var Filter = $('#Dashboard' + Core.App.EscapeSelector(WidgetRemoveFilter.Name) + '-box').find('.Tab.Actions li.Selected a').attr('data-filter');
+                    var Filter = $('#Dashboard' + Core.App.EscapeSelector(WidgetRemoveFilter.Name) + '-box').find('.Tab.Actions li.Selected a').attr('data-filter'),
+                    AdditionalFilter = $('#Dashboard' + Core.App.EscapeSelector(WidgetRemoveFilter.Name) + '-box').find('.Tab.Actions li.AdditionalFilter.Selected a').attr('data-filter') || '';
                     $('#Dashboard' + Core.App.EscapeSelector(WidgetRemoveFilter.Name) + '-box').addClass('Loading');
-                    Core.AJAX.ContentUpdate($('#Dashboard' + Core.App.EscapeSelector(WidgetRemoveFilter.Name)), Core.Config.Get('Baselink') + 'Action=' + Core.Config.Get('Action') + ';Subaction=Element;Name=' + WidgetRemoveFilter.Name + ';Filter=' + Filter + ';CustomerID=' + WidgetRemoveFilter.CustomerID + ';RemoveFilters=1', function () {
+                    Core.AJAX.ContentUpdate($('#Dashboard' + Core.App.EscapeSelector(WidgetRemoveFilter.Name)), Core.Config.Get('Baselink') + 'Action=' + Core.Config.Get('Action') + ';Subaction=Element;Name=' + WidgetRemoveFilter.Name + ';AdditionalFilter=' + AdditionalFilter + ';Filter=' + Filter + ';CustomerID=' + WidgetRemoveFilter.CustomerID + ';CustomerUserID=' + WidgetRemoveFilter.CustomerUserID + ';RemoveFilters=1', function () {
                         $('#Dashboard' + Core.App.EscapeSelector(WidgetRemoveFilter.Name) + '-box').removeClass('Loading');
                         $('#Dashboard' + Core.App.EscapeSelector(WidgetRemoveFilter.Name) + '-box').find('.RemoveFilters').remove();
                     });
@@ -1408,13 +1425,23 @@ Core.Agent.Dashboard = (function (TargetNS) {
      */
     function DashboardTicketWidgetFilter (WidgetFilterData) {
         $('#Dashboard' + Core.App.EscapeSelector(WidgetFilterData.Name) + '-box').find('.Tab.Actions li a').off('click').on('click', function() {
-                var Filter = $(this).attr('data-filter'),
-                CustomerID;
+                var Filter, AdditionalFilter = '',
+                CustomerID, CustomerUserID;
+
+                if ($(this).parent().hasClass('AdditionalFilter')) {
+                     Filter           = $(this).parent().siblings('li.Selected:not(.AdditionalFilter)').find('a').attr('data-filter');
+                     AdditionalFilter = $(this).attr('data-filter');
+                }
+                else {
+                     Filter           = $(this).attr('data-filter');
+                     AdditionalFilter = $(this).parent().siblings('li.AdditionalFilter.Selected').find('a').attr('data-filter') || '';
+                }
 
                 CustomerID = $('input[name=CustomerID]').val() || '';
+                CustomerUserID = $('input[name=CustomerUserID]').val() || '';
 
                 $('#Dashboard' + Core.App.EscapeSelector(WidgetFilterData.Name) + '-box').addClass('Loading');
-                Core.AJAX.ContentUpdate($('#Dashboard' + Core.App.EscapeSelector(WidgetFilterData.Name)), Core.Config.Get('Baselink') + 'Action=' + Core.Config.Get('Action') + ';Subaction=Element;Name=' + WidgetFilterData.Name + ';Filter=' + Filter + ';CustomerID=' + encodeURIComponent(CustomerID), function () {
+                Core.AJAX.ContentUpdate($('#Dashboard' + Core.App.EscapeSelector(WidgetFilterData.Name)), Core.Config.Get('Baselink') + 'Action=' + Core.Config.Get('Action') + ';Subaction=Element;Name=' + WidgetFilterData.Name + ';AdditionalFilter=' + AdditionalFilter + ';Filter=' + Filter + ';CustomerID=' + encodeURIComponent(CustomerID) + ';CustomerUserID=' + encodeURIComponent(CustomerUserID) + ';SortBy=' + WidgetFilterData.SortBy + ';OrderBy=' + WidgetFilterData.OrderBy + ';SortingColumn=' + WidgetFilterData.SortingColumn + ';TabAction=1', function () {
                     $('#Dashboard' + Core.App.EscapeSelector(WidgetFilterData.Name) + '-box').removeClass('Loading');
                 });
                 return false;

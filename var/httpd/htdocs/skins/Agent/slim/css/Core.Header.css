@@ -14,14 +14,6 @@
 
 @media screen,projection,tv,handheld {
 
-#Header #Logo {
-    background-position: center;
-    height: 62px;
-    opacity: 0.53;
-    -ms-filter: "progid:DXImageTransform.Microsoft.Alpha(Opacity=53)";
-    top: 0px !important;
-}
-
 /**
  * @subsection  Header
  */
@@ -30,29 +22,33 @@
     background-position: bottom;
 }
 
-/**
- * @subsection  Logo
- */
 #Logo {
-    right: 246px;
-}
-
-.RTL #Logo {
-    right: auto;
-    left: 246px;
+    opacity: 0.3;
 }
 
 /**
  * @subsection  Toolbar
  */
 #ToolBar {
-    top: 32px;
+    top: 22px;
     left: auto;
     right: 14px;
+    z-index: 10;
 }
 
-#ToolBar a {
-    margin-top: -7px;
+#ToolBar li.UserAvatar {
+    margin-top: -6px;
+    float: right;
+}
+
+#ToolBar li.UserAvatar div {
+    right: -25px;
+    left: auto;
+}
+
+#ToolBar li.UserAvatar div:after {
+    left: auto;
+    right: 15px;
 }
 
 .RTL #ToolBar {
@@ -72,7 +68,7 @@
  */
 
 #NavigationContainer {
-    top: 27px;
+    top: 17px;
 }
 
 } /* end @media */

@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -92,11 +92,6 @@ Core.Agent.Admin.GenericInterfaceMapping = (function (TargetNS) {
             TargetNS.RemoveValueMapping($(this));
         //            $(this).parent().remove();
             return false;
-        });
-
-        // bind click function to save and finish button
-        $('#SaveAndFinishButton').on('click', function(){
-            $('#ReturnToAction').val(1);
         });
     };
 

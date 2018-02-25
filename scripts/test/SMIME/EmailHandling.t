@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -30,6 +30,12 @@ $Kernel::OM->ObjectParamAdd(
     },
 );
 my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+# Disable email addresses checking.
+$Helper->ConfigSettingChange(
+    Key   => 'CheckEmailAddresses',
+    Value => 0,
+);
 
 my $HomeDir = $ConfigObject->Get('Home');
 
@@ -594,25 +600,27 @@ for my $Test (@Tests) {
     };
 
 }
-
+my $MailQueueObj = $Kernel::OM->Get('Kernel::System::MailQueue');
 for my $Test (@TestVariations) {
 
     # make a deep copy as the references gets modified over the tests
     $Test = Storable::dclone($Test);
 
-    my $ArticleID = $ArticleObject->ArticleSend(
-        TicketID       => $TicketID,
-        From           => $Test->{ArticleData}->{From},
-        To             => $Test->{ArticleData}->{To},
-        ArticleType    => 'email-external',
-        SenderType     => 'customer',
-        HistoryType    => 'AddNote',
-        HistoryComment => 'note',
-        Subject        => 'Unittest data',
-        Charset        => 'utf-8',
-        MimeType       => $Test->{ArticleData}->{MimeType},    # "text/plain" or "text/html"
-        Body           => 'Some nice text\n.',
-        Sign           => {
+    my $ArticleBackendObject = $ArticleObject->BackendForChannel( ChannelName => 'Email' );
+
+    my $ArticleID = $ArticleBackendObject->ArticleSend(
+        TicketID             => $TicketID,
+        From                 => $Test->{ArticleData}->{From},
+        To                   => $Test->{ArticleData}->{To},
+        IsVisibleForCustomer => 1,
+        SenderType           => 'customer',
+        HistoryType          => 'AddNote',
+        HistoryComment       => 'note',
+        Subject              => 'Unittest data',
+        Charset              => 'utf-8',
+        MimeType             => $Test->{ArticleData}->{MimeType},    # "text/plain" or "text/html"
+        Body                 => 'Some nice text\n.',
+        Sign                 => {
             Type    => 'SMIME',
             SubType => 'Detached',
             Key     => $Test->{ArticleData}->{Sign}->{Key},
@@ -626,7 +634,7 @@ for my $Test (@TestVariations) {
         "$Test->{Name} - ArticleSend()",
     );
 
-    my %Article = $ArticleObject->ArticleGet(
+    my %Article = $ArticleBackendObject->ArticleGet(
         TicketID  => $TicketID,
         ArticleID => $ArticleID,
     );
@@ -635,6 +643,10 @@ for my $Test (@TestVariations) {
         ArticleID => $ArticleID,
         UserID    => 1,
     );
+
+    my $Item = $MailQueueObj->Get( ArticleID => $ArticleID );
+
+    my $Result = $MailQueueObj->Send( %{$Item} );
 
     my @CheckResult = $CheckObject->Check( Article => \%Article );
 
@@ -660,7 +672,7 @@ for my $Test (@TestVariations) {
         );
     }
 
-    my %FinalArticleData = $ArticleObject->ArticleGet(
+    my %FinalArticleData = $ArticleBackendObject->ArticleGet(
         TicketID  => $TicketID,
         ArticleID => $ArticleID,
     );
@@ -682,11 +694,8 @@ for my $Test (@TestVariations) {
 
     if ( defined $Test->{ArticleData}->{Attachment} ) {
         my $Found;
-        my %Index = $ArticleObject->ArticleAttachmentIndex(
-            ArticleID                  => $ArticleID,
-            UserID                     => 1,
-            Article                    => \%FinalArticleData,
-            StripPlainBodyAsAttachment => 0,
+        my %Index = $ArticleBackendObject->ArticleAttachmentIndex(
+            ArticleID => $ArticleID,
         );
 
         TESTATTACHMENT:

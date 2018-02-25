@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,6 +11,7 @@ package Kernel::System::NotificationEvent;
 use strict;
 use warnings;
 
+use Kernel::Language qw(Translatable);
 use Kernel::System::VariableCheck qw(:all);
 
 our @ObjectDependencies = (
@@ -308,7 +309,7 @@ sub NotificationAdd {
     if (%Check) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => "Can't add notification '$Param{Name}', notification already exists!",
+            Message  => "A notification with the name '$Param{Name}' already exists.",
         );
         return;
     }
@@ -769,8 +770,19 @@ sub NotificationImport {
         return {
             Success => 0,
             Message =>
-                "Couldn't read Notification configuration file. Please make sure the file is valid.",
+                Translatable("Couldn't read Notification configuration file. Please make sure the file is valid."),
         };
+    }
+
+    # Check if notification message in any language has more characters than limit (4000 characters).
+    for my $Language ( sort keys %{ $NotificationData->[0]->{Message} } ) {
+        if ( length $NotificationData->[0]->{Message}->{$Language}->{Body} > 4000 ) {
+            return {
+                Success => 0,
+                Message =>
+                    Translatable("Imported notification has body text with more than 4000 characters."),
+            };
+        }
     }
 
     my @UpdatedNotifications;
@@ -778,6 +790,7 @@ sub NotificationImport {
     my @NotificationErrors;
 
     my %CurrentNotifications = $Self->NotificationList(
+        %Param,
         UserID => $Param{UserID},
     );
     my %ReverseCurrentNotifications = reverse %CurrentNotifications;
@@ -801,7 +814,6 @@ sub NotificationImport {
             else {
                 push @NotificationErrors, $Notification->{Name};
             }
-
         }
         else {
 

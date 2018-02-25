@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,7 +8,7 @@
 
 package Kernel::Output::HTML::NavBar::CustomerTicketProcess;
 
-use base 'Kernel::Output::HTML::Base';
+use parent 'Kernel::Output::HTML::Base';
 
 use strict;
 use warnings;
@@ -35,9 +35,9 @@ sub Run {
     # check if the registration config is valid
     return if !IsHashRefWithData($FrontendModuleConfig);
     return if !IsHashRefWithData($FrontendNavigationConfig);
-    return if !IsHashRefWithData( $FrontendNavigationConfig->{1} );
+    return if !IsArrayRefWithData( $FrontendNavigationConfig->{'002-ProcessManagement'} );
 
-    my $NameForID     = $FrontendNavigationConfig->{1}->{Name};
+    my $NameForID     = $FrontendNavigationConfig->{'002-ProcessManagement'}->[0]->{Name};
     my $NameForHidden = $NameForID;
     $NameForID =~ s/[ &;]//ig;
 
@@ -127,7 +127,7 @@ sub Run {
 
     # frontend module is enabled but there is no selectable process, then remove the menu entry
     my $NavBarName = $FrontendModuleConfig->{NavBarName};
-    my $Priority = sprintf( "%07d", $FrontendNavigationConfig->{1}->{Prio} );
+    my $Priority = sprintf( '%07d', $FrontendNavigationConfig->{'002-ProcessManagement'}->[0]->{Prio} );
 
     my %Return = %{ $Param{NavBarModule}->{Sub} };
 

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,13 +13,14 @@ use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
 
-use base qw(Kernel::System::DynamicField::Driver::BaseText);
+use parent qw(Kernel::System::DynamicField::Driver::BaseText);
 
 our @ObjectDependencies = (
     'Kernel::Config',
     'Kernel::System::DynamicFieldValue',
     'Kernel::System::Main',
     'Kernel::System::ProcessManagement::Process',
+    'Kernel::System::ProcessManagement::DB::Process',
     'Kernel::System::Ticket::ColumnFilter',
 );
 
@@ -108,13 +109,15 @@ sub DisplayValueRender {
     }
 
     # get raw Title and Value strings from field value
-    my $Value = defined $Param{Value} ? $Param{Value} : '';
-
     # convert the ProcessEntityID to the Process name
-    my $Process = $Kernel::OM->Get('Kernel::System::ProcessManagement::Process')->ProcessGet(
-        ProcessEntityID => $Value,
-    );
-    $Value = $Process->{Name} // $Value;
+    my $Process;
+    if ( $Param{Value} ) {
+        $Process = $Kernel::OM->Get('Kernel::System::ProcessManagement::Process')->ProcessGet(
+            ProcessEntityID => $Param{Value},
+        );
+    }
+
+    my $Value = $Process->{Name} // '';
 
     my $Title = $Value;
 
@@ -179,6 +182,93 @@ sub ColumnFilterValuesGet {
     }
 
     return $ColumnFilterValues;
+}
+
+sub SearchFieldParameterBuild {
+    my ( $Self, %Param ) = @_;
+
+    # Get field value.
+    my $Value = $Self->SearchFieldValueGet(%Param);
+
+    # Set operator.
+    my $Operator = 'Equals';
+
+    # Search for a wild card in the value.
+    if ( $Value && ( $Value =~ m{\*} || $Value =~ m{\|\|} ) ) {
+
+        # Change operator.
+        $Operator = 'Like';
+    }
+
+    if ( $Param{DynamicFieldConfig}->{Name} eq 'ProcessManagementProcessID' && $Value ) {
+
+        my $ProcessEntityIDs = $Kernel::OM->Get('Kernel::System::ProcessManagement::DB::Process')->ProcessSearch(
+            ProcessName => $Value,
+        );
+
+        if ( IsArrayRefWithData($ProcessEntityIDs) ) {
+
+            # Add search term from input field.
+            push @{$ProcessEntityIDs}, $Value;
+
+            # Return search parameter structure.
+            return {
+                Parameter => {
+                    $Operator => $ProcessEntityIDs,
+                },
+                Display => $Value,
+            };
+        }
+
+    }
+
+    # Return search parameter structure.
+    return {
+        Parameter => {
+            $Operator => $Value,
+        },
+        Display => $Value,
+    };
+
+}
+
+sub StatsSearchFieldParameterBuild {
+    my ( $Self, %Param ) = @_;
+
+    my $Value = $Param{Value};
+
+    # set operator
+    my $Operator = 'Equals';
+
+    # search for a wild card in the value
+    if ( $Value && $Value =~ m{\*} ) {
+
+        # change operator
+        $Operator = 'Like';
+    }
+
+    if ( $Param{DynamicFieldConfig}->{Name} eq 'ProcessManagementProcessID' && $Value ) {
+
+        my $ProcessEntityIDs = $Kernel::OM->Get('Kernel::System::ProcessManagement::DB::Process')->ProcessSearch(
+            ProcessName => $Value,
+        );
+
+        if ( IsArrayRefWithData($ProcessEntityIDs) ) {
+
+            # Add search term from input field.
+            push @{$ProcessEntityIDs}, $Value;
+
+            # Return search parameter structure.
+            return {
+                $Operator => $ProcessEntityIDs,
+
+            };
+        }
+    }
+
+    return {
+        $Operator => $Value,
+    };
 }
 
 1;

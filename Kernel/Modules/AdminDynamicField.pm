@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -10,6 +10,7 @@ package Kernel::Modules::AdminDynamicField;
 
 use strict;
 use warnings;
+use utf8;
 
 our $ObjectManagerDisabled = 1;
 
@@ -126,10 +127,15 @@ sub _ShowOverview {
         );
     }
 
+    my $OTRSBusinessIsInstalled = $Kernel::OM->Get('Kernel::System::OTRSBusiness')->OTRSBusinessIsInstalled();
+
     # call all needed template blocks
     $LayoutObject->Block(
         Name => 'Main',
-        Data => \%Param,
+        Data => {
+            %Param,
+            OTRSBusinessIsInstalled => $OTRSBusinessIsInstalled,
+            }
     );
 
     my %FieldTypes;
@@ -181,9 +187,38 @@ sub _ShowOverview {
 
         my $SelectName = $ObjectType . 'DynamicField';
 
+        my @FieldList = map { { Key => $_, Value => $FieldTypes{$_} } } sort keys %FieldTypes;
+
+        for my $Field (@FieldList) {
+
+            if ( !$ConfigObject->Get("Frontend::Module")->{ $FieldDialogs{ $Field->{Key} } } ) {
+                $Field->{Disabled} = 1;
+            }
+        }
+
+        # Add disabled teaser options for OTRSBusiness dynamic fields.
+        if ( !$OTRSBusinessIsInstalled ) {
+            push @FieldList, {
+                Key      => 'Database',
+                Value    => $LayoutObject->{LanguageObject}->Translate( 'Database (%s)', 'OTRS Business Solution™' ),
+                Disabled => 1,
+            };
+            push @FieldList, {
+                Key   => 'Webservice',
+                Value => $LayoutObject->{LanguageObject}->Translate( 'Web service (%s)', 'OTRS Business Solution™' ),
+                Disabled => 1,
+            };
+            push @FieldList, {
+                Key => 'ContactWithData',
+                Value =>
+                    $LayoutObject->{LanguageObject}->Translate( 'Contact with data (%s)', 'OTRS Business Solution™' ),
+                Disabled => 1,
+            };
+        }
+
         # create the Add Dynamic Field select
         my $AddDynamicFieldStrg = $LayoutObject->BuildSelection(
-            Data          => \%FieldTypes,
+            Data          => \@FieldList,
             Name          => $SelectName,
             PossibleNone  => 1,
             Translation   => 1,
@@ -313,8 +348,6 @@ sub _DynamicFieldsListShow {
         );
     }
 
-    my $MaxFieldOrder = 0;
-
     # check if at least 1 dynamic field is registered in the system
     if ( $Param{Total} ) {
 
@@ -374,11 +407,6 @@ sub _DynamicFieldsListShow {
                         },
                     );
                 }
-
-                # set MaxFieldOrder
-                if ( int $DynamicFieldData->{FieldOrder} > int $MaxFieldOrder ) {
-                    $MaxFieldOrder = $DynamicFieldData->{FieldOrder}
-                }
             }
         }
     }
@@ -394,7 +422,7 @@ sub _DynamicFieldsListShow {
     $LayoutObject->Block(
         Name => 'MaxFieldOrder',
         Data => {
-            MaxFieldOrder => $MaxFieldOrder,
+            MaxFieldOrder => scalar @{ $Param{DynamicFields} },
         },
     );
 

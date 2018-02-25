@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -18,12 +18,13 @@ use Data::Dumper;
 use File::stat;
 use Unicode::Normalize;
 use List::Util qw();
-use Storable;
 use Fcntl qw(:flock);
+use String::ShellQuote qw(shell_quote);
 
 our @ObjectDependencies = (
     'Kernel::System::Encode',
     'Kernel::System::Log',
+    'Kernel::System::Storable',
 );
 
 =head1 NAME
@@ -282,17 +283,6 @@ sub FileRead {
 
     }
 
-    # check if file exists
-    if ( !-e $Param{Location} ) {
-        if ( !$Param{DisableWarnings} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "File '$Param{Location}' doesn't exist!"
-            );
-        }
-        return;
-    }
-
     # set open mode
     my $Mode = '<';
     if ( $Param{Mode} && $Param{Mode} =~ m{ \A utf-?8 \z }xmsi ) {
@@ -301,11 +291,23 @@ sub FileRead {
 
     # return if file can not open
     if ( !open $FH, $Mode, $Param{Location} ) {    ## no critic
+        my $Error = $!;
+
         if ( !$Param{DisableWarnings} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "Can't open '$Param{Location}': $!",
-            );
+
+            # Check if file exists only if system was not able to open it (to get better error message).
+            if ( !-e $Param{Location} ) {
+                $Kernel::OM->Get('Kernel::System::Log')->Log(
+                    Priority => 'error',
+                    Message  => "File '$Param{Location}' doesn't exist!",
+                );
+            }
+            else {
+                $Kernel::OM->Get('Kernel::System::Log')->Log(
+                    Priority => 'error',
+                    Message  => "Can't open '$Param{Location}': $Error",
+                );
+            }
         }
         return;
     }
@@ -508,25 +510,27 @@ sub FileDelete {
         );
     }
 
-    # check if file exists
-    if ( !-e $Param{Location} ) {
-        if ( !$Param{DisableWarnings} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "File '$Param{Location}' doesn't exist!"
-            );
-        }
-        return;
-    }
-
-    # delete file
+    # try to delete file
     if ( !unlink( $Param{Location} ) ) {
+        my $Error = $!;
+
         if ( !$Param{DisableWarnings} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "Can't delete '$Param{Location}': $!",
-            );
+
+            # Check if file exists only in case that delete failed.
+            if ( !-e $Param{Location} ) {
+                $Kernel::OM->Get('Kernel::System::Log')->Log(
+                    Priority => 'error',
+                    Message  => "File '$Param{Location}' doesn't exist!",
+                );
+            }
+            else {
+                $Kernel::OM->Get('Kernel::System::Log')->Log(
+                    Priority => 'error',
+                    Message  => "Can't delete '$Param{Location}': $Error",
+                );
+            }
         }
+
         return;
     }
 
@@ -572,25 +576,28 @@ sub FileGetMTime {
 
     }
 
-    # check if file exists
-    if ( !-e $Param{Location} ) {
-        if ( !$Param{DisableWarnings} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "File '$Param{Location}' doesn't exist!"
-            );
-        }
-        return;
-    }
-
     # get file metadata
     my $Stat = stat( $Param{Location} );
 
     if ( !$Stat ) {
-        $Kernel::OM->Get('Kernel::System::Log')->Log(
-            Priority => 'error',
-            Message  => "Cannot stat file '$Param{Location}': $!"
-        );
+        my $Error = $!;
+
+        if ( !$Param{DisableWarnings} ) {
+
+            # Check if file exists only if system was not able to open it (to get better error message).
+            if ( !-e $Param{Location} ) {
+                $Kernel::OM->Get('Kernel::System::Log')->Log(
+                    Priority => 'error',
+                    Message  => "File '$Param{Location}' doesn't exist!"
+                );
+            }
+            else {
+                $Kernel::OM->Get('Kernel::System::Log')->Log(
+                    Priority => 'error',
+                    Message  => "Cannot stat file '$Param{Location}': $Error",
+                );
+            }
+        }
         return;
     }
 
@@ -619,19 +626,10 @@ get an C<MD5> sum of a file or a string
 sub MD5sum {
     my ( $Self, %Param ) = @_;
 
-    if ( !$Param{Filename} && !$Param{String} ) {
+    if ( !$Param{Filename} && !defined( $Param{String} ) ) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
             Message  => 'Need Filename or String!',
-        );
-        return;
-    }
-
-    # check if file exists
-    if ( $Param{Filename} && !-e $Param{Filename} ) {
-        $Kernel::OM->Get('Kernel::System::Log')->Log(
-            Priority => 'error',
-            Message  => "File '$Param{Filename}' doesn't exist!",
         );
         return;
     }
@@ -642,10 +640,21 @@ sub MD5sum {
         # open file
         my $FH;
         if ( !open $FH, '<', $Param{Filename} ) {    ## no critic
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "Can't read '$Param{Filename}': $!",
-            );
+            my $Error = $!;
+
+            # Check if file exists only if system was not able to open it (to get better error message).
+            if ( !-e $Param{Filename} ) {
+                $Kernel::OM->Get('Kernel::System::Log')->Log(
+                    Priority => 'error',
+                    Message  => "File '$Param{Filename}' doesn't exist!",
+                );
+            }
+            else {
+                $Kernel::OM->Get('Kernel::System::Log')->Log(
+                    Priority => 'error',
+                    Message  => "Can't read '$Param{Filename}': $Error",
+                );
+            }
             return;
         }
 
@@ -742,7 +751,7 @@ sub Dump {
         # Clone the data because we need to disable the utf8 flag in all
         # reference variables and do not to want to do this in the orig.
         # variables because they will still used in the system.
-        my $DataNew = Storable::dclone( \$Data );
+        my $DataNew = $Kernel::OM->Get('Kernel::System::Storable')->Clone( Data => \$Data );
 
         # Disable utf8 flag.
         $Self->_Dump($DataNew);
@@ -925,28 +934,28 @@ defaults to a length of 16 and alphanumerics ( 0..9, A-Z and a-z).
 
     my $String = $MainObject->GenerateRandomString();
 
-    returns
+returns
 
     $String = 'mHLOx7psWjMe5Pj7';
 
-    with specific length:
+with specific length:
 
     my $String = $MainObject->GenerateRandomString(
         Length => 32,
     );
 
-    returns
+returns
 
     $String = 'azzHab72wIlAXDrxHexsI5aENsESxAO7';
 
-    with specific length and alphabet:
+with specific length and alphabet:
 
     my $String = $MainObject->GenerateRandomString(
         Length     => 32,
         Dictionary => [ 0..9, 'a'..'f' ], # hexadecimal
         );
 
-    returns
+returns
 
     $String = '9fec63d37078fe72f5798d2084fea8ad';
 
@@ -979,6 +988,39 @@ sub GenerateRandomString {
     }
 
     return $String;
+}
+
+=head2 ShellQuote()
+
+Quotes string so it can be passed through the shell. String is quoted so that the shell will pass it along as a single
+argument and without further interpretation. Quoting is done by an external library C<String::ShellQuote>.
+
+    my $QuotedString = $MainObject->ShellQuote(
+        "Safe string for 'shell arguments'."   # string to quote
+    );
+
+Returns quoted string, or undef if unsuccessful:
+
+    $QuotedString = <<'EOS';
+'Safe string for '\''shell arguments'\''.'
+EOS
+
+=cut
+
+sub ShellQuote {
+    my ( $Self, $Param ) = @_;
+
+    return if !$Param;
+
+    my $QuotedString;
+
+    # If any string can't be safely quoted shell_quote will croak. In this case, wrap whole call in an eval block
+    #   and return nothing if quoting failed.
+    eval {
+        $QuotedString = String::ShellQuote::shell_quote($Param);
+    };
+
+    return $QuotedString;
 }
 
 =begin Internal:

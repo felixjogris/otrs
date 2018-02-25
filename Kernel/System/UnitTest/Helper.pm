@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,6 +8,7 @@
 
 package Kernel::System::UnitTest::Helper;
 ## nofilter(TidyAll::Plugin::OTRS::Perl::Time)
+## nofilter(TidyAll::Plugin::OTRS::Migrations::OTRS6::TimeObject)
 ## nofilter(TidyAll::Plugin::OTRS::Migrations::OTRS6::DateTime)
 
 use strict;
@@ -29,7 +30,7 @@ our @ObjectDependencies = (
     'Kernel::System::Group',
     'Kernel::System::Log',
     'Kernel::System::Main',
-    'Kernel::System::UnitTest',
+    'Kernel::System::UnitTest::Driver',
     'Kernel::System::User',
     'Kernel::System::XML',
 );
@@ -69,7 +70,7 @@ sub new {
 
     $Self->{Debug} = $Param{Debug} || 0;
 
-    $Self->{UnitTestObject} = $Kernel::OM->Get('Kernel::System::UnitTest');
+    $Self->{UnitTestDriverObject} = $Kernel::OM->Get('Kernel::System::UnitTest::Driver');
 
     # Remove any leftover custom files from aborted previous runs.
     $Self->CustomFileCleanup();
@@ -81,10 +82,10 @@ sub new {
         $Self->{PERL_LWP_SSL_VERIFY_HOSTNAME} = $ENV{PERL_LWP_SSL_VERIFY_HOSTNAME};
 
         # set environment value to 0
-        $ENV{PERL_LWP_SSL_VERIFY_HOSTNAME} = 0;
+        $ENV{PERL_LWP_SSL_VERIFY_HOSTNAME} = 0;    ## no critic
 
         $Self->{RestoreSSLVerify} = 1;
-        $Self->{UnitTestObject}->True( 1, 'Skipping SSL certificates verification' );
+        $Self->{UnitTestDriverObject}->True( 1, 'Skipping SSL certificates verification' );
     }
 
     # switch article dir to a temporary one to avoid collisions
@@ -95,8 +96,12 @@ sub new {
     if ( $Param{RestoreDatabase} ) {
         $Self->{RestoreDatabase} = 1;
         my $StartedTransaction = $Self->BeginWork();
-        $Self->{UnitTestObject}->True( $StartedTransaction, 'Started database transaction.' );
+        $Self->{UnitTestDriverObject}->True( $StartedTransaction, 'Started database transaction.' );
 
+    }
+
+    if ( $Param{DisableAsyncCalls} ) {
+        $Self->DisableAsyncCalls();
     }
 
     return $Self;
@@ -147,7 +152,7 @@ sub GetRandomNumber {
 =head2 TestUserCreate()
 
 creates a test user that can be used in tests. It will
-be set to invalid automatically during the destructor. Returns
+be set to invalid automatically during L</DESTROY()>. Returns
 the login name of the new user, the password is the same.
 
     my $TestUserLogin = $Helper->TestUserCreate(
@@ -193,7 +198,7 @@ sub TestUserCreate {
     $Self->{TestUsers} ||= [];
     push( @{ $Self->{TestUsers} }, $TestUserID );
 
-    $Self->{UnitTestObject}->True( 1, "Created test user $TestUserID" );
+    $Self->{UnitTestDriverObject}->True( 1, "Created test user $TestUserID" );
 
     # Add user to groups
     GROUP_NAME:
@@ -219,7 +224,7 @@ sub TestUserCreate {
             UserID => 1,
         ) || die "Could not add test user $TestUserLogin to group $GroupName";
 
-        $Self->{UnitTestObject}->True( 1, "Added test user $TestUserLogin to group $GroupName" );
+        $Self->{UnitTestDriverObject}->True( 1, "Added test user $TestUserLogin to group $GroupName" );
     }
 
     # set user language
@@ -229,7 +234,7 @@ sub TestUserCreate {
         Key    => 'UserLanguage',
         Value  => $UserLanguage,
     );
-    $Self->{UnitTestObject}->True( 1, "Set user UserLanguage to $UserLanguage" );
+    $Self->{UnitTestDriverObject}->True( 1, "Set user UserLanguage to $UserLanguage" );
 
     return $TestUserLogin;
 }
@@ -237,7 +242,7 @@ sub TestUserCreate {
 =head2 TestCustomerUserCreate()
 
 creates a test customer user that can be used in tests. It will
-be set to invalid automatically during the destructor. Returns
+be set to invalid automatically during L</DESTROY()>. Returns
 the login name of the new customer user, the password is the same.
 
     my $TestUserLogin = $Helper->TestCustomerUserCreate(
@@ -282,7 +287,7 @@ sub TestCustomerUserCreate {
     $Self->{TestCustomerUsers} ||= [];
     push( @{ $Self->{TestCustomerUsers} }, $TestUser );
 
-    $Self->{UnitTestObject}->True( 1, "Created test customer user $TestUser" );
+    $Self->{UnitTestDriverObject}->True( 1, "Created test customer user $TestUser" );
 
     # set customer user language
     my $UserLanguage = $Param{Language} || 'en';
@@ -291,7 +296,7 @@ sub TestCustomerUserCreate {
         Key    => 'UserLanguage',
         Value  => $UserLanguage,
     );
-    $Self->{UnitTestObject}->True( 1, "Set customer user UserLanguage to $UserLanguage" );
+    $Self->{UnitTestDriverObject}->True( 1, "Set customer user UserLanguage to $UserLanguage" );
 
     return $TestUser;
 }
@@ -332,7 +337,7 @@ sub Rollback {
 
 =head2 GetTestHTTPHostname()
 
-returns a hostname for HTTP based tests, possibly including the port.
+returns a host name for HTTP based tests, possibly including the port.
 
 =cut
 
@@ -396,6 +401,7 @@ sub FixedTimeSet {
     #   to get a hold of the overrides.
     my @Objects = (
         'Kernel::System::Time',
+        'Kernel::System::DB',
         'Kernel::System::Cache::FileStorable',
         'Kernel::System::PID',
     );
@@ -405,7 +411,7 @@ sub FixedTimeSet {
         $FilePath =~ s{::}{/}xmsg;
         $FilePath .= '.pm';
         if ( $INC{$FilePath} ) {
-            no warnings 'redefine';
+            no warnings 'redefine';    ## no critic
             delete $INC{$FilePath};
             $Kernel::OM->Get('Kernel::System::Main')->Require($Object);
         }
@@ -416,7 +422,7 @@ sub FixedTimeSet {
 
 =head2 FixedTimeUnset()
 
-restores the regular system time behaviour.
+restores the regular system time behavior.
 
 =cut
 
@@ -444,7 +450,7 @@ sub FixedTimeAddSeconds {
 
 # See http://perldoc.perl.org/5.10.0/perlsub.html#Overriding-Built-in-Functions
 BEGIN {
-    no warnings 'redefine';
+    no warnings 'redefine';    ## no critic
     *CORE::GLOBAL::time = sub {
         return defined $FixedTime ? $FixedTime : CORE::time();
     };
@@ -478,6 +484,12 @@ BEGIN {
     };
 }
 
+=head2 DESTROY()
+
+performs various clean-ups.
+
+=cut
+
 sub DESTROY {
     my $Self = shift;
 
@@ -485,6 +497,13 @@ sub DESTROY {
     FixedTimeUnset();
 
     # FixedDateTimeObjectUnset();
+
+    if ( $Self->{DestroyLog} ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "Helper is destroyed!"
+        );
+    }
 
     # Cleanup temporary database if it was set up.
     $Self->TestDatabaseCleanup() if $Self->{ProvideTestDatabase};
@@ -495,18 +514,19 @@ sub DESTROY {
     # restore environment variable to skip SSL certificate verification if needed
     if ( $Self->{RestoreSSLVerify} ) {
 
-        $ENV{PERL_LWP_SSL_VERIFY_HOSTNAME} = $Self->{PERL_LWP_SSL_VERIFY_HOSTNAME};
+        $ENV{PERL_LWP_SSL_VERIFY_HOSTNAME} = $Self->{PERL_LWP_SSL_VERIFY_HOSTNAME};    ## no critic
 
         $Self->{RestoreSSLVerify} = 0;
 
-        $Self->{UnitTestObject}->True( 1, 'Restored SSL certificates verification' );
+        $Self->{UnitTestDriverObject}->True( 1, 'Restored SSL certificates verification' );
     }
 
     # restore database, clean caches
     if ( $Self->{RestoreDatabase} ) {
         my $RollbackSuccess = $Self->Rollback();
         $Kernel::OM->Get('Kernel::System::Cache')->CleanUp();
-        $Self->{UnitTestObject}->True( $RollbackSuccess, 'Rolled back all database changes and cleaned up the cache.' );
+        $Self->{UnitTestDriverObject}
+            ->True( $RollbackSuccess, 'Rolled back all database changes and cleaned up the cache.' );
     }
 
     # disable email checks to create new user
@@ -542,7 +562,7 @@ sub DESTROY {
                 ChangeUserID => 1,
             );
 
-            $Self->{UnitTestObject}->True( $Success, "Set test user $TestUser to invalid" );
+            $Self->{UnitTestDriverObject}->True( $Success, "Set test user $TestUser to invalid" );
         }
     }
 
@@ -570,11 +590,13 @@ sub DESTROY {
                 UserID  => 1,
             );
 
-            $Self->{UnitTestObject}->True(
+            $Self->{UnitTestDriverObject}->True(
                 $Success, "Set test customer user $TestCustomerUser to invalid"
             );
         }
     }
+
+    return;
 }
 
 =head2 ConfigSettingChange()
@@ -663,6 +685,7 @@ Please note that this will not work correctly in clustered environments.
 
     $Helper->CustomCodeActivate(
         Code => q^
+sub Kernel::Config::Files::ZZZZUnitTestIdentifier::Load {} # no-op, avoid warning logs
 use Kernel::System::WebUserAgent;
 package Kernel::System::WebUserAgent;
 use strict;
@@ -749,7 +772,7 @@ sub UseTmpArticleDir {
 
     $Self->ConfigSettingChange(
         Valid => 1,
-        Key   => 'ArticleDir',
+        Key   => 'Ticket::Article::Backend::MIMEBase::ArticleDataDir',
         Value => $TmpArticleDir,
     );
 
@@ -758,10 +781,27 @@ sub UseTmpArticleDir {
     return 1;
 }
 
+=head2 DisableAsyncCalls()
+
+Disable scheduling of asynchronous tasks using C<AsynchronousExecutor> component of OTRS daemon.
+
+=cut
+
+sub DisableAsyncCalls {
+    my ( $Self, %Param ) = @_;
+
+    $Self->ConfigSettingChange(
+        Valid => 1,
+        Key   => 'DisableAsyncCalls',
+        Value => 1,
+    );
+
+    return 1;
+}
+
 =head2 ProvideTestDatabase()
 
-Provide temporary database for the test. Please first define test database settings in C<Config.pm>,
-i.e:
+Provide temporary database for the test. Please first define test database settings in C<Config.pm>, i.e:
 
     $Self->{TestDatabase} = {
         DatabaseDSN  => 'DBI:mysql:database=otrs_test;host=127.0.0.1;',
@@ -769,8 +809,8 @@ i.e:
         DatabasePw   => 'otrs_test',
     };
 
-The method call will override global database configuration for duration of the test, i.e. temporary
-database will receive all calls sent over system C<DBObject>.
+The method call will override global database configuration for duration of the test, i.e. temporary database will
+receive all calls sent over system C<DBObject>.
 
 All database contents will be automatically dropped when the Helper object is destroyed.
 
@@ -782,6 +822,8 @@ All database contents will be automatically dropped when the Helper object is de
             '/opt/otrs/scripts/database/otrs-initial_insert.xml',
         ],
     );
+
+This method returns 'undef' in case the test database is not configured. If it is configured, but the supplied XML cannot be read or executed, this method will C<die()> to interrupt the test with an error.
 
 =cut
 
@@ -808,7 +850,7 @@ sub ProvideTestDatabase {
 
         # Override database connection settings in memory.
         $ConfigObject->Set(
-            Key   => $Key,
+            Key   => "Test$Key",
             Value => $TestDatabase->{$Key},
         );
 
@@ -831,9 +873,9 @@ no warnings 'redefine';
 use utf8;
 sub Load {
     my (\$File, \$Self) = \@_;
-    \$Self->{DatabaseDSN}  = '$EscapedSettings{DatabaseDSN}';
-    \$Self->{DatabaseUser} = '$EscapedSettings{DatabaseUser}';
-    \$Self->{DatabasePw}   = '$EscapedSettings{DatabasePw}';
+    \$Self->{TestDatabaseDSN}  = '$EscapedSettings{DatabaseDSN}';
+    \$Self->{TestDatabaseUser} = '$EscapedSettings{DatabaseUser}';
+    \$Self->{TestDatabasePw}   = '$EscapedSettings{DatabasePw}';
 }
 1;^,
         Identifier => $Identifier,
@@ -854,7 +896,7 @@ sub Load {
             Priority => 'error',
             Message  => 'Error clearing temporary database!',
         );
-        return;
+        die 'Error clearing temporary database!';
     }
 
     # Load supplied XML files.
@@ -877,7 +919,7 @@ sub Load {
                     Priority => 'error',
                     Message  => "Could not load '$XMLFile'!",
                 );
-                return;
+                die "Could not load '$XMLFile'!";
             }
 
             # Concatenate the file contents, but make sure to remove duplicated XML tags first.
@@ -906,7 +948,7 @@ sub Load {
                 Priority => 'error',
                 Message  => 'Error executing supplied XML!',
             );
-            return;
+            die 'Error executing supplied XML!';
         }
     }
 
@@ -978,11 +1020,17 @@ sub TestDatabaseCleanup {
 
 =head2 DatabaseXMLExecute()
 
-Execute supplied XML against current database. Content of supplied XML parameter must be valid OTRS
+Execute supplied XML against current database. Content of supplied XML or XMLFilename parameter must be valid OTRS
 database XML schema.
 
     $Helper->DatabaseXMLExecute(
-        XML => $XML,     # (required) OTRS database XML schema to execute
+        XML => $XML,     # OTRS database XML schema to execute
+    );
+
+Alternatively, it can also load an XML file to execute:
+
+    $Helper->DatabaseXMLExecute(
+        XMLFile => '/path/to/file',  # OTRS database XML file to execute
     );
 
 =cut
@@ -990,21 +1038,38 @@ database XML schema.
 sub DatabaseXMLExecute {
     my ( $Self, %Param ) = @_;
 
-    if ( !$Param{XML} ) {
+    if ( !$Param{XML} && !$Param{XMLFile} ) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => 'Need XML!',
+            Message  => 'Need XML or XMLFile!',
         );
         return;
     }
 
-    my @XMLArray = $Kernel::OM->Get('Kernel::System::XML')->XMLParse( String => $Param{XML} );
+    my $XML = $Param{XML};
+
+    if ( !$XML ) {
+
+        $XML = $Kernel::OM->Get('Kernel::System::Main')->FileRead(
+            Location => $Param{XMLFile},
+        );
+        if ( !$XML ) {
+            $Kernel::OM->Get('Kernel::System::Log')->Log(
+                Priority => 'error',
+                Message  => "Could not load '$Param{XMLFile}'!",
+            );
+            die "Could not load '$Param{XMLFile}'!";
+        }
+        $XML = ${$XML};
+    }
+
+    my @XMLArray = $Kernel::OM->Get('Kernel::System::XML')->XMLParse( String => $XML );
     if ( !@XMLArray ) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
             Message  => 'Could not parse XML!',
         );
-        return;
+        die 'Could not parse XML!';
     }
 
     my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
@@ -1017,7 +1082,7 @@ sub DatabaseXMLExecute {
             Priority => 'error',
             Message  => 'Could not generate SQL!',
         );
-        return;
+        die 'Could not generate SQL!';
     }
 
     my @SQLPost = $DBObject->SQLProcessorPost();
@@ -1029,7 +1094,7 @@ sub DatabaseXMLExecute {
                 Priority => 'error',
                 Message  => 'Database action failed: ' . $DBObject->Error(),
             );
-            return;
+            die 'Database action failed: ' . $DBObject->Error();
         }
     }
 

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -23,5 +23,5 @@
     <div class="Clear Spacing"></div>
 </div>
 <div class="ContentFooter Center">
-    <button id="DaemonFormCancel" class="Primary CallForAction" value="Close"><span><i class="fa fa-times"></i>[% Translate("Close dialog") | html %]</span></button>
+    <button id="DaemonFormCancel" class="Primary CallForAction" value="Close"><span><i class="fa fa-times"></i>[% Translate("Close this dialog") | html %]</span></button>
 </div>

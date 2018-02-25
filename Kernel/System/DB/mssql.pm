@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,9 +13,9 @@ use warnings;
 
 our @ObjectDependencies = (
     'Kernel::Config',
+    'Kernel::System::DateTime',
     'Kernel::System::Log',
     'Kernel::System::Main',
-    'Kernel::System::Time',
 );
 
 sub new {
@@ -733,8 +733,8 @@ sub Insert {
     my ( $Self, @Param ) = @_;
 
     # get needed objects
-    my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-    my $TimeObject   = $Kernel::OM->Get('Kernel::System::Time');
+    my $ConfigObject   = $Kernel::OM->Get('Kernel::Config');
+    my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
 
     my $SQL    = '';
     my @Keys   = ();
@@ -801,7 +801,7 @@ sub Insert {
                 $Value .= $Tmp;
             }
             else {
-                my $Timestamp = $TimeObject->CurrentTimestamp();
+                my $Timestamp = $DateTimeObject->ToString();
                 $Value .= '\'' . $Timestamp . '\'';
             }
         }

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,7 +11,7 @@ package Kernel::System::DynamicField;
 use strict;
 use warnings;
 
-use base qw(Kernel::System::EventHandler);
+use parent qw(Kernel::System::EventHandler);
 
 use Kernel::System::VariableCheck qw(:all);
 
@@ -134,7 +134,7 @@ sub DynamicFieldAdd {
     if ($NameExists) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => "The name $Param{Name} already exists for a dynamic field!"
+            Message  => "A dynamic field with the name '$Param{Name}' already exists.",
         );
         return;
     }
@@ -416,7 +416,7 @@ sub DynamicFieldUpdate {
     if ($NameExists) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => "The name $Param{Name} already exists for a dynamic field!",
+            Message  => "A dynamic field with the name '$Param{Name}' already exists.",
         );
         return;
     }

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,11 +13,9 @@ use utf8;
 
 use vars (qw($Self));
 
-# get config object
 my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
-# get helper object
-# skip SSL certificate verification
+# Skip SSL certificate verification.
 $Kernel::OM->ObjectParamAdd(
     'Kernel::System::UnitTest::Helper' => {
         SkipSSLVerify => 1,
@@ -25,12 +23,12 @@ $Kernel::OM->ObjectParamAdd(
 );
 my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
-# add web service to be used (empty config)
+# Add web service to be used (empty config).
 my $WebserviceObject = $Kernel::OM->Get('Kernel::System::GenericInterface::Webservice');
 $Self->Is(
     'Kernel::System::GenericInterface::Webservice',
     ref $WebserviceObject,
-    "Create web service object",
+    'Create web service object'
 );
 my $WebserviceName = 'REST' . $Helper->GetRandomID();
 my $WebserviceID   = $WebserviceObject->WebserviceAdd(
@@ -50,13 +48,13 @@ my $WebserviceID   = $WebserviceObject->WebserviceAdd(
 );
 $Self->True(
     $WebserviceID,
-    "Added Web service",
+    'Added Web service'
 );
 
-# get remote host with some precautions for certain unit test systems
+# Get remote host with some precautions for certain unit test systems.
 my $Host = $Helper->GetTestHTTPHostname();
 
-# prepare web service config
+# Prepare web service config.
 my $BaseURL =
     $ConfigObject->Get('HttpType')
     . '://'
@@ -114,6 +112,7 @@ my @Tests = (
                     Config => {
                         DefaultCommand           => 'POST',
                         Host                     => $BaseURL,
+                        Timeout                  => 120,
                         InvokerControllerMapping => {
                             TestSimple => {
                                 Controller => '/Test',
@@ -176,6 +175,7 @@ my @Tests = (
                     Config => {
                         DefaultCommand           => 'POST',
                         Host                     => $BaseURL,
+                        Timeout                  => 120,
                         InvokerControllerMapping => {
                             TestSimple => {
                                 Controller => '/Test',
@@ -238,6 +238,7 @@ my @Tests = (
                     Config => {
                         DefaultCommand           => 'POST',
                         Host                     => $BaseURL,
+                        Timeout                  => 120,
                         InvokerControllerMapping => {
                             TestSimple => {
                                 Controller => '/Test',
@@ -300,6 +301,7 @@ my @Tests = (
                     Config => {
                         DefaultCommand           => 'POST',
                         Host                     => $BaseURL,
+                        Timeout                  => 120,
                         InvokerControllerMapping => {
                             TestSimple => {
                                 Controller => '/Wrong',
@@ -362,6 +364,7 @@ my @Tests = (
                     Config => {
                         DefaultCommand           => 'POST',
                         Host                     => $BaseURL,
+                        Timeout                  => 120,
                         InvokerControllerMapping => {
                             TestSimple => {
                                 Controller => '/Test/',
@@ -424,6 +427,7 @@ my @Tests = (
                     Config => {
                         DefaultCommand           => 'GET',
                         Host                     => $BaseURL,
+                        Timeout                  => 120,
                         InvokerControllerMapping => {
                             TestSimple => {
                                 Controller => '/Test',
@@ -495,6 +499,7 @@ my @Tests = (
                     Config => {
                         DefaultCommand           => 'POST',
                         Host                     => $BaseURL,
+                        Timeout                  => 120,
                         InvokerControllerMapping => {
                             TestSimple => {
                                 Controller => '/Test',
@@ -560,6 +565,7 @@ my @Tests = (
                     Config => {
                         DefaultCommand           => 'GET',
                         Host                     => $BaseURL,
+                        Timeout                  => 120,
                         InvokerControllerMapping => {
                             TestSimple => {
                                 Controller => '/Test',
@@ -631,6 +637,7 @@ my @Tests = (
                     Config => {
                         DefaultCommand           => 'POST',
                         Host                     => $BaseURL,
+                        Timeout                  => 120,
                         InvokerControllerMapping => {
                             TestSimple => {
                                 Controller => '/Test/:Other',
@@ -702,6 +709,7 @@ my @Tests = (
                     Config => {
                         DefaultCommand           => 'POST',
                         Host                     => $BaseURL,
+                        Timeout                  => 120,
                         InvokerControllerMapping => {
                             TestSimple => {
                                 Controller => '/Test/:Other/:Other1',
@@ -773,6 +781,7 @@ my @Tests = (
                     Config => {
                         DefaultCommand           => 'POST',
                         Host                     => $BaseURL,
+                        Timeout                  => 120,
                         InvokerControllerMapping => {
                             TestSimple => {
                                 Controller => '/Test/:Other1/:Other2?Query3=:Other3&Query4=:Other4',
@@ -838,6 +847,7 @@ my @Tests = (
                     Config => {
                         DefaultCommand           => 'GET',
                         Host                     => $BaseURL,
+                        Timeout                  => 120,
                         InvokerControllerMapping => {
                             TestSimple => {
                                 Controller => '/Test/:Other1/?Query4=:Other4',
@@ -897,6 +907,7 @@ my @Tests = (
                     Config => {
                         DefaultCommand           => 'GET',
                         Host                     => $BaseURL,
+                        Timeout                  => 120,
                         InvokerControllerMapping => {
                             TestSimple => {
                                 Controller => '/Test',
@@ -954,6 +965,7 @@ my @Tests = (
                     Config => {
                         DefaultCommand           => 'POST',
                         Host                     => $BaseURL,
+                        Timeout                  => 120,
                         InvokerControllerMapping => {
                             TestSimple => {
                                 Controller => '/Test',
@@ -1013,6 +1025,7 @@ my @Tests = (
                     Config => {
                         DefaultCommand           => 'POST',
                         Host                     => $BaseURL,
+                        Timeout                  => 120,
                         InvokerControllerMapping => {
                             TestSimple => {
                                 Controller => '/Test?Other1=:Other1',
@@ -1071,6 +1084,7 @@ my @Tests = (
                     Config => {
                         DefaultCommand           => 'GET',
                         Host                     => $BaseURL,
+                        Timeout                  => 120,
                         InvokerControllerMapping => {
                             TestSimple => {
                                 Controller => '/Test/ÄÖÜß€äöü',
@@ -1129,6 +1143,7 @@ my @Tests = (
                     Config => {
                         DefaultCommand           => 'POST',
                         Host                     => $BaseURL,
+                        Timeout                  => 120,
                         InvokerControllerMapping => {
                             TestSimple => {
                                 Controller => '/Test/ÄÖÜß€äöü',
@@ -1146,18 +1161,18 @@ my @Tests = (
     },
 );
 
-# create requester object
+# Create requester object.
 my $RequesterObject = $Kernel::OM->Get('Kernel::GenericInterface::Requester');
 $Self->Is(
     'Kernel::GenericInterface::Requester',
     ref $RequesterObject,
-    "Create requester object",
+    'Create requester object'
 );
 
 TEST:
 for my $Test (@Tests) {
 
-    # update web service with real config
+    # Update web service with real config.
     my $WebserviceUpdate = $WebserviceObject->WebserviceUpdate(
         ID      => $WebserviceID,
         Name    => $WebserviceName,
@@ -1167,7 +1182,7 @@ for my $Test (@Tests) {
     );
     $Self->True(
         $WebserviceUpdate,
-        "$Test->{Name} - Updated Web service $WebserviceID",
+        "$Test->{Name} - Updated Web service $WebserviceID"
     );
 
     # start requester with our web service
@@ -1181,7 +1196,7 @@ for my $Test (@Tests) {
     $Self->Is(
         'HASH',
         ref $RequesterResult,
-        "$Test->{Name} - Requester result structure is valid",
+        "$Test->{Name} - Requester result structure is valid"
     );
 
     if ( !$Test->{Success} ) {
@@ -1189,14 +1204,14 @@ for my $Test (@Tests) {
         # check result
         $Self->False(
             $RequesterResult->{Success},
-            "$Test->{Name} - Requester unsuccessful result",
+            "$Test->{Name} - Requester unsuccessful result"
         );
 
         if ( $Test->{ExpectedReturnData} ) {
             $Self->IsNot(
                 $RequesterResult->{Message},
                 $Test->{ExpectedReturnData},
-                "$Test->{Name} - Requester unsuccessful status (needs configured and running web server)",
+                "$Test->{Name} - Requester unsuccessful status (needs configured and running web server)"
             );
         }
 
@@ -1205,7 +1220,7 @@ for my $Test (@Tests) {
 
     $Self->True(
         $RequesterResult->{Success},
-        "$Test->{Name} - Requester successful result",
+        "$Test->{Name} - Requester successful result"
     );
 
     delete $RequesterResult->{Data}->{RequestMethod};
@@ -1213,11 +1228,11 @@ for my $Test (@Tests) {
     $Self->IsDeeply(
         $RequesterResult->{Data},
         $Test->{ExpectedReturnData},
-        "$Test->{Name} - Requester success status (needs configured and running web server)",
+        "$Test->{Name} - Requester success status (needs configured and running web server)"
     );
 }
 
-# check direct requests
+# Check direct requests.
 @Tests = (
     {
         Name        => 'Correct Direct Request GET Special Chars',
@@ -1267,13 +1282,13 @@ for my $Test (@Tests) {
     },
 );
 
-# Get JSON object;
+# Get JSON object.
 my $JSONObject = $Kernel::OM->Get('Kernel::System::JSON');
 
 TEST:
 for my $Test (@Tests) {
 
-    # update web service with real config
+    # Update web service with real config.
     my $WebserviceUpdate = $WebserviceObject->WebserviceUpdate(
         ID      => $WebserviceID,
         Name    => $WebserviceName,
@@ -1283,7 +1298,7 @@ for my $Test (@Tests) {
     );
     $Self->True(
         $WebserviceUpdate,
-        "$Test->{Name} - Updated Web service $WebserviceID",
+        "$Test->{Name} - Updated Web service $WebserviceID"
     );
 
     my $RequestParams;
@@ -1291,7 +1306,7 @@ for my $Test (@Tests) {
         $RequestParams .= "$DataKey=$Test->{RequestData}->{$DataKey}&";
     }
 
-    # perform request
+    # Perform request.
     my %Response = $Kernel::OM->Get('Kernel::System::WebUserAgent')->Request(
         Type => 'GET',
         URL  => $BaseURL
@@ -1303,11 +1318,11 @@ for my $Test (@Tests) {
 
     if ( !$Test->{Success} ) {
 
-        # check result
+        # Check result.
         $Self->IsNot(
             $Response{Status},
             '200 OK',
-            "$Test->{Name} - Response unsuccessful result",
+            "$Test->{Name} - Response unsuccessful result"
         );
 
         next TEST;
@@ -1316,7 +1331,7 @@ for my $Test (@Tests) {
     $Self->Is(
         $Response{Status},
         '200 OK',
-        "$Test->{Name} - Response successful result",
+        "$Test->{Name} - Response successful result"
     );
 
     my $ReturnData = $JSONObject->Decode(
@@ -1328,18 +1343,100 @@ for my $Test (@Tests) {
     $Self->IsDeeply(
         $ReturnData,
         $Test->{ExpectedReturnData},
-        "$Test->{Name} - Response data (needs configured and running web server)",
+        "$Test->{Name} - Response data (needs configured and running web server)"
     );
 }
 
-# cleanup web service
+# Check headers.
+@Tests = (
+    {
+        Name   => 'Standard response header',
+        Config => {},
+        Header => {
+            'Content-Type' => 'application/json; charset=UTF-8',
+        },
+    },
+    {
+        Name   => 'Additional response headers',
+        Config => {
+            AdditionalHeaders => {
+                Key1 => 'Value1',
+                Key2 => 'Value2',
+            },
+        },
+        Header => {
+            'Content-Type' => 'application/json; charset=UTF-8',
+            Key1           => 'Value1',
+            Key2           => 'Value2',
+        },
+    },
+);
+
+# Create debugger object.
+my $DebuggerObject = Kernel::GenericInterface::Debugger->new(
+    DebuggerConfig => {
+        DebugThreshold => 'debug',
+        TestMode       => 1,
+    },
+    CommunicationType => 'Provider',
+    WebserviceID      => $WebserviceID,
+);
+
+for my $Test (@Tests) {
+
+    # Create REST transport object with test configuration.
+    my $TransportObject = Kernel::GenericInterface::Transport->new(
+        DebuggerObject  => $DebuggerObject,
+        TransportConfig => {
+            Type   => 'HTTP::REST',
+            Config => $Test->{Config},
+        },
+    );
+    $Self->Is(
+        ref $TransportObject,
+        'Kernel::GenericInterface::Transport',
+        "$Test->{Name} - TransportObject instantiated with REST backend"
+    );
+
+    my $Response = '';
+    my $Result;
+    {
+
+        # Redirect STDOUT from string so that the transport layer will write there.
+        local *STDOUT;
+        open STDOUT, '>:utf8', \$Response;    ## no critic
+
+        # Discard request object to prevent errors.
+        $Kernel::OM->ObjectsDiscard( Objects => ['Kernel::System::Web::Request'] );
+
+        # Create response.
+        $Result = $TransportObject->ProviderGenerateResponse(
+            Success => 1,
+            Data    => {},
+        );
+    }
+    $Self->True(
+        $Result,
+        "$Test->{Name} - Response created"
+    );
+
+    # Analyze headers.
+    for my $Key ( sort keys %{ $Test->{Header} } ) {
+        $Self->True(
+            index( $Response, "$Key: $Test->{Header}->{$Key}\r\n" ) != -1,
+            "$Test->{Name} - Found header '$Key' with value '$Test->{Header}->{$Key}'"
+        );
+    }
+}
+
+# Cleanup test web service.
 my $WebserviceDelete = $WebserviceObject->WebserviceDelete(
     ID     => $WebserviceID,
     UserID => 1,
 );
 $Self->True(
     $WebserviceDelete,
-    "Deleted Web service $WebserviceID",
+    "Deleted Web service $WebserviceID"
 );
 
 1;

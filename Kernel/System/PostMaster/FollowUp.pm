@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -18,7 +18,7 @@ our @ObjectDependencies = (
     'Kernel::System::Log',
     'Kernel::System::Ticket',
     'Kernel::System::Ticket::Article',
-    'Kernel::System::Time',
+    'Kernel::System::DateTime',
     'Kernel::System::User',
 );
 
@@ -32,7 +32,8 @@ sub new {
     # get parser object
     $Self->{ParserObject} = $Param{ParserObject} || die "Got no ParserObject!";
 
-    $Self->{Debug} = $Param{Debug} || 0;
+    # Get communication log object.
+    $Self->{CommunicationLogObject} = $Param{CommunicationLogObject} || die "Got no CommunicationLogObject!";
 
     return $Self;
 }
@@ -43,9 +44,11 @@ sub Run {
     # check needed stuff
     for (qw(TicketID InmailUserID GetParam Tn AutoResponseType)) {
         if ( !$Param{$_} ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "Need $_!"
+            $Self->{CommunicationLogObject}->ObjectLog(
+                ObjectLogType => 'Message',
+                Priority      => 'Error',
+                Key           => 'Kernel::System::PostMaster::FollowUp',
+                Value         => "Need $_!",
             );
             return;
         }
@@ -108,14 +111,18 @@ sub Run {
 
     # 1) check user, out of office, unlock ticket
     if ( $UserInfo{OutOfOfficeMessage} ) {
+
         $TicketObject->TicketLockSet(
             TicketID => $Param{TicketID},
             Lock     => 'unlock',
             UserID   => $Param{InmailUserID},
         );
-        $Kernel::OM->Get('Kernel::System::Log')->Log(
-            Priority => 'notice',
-            Message  => "Ticket [$Param{Tn}] unlocked, current owner is out of office!",
+
+        $Self->{CommunicationLogObject}->ObjectLog(
+            ObjectLogType => 'Message',
+            Priority      => 'Notice',
+            Key           => 'Kernel::System::PostMaster::FollowUp',
+            Value         => "Ticket [$Param{Tn}] unlocked, current owner is out of office!",
         );
     }
 
@@ -124,31 +131,36 @@ sub Run {
 
         # set lock (if ticket should be locked on follow up)
         if ( $Lock && $Ticket{StateType} =~ /^close/i ) {
+
             $TicketObject->TicketLockSet(
                 TicketID => $Param{TicketID},
                 Lock     => 'lock',
                 UserID   => $Param{InmailUserID},
             );
-            if ( $Self->{Debug} > 0 ) {
-                print "Lock: lock\n";
-                $Kernel::OM->Get('Kernel::System::Log')->Log(
-                    Priority => 'notice',
-                    Message  => "Ticket [$Param{Tn}] still locked",
-                );
-            }
+
+            $Self->{CommunicationLogObject}->ObjectLog(
+                ObjectLogType => 'Message',
+                Priority      => 'Notice',
+                Key           => 'Kernel::System::PostMaster::FollowUp',
+                Value         => "Ticket [$Param{Tn}] still locked.",
+            );
         }
     }
 
     # 3) Unlock ticket, because current user is set to invalid
     else {
+
         $TicketObject->TicketLockSet(
             TicketID => $Param{TicketID},
             Lock     => 'unlock',
             UserID   => $Param{InmailUserID},
         );
-        $Kernel::OM->Get('Kernel::System::Log')->Log(
-            Priority => 'notice',
-            Message  => "Ticket [$Param{Tn}] unlocked, current owner is invalid!",
+
+        $Self->{CommunicationLogObject}->ObjectLog(
+            ObjectLogType => 'Message',
+            Priority      => 'Notice',
+            Key           => 'Kernel::System::PostMaster::FollowUp',
+            Value         => "Ticket [$Param{Tn}] unlocked, current owner is invalid!",
         );
     }
 
@@ -168,15 +180,24 @@ sub Run {
         $State = $GetParam{'X-OTRS-FollowUp-State'};
     }
 
-    if ( $Ticket{StateType} !~ /^new/ || $GetParam{'X-OTRS-FollowUp-State'} ) {
+    my $KeepStateHeader = $ConfigObject->Get('KeepStateHeader') || 'X-OTRS-FollowUp-State-Keep';
+    if (
+        ( $Ticket{StateType} !~ /^new/ || $GetParam{'X-OTRS-FollowUp-State'} )
+        && !$GetParam{$KeepStateHeader}
+        )
+    {
         $TicketObject->TicketStateSet(
             State => $GetParam{'X-OTRS-FollowUp-State'} || $State,
             TicketID => $Param{TicketID},
             UserID   => $Param{InmailUserID},
         );
-        if ( $Self->{Debug} > 0 ) {
-            print "State: $State\n";
-        }
+
+        $Self->{CommunicationLogObject}->ObjectLog(
+            ObjectLogType => 'Message',
+            Priority      => 'Debug',
+            Key           => 'Kernel::System::PostMaster::FollowUp',
+            Value         => "Ticket state will be left unchanged! State: $State.",
+        );
     }
 
     # set pending time
@@ -206,12 +227,10 @@ sub Run {
 
             $Seconds = $Seconds * $UnitMultiplier{$Unit};
 
-            # get time object
-            my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
-
-            $TargetTimeStamp = $TimeObject->SystemTime2TimeStamp(
-                SystemTime => $TimeObject->SystemTime() + $Seconds,
-            );
+            # get datetime object
+            my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+            $DateTimeObject->Add( Seconds => $Seconds );
+            $TargetTimeStamp = $DateTimeObject->ToString();
         }
 
         my $Updated = $TicketObject->TicketPendingTimeSet(
@@ -222,82 +241,122 @@ sub Run {
 
         # debug
         if ($Updated) {
-            if ( $Self->{Debug} > 0 ) {
-                print "State-PendingTime: $GetParam{'X-OTRS-FollowUp-State-PendingTime'}\n";
-            }
+            $Self->{CommunicationLogObject}->ObjectLog(
+                ObjectLogType => 'Message',
+                Priority      => 'Debug',
+                Key           => 'Kernel::System::PostMaster::FollowUp',
+                Value =>
+                    "Pending time update via 'X-OTRS-FollowUp-State-PendingTime'! State-PendingTime: $GetParam{'X-OTRS-FollowUp-State-PendingTime'}.",
+            );
         }
     }
 
     # set priority
     if ( $GetParam{'X-OTRS-FollowUp-Priority'} ) {
+
         $TicketObject->TicketPrioritySet(
             TicketID => $Param{TicketID},
             Priority => $GetParam{'X-OTRS-FollowUp-Priority'},
             UserID   => $Param{InmailUserID},
         );
-        if ( $Self->{Debug} > 0 ) {
-            print "PriorityUpdate: $GetParam{'X-OTRS-FollowUp-Priority'}\n";
-        }
+
+        $Self->{CommunicationLogObject}->ObjectLog(
+            ObjectLogType => 'Message',
+            Priority      => 'Debug',
+            Key           => 'Kernel::System::PostMaster::FollowUp',
+            Value =>
+                "Priority update via 'X-OTRS-FollowUp-Priority'! Priority: $GetParam{'X-OTRS-FollowUp-Priority'}.",
+        );
     }
 
     # set queue
     if ( $GetParam{'X-OTRS-FollowUp-Queue'} ) {
+
         $TicketObject->TicketQueueSet(
             Queue    => $GetParam{'X-OTRS-FollowUp-Queue'},
             TicketID => $Param{TicketID},
             UserID   => $Param{InmailUserID},
         );
-        if ( $Self->{Debug} > 0 ) {
-            print "QueueUpdate: $GetParam{'X-OTRS-FollowUp-Queue'}\n";
-        }
+
+        $Self->{CommunicationLogObject}->ObjectLog(
+            ObjectLogType => 'Message',
+            Priority      => 'Debug',
+            Key           => 'Kernel::System::PostMaster::FollowUp',
+            Value =>
+                "Queue update via 'X-OTRS-FollowUp-Queue'! Queue: $GetParam{'X-OTRS-FollowUp-Queue'}.",
+        );
     }
 
     # set lock
     if ( $GetParam{'X-OTRS-FollowUp-Lock'} ) {
+
         $TicketObject->TicketLockSet(
             Lock     => $GetParam{'X-OTRS-FollowUp-Lock'},
             TicketID => $Param{TicketID},
             UserID   => $Param{InmailUserID},
         );
-        if ( $Self->{Debug} > 0 ) {
-            print "Lock: $GetParam{'X-OTRS-FollowUp-Lock'}\n";
-        }
+
+        $Self->{CommunicationLogObject}->ObjectLog(
+            ObjectLogType => 'Message',
+            Priority      => 'Debug',
+            Key           => 'Kernel::System::PostMaster::FollowUp',
+            Value =>
+                "Lock update via 'X-OTRS-FollowUp-Lock'! Lock: $GetParam{'X-OTRS-FollowUp-Lock'}.",
+        );
     }
 
     # set ticket type
     if ( $GetParam{'X-OTRS-FollowUp-Type'} ) {
+
         $TicketObject->TicketTypeSet(
             Type     => $GetParam{'X-OTRS-FollowUp-Type'},
             TicketID => $Param{TicketID},
             UserID   => $Param{InmailUserID},
         );
-        if ( $Self->{Debug} > 0 ) {
-            print "Type: $GetParam{'X-OTRS-FollowUp-Type'}\n";
-        }
+
+        $Self->{CommunicationLogObject}->ObjectLog(
+            ObjectLogType => 'Message',
+            Priority      => 'Debug',
+            Key           => 'Kernel::System::PostMaster::FollowUp',
+            Value =>
+                "Type update via 'X-OTRS-FollowUp-Type'! Type: $GetParam{'X-OTRS-FollowUp-Type'}.",
+        );
     }
 
     # set ticket service
     if ( $GetParam{'X-OTRS-FollowUp-Service'} ) {
+
         $TicketObject->TicketServiceSet(
             Service  => $GetParam{'X-OTRS-FollowUp-Service'},
             TicketID => $Param{TicketID},
             UserID   => $Param{InmailUserID},
         );
-        if ( $Self->{Debug} > 0 ) {
-            print "Service: $GetParam{'X-OTRS-FollowUp-Service'}\n";
-        }
+
+        $Self->{CommunicationLogObject}->ObjectLog(
+            ObjectLogType => 'Message',
+            Priority      => 'Debug',
+            Key           => 'Kernel::System::PostMaster::FollowUp',
+            Value =>
+                "Services update via 'X-OTRS-FollowUp-Service'! Service: $GetParam{'X-OTRS-FollowUp-Service'}.",
+        );
     }
 
     # set ticket sla
     if ( $GetParam{'X-OTRS-FollowUp-SLA'} ) {
+
         $TicketObject->TicketSLASet(
             SLA      => $GetParam{'X-OTRS-FollowUp-SLA'},
             TicketID => $Param{TicketID},
             UserID   => $Param{InmailUserID},
         );
-        if ( $Self->{Debug} > 0 ) {
-            print "SLA: $GetParam{'X-OTRS-FollowUp-SLA'}\n";
-        }
+
+        $Self->{CommunicationLogObject}->ObjectLog(
+            ObjectLogType => 'Message',
+            Priority      => 'Debug',
+            Key           => 'Kernel::System::PostMaster::FollowUp',
+            Value =>
+                "SLA update via 'X-OTRS-FollowUp-SLA'! SLA: $GetParam{'X-OTRS-FollowUp-SLA'}.",
+        );
     }
 
     # get dynamic field objects
@@ -332,9 +391,13 @@ sub Run {
                 UserID             => $Param{InmailUserID},
             );
 
-            if ( $Self->{Debug} > 0 ) {
-                print "$Key: " . $GetParam{$Key} . "\n";
-            }
+            $Self->{CommunicationLogObject}->ObjectLog(
+                ObjectLogType => 'Message',
+                Priority      => 'Debug',
+                Key           => 'Kernel::System::PostMaster::FollowUp',
+                Value =>
+                    "DynamicField update via '$Key'! Value: $GetParam{$Key}.",
+            );
         }
     }
 
@@ -369,9 +432,13 @@ sub Run {
                     );
                 }
 
-                if ( $Self->{Debug} > 0 ) {
-                    print "TicketKey$Count: " . $GetParam{$Key} . "\n";
-                }
+                $Self->{CommunicationLogObject}->ObjectLog(
+                    ObjectLogType => 'Message',
+                    Priority      => 'Debug',
+                    Key           => 'Kernel::System::PostMaster::FollowUp',
+                    Value =>
+                        "DynamicField (TicketKey$Count) update via '$Key'! Value: $GetParam{$Key}.",
+                );
             }
         }
     }
@@ -383,14 +450,15 @@ sub Run {
 
         if ( defined $GetParam{$Key} && length $GetParam{$Key} ) {
 
-            # get time object
-            my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
-
-            my $SystemTime = $TimeObject->TimeStamp2SystemTime(
-                String => $GetParam{$Key},
+            # get datetime object
+            my $DateTimeObject = $Kernel::OM->Create(
+                'Kernel::System::DateTime',
+                ObjectParams => {
+                    String => $GetParam{$Key}
+                    }
             );
 
-            if ( $SystemTime && $DynamicFieldListReversed{ 'TicketFreeTime' . $Count } ) {
+            if ( $DateTimeObject && $DynamicFieldListReversed{ 'TicketFreeTime' . $Count } ) {
 
                 # get dynamic field config
                 my $DynamicFieldGet = $DynamicFieldObject->DynamicFieldGet(
@@ -406,50 +474,91 @@ sub Run {
                     );
                 }
 
-                if ( $Self->{Debug} > 0 ) {
-                    print "TicketTime$Count: " . $GetParam{$Key} . "\n";
-                }
+                $Self->{CommunicationLogObject}->ObjectLog(
+                    ObjectLogType => 'Message',
+                    Priority      => 'Debug',
+                    Key           => 'Kernel::System::PostMaster::FollowUp',
+                    Value =>
+                        "DynamicField (TicketTime$Count) update via '$Key'! Value: $GetParam{$Key}.",
+                );
             }
         }
     }
 
-    my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+    my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForChannel(
+        ChannelName => 'Email',
+    );
+
+    my $IsVisibleForCustomer = 1;
+    if ( length $GetParam{'X-OTRS-FollowUp-IsVisibleForCustomer'} ) {
+        $IsVisibleForCustomer = $GetParam{'X-OTRS-FollowUp-IsVisibleForCustomer'};
+    }
+
+    $Self->{CommunicationLogObject}->ObjectLog(
+        ObjectLogType => 'Message',
+        Priority      => 'Debug',
+        Key           => 'Kernel::System::PostMaster::FollowUp',
+        Value         => "Going to create follow up for TicketID '$Param{TicketID}'.",
+    );
 
     # do db insert
-    my $ArticleID = $ArticleObject->ArticleCreate(
-        TicketID         => $Param{TicketID},
-        ArticleType      => $GetParam{'X-OTRS-FollowUp-ArticleType'},
-        SenderType       => $GetParam{'X-OTRS-FollowUp-SenderType'},
-        From             => $GetParam{From},
-        ReplyTo          => $GetParam{ReplyTo},
-        To               => $GetParam{To},
-        Cc               => $GetParam{Cc},
-        Subject          => $GetParam{Subject},
-        MessageID        => $GetParam{'Message-ID'},
-        InReplyTo        => $GetParam{'In-Reply-To'},
-        References       => $GetParam{'References'},
-        ContentType      => $GetParam{'Content-Type'},
-        Body             => $GetParam{Body},
-        UserID           => $Param{InmailUserID},
-        HistoryType      => 'FollowUp',
-        HistoryComment   => "\%\%$Param{Tn}\%\%$Comment",
-        AutoResponseType => $AutoResponseType,
-        OrigHeader       => \%GetParam,
+    my $ArticleID = $ArticleBackendObject->ArticleCreate(
+        TicketID             => $Param{TicketID},
+        SenderType           => $GetParam{'X-OTRS-FollowUp-SenderType'},
+        IsVisibleForCustomer => $IsVisibleForCustomer,
+        From                 => $GetParam{From},
+        ReplyTo              => $GetParam{ReplyTo},
+        To                   => $GetParam{To},
+        Cc                   => $GetParam{Cc},
+        Subject              => $GetParam{Subject},
+        MessageID            => $GetParam{'Message-ID'},
+        InReplyTo            => $GetParam{'In-Reply-To'},
+        References           => $GetParam{'References'},
+        ContentType          => $GetParam{'Content-Type'},
+        Body                 => $GetParam{Body},
+        UserID               => $Param{InmailUserID},
+        HistoryType          => 'FollowUp',
+        HistoryComment       => "\%\%$Param{Tn}\%\%$Comment",
+        AutoResponseType     => $AutoResponseType,
+        OrigHeader           => \%GetParam,
     );
     return if !$ArticleID;
 
-    # debug
-    if ( $Self->{Debug} > 0 ) {
-        print "Follow up Ticket\n";
-        ATTRIBUTE:
-        for my $Attribute ( sort keys %GetParam ) {
-            next ATTRIBUTE if !$GetParam{$Attribute};
-            print "$Attribute: $GetParam{$Attribute}\n";
-        }
+    $Self->{CommunicationLogObject}->ObjectLog(
+        ObjectLogType => 'Message',
+        Priority      => 'Debug',
+        Key           => 'Kernel::System::PostMaster::FollowUp',
+        Value         => "Follow up created for TicketID '$Param{TicketID}' (ArticleID: '$ArticleID')",
+    );
+
+    $Self->{CommunicationLogObject}->ObjectLookupSet(
+        ObjectLogType    => 'Message',
+        TargetObjectType => 'Article',
+        TargetObjectID   => $ArticleID,
+    );
+
+    my %CommunicationLogSkipAttributes = (
+        Body       => 1,
+        Attachment => 1,
+    );
+
+    ATTRIBUTE:
+    for my $Attribute ( sort keys %GetParam ) {
+        next ATTRIBUTE if $CommunicationLogSkipAttributes{$Attribute};
+
+        my $Value = $GetParam{$Attribute};
+        next ATTRIBUTE if !( defined $Value ) || !( length $Value );
+
+        $Self->{CommunicationLogObject}->ObjectLog(
+            ObjectLogType => 'Message',
+            Priority      => 'Debug',
+            Key           => 'Kernel::System::PostMaster::FollowUp',
+            Value         => "$Attribute: $Value",
+        );
     }
 
     # write plain email to the storage
-    $ArticleObject->ArticleWritePlain(
+    $ArticleBackendObject->ArticleWritePlain(
         ArticleID => $ArticleID,
         Email     => $Self->{ParserObject}->GetPlainEmail(),
         UserID    => $Param{InmailUserID},
@@ -457,7 +566,7 @@ sub Run {
 
     # write attachments to the storage
     for my $Attachment ( $Self->{ParserObject}->GetAttachments() ) {
-        $ArticleObject->ArticleWriteAttachment(
+        $ArticleBackendObject->ArticleWriteAttachment(
             Filename           => $Attachment->{Filename},
             Content            => $Attachment->{Content},
             ContentType        => $Attachment->{ContentType},
@@ -497,9 +606,12 @@ sub Run {
                 UserID             => $Param{InmailUserID},
             );
 
-            if ( $Self->{Debug} > 0 ) {
-                print "$Key: " . $GetParam{$Key} . "\n";
-            }
+            $Self->{CommunicationLogObject}->ObjectLog(
+                ObjectLogType => 'Message',
+                Priority      => 'Debug',
+                Key           => 'Kernel::System::PostMaster::FollowUp',
+                Value         => "Article DynamicField update via '$Key'! Value: $GetParam{$Key}.",
+            );
         }
     }
 
@@ -534,31 +646,41 @@ sub Run {
                     );
                 }
 
-                if ( $Self->{Debug} > 0 ) {
-                    print "TicketKey$Count: " . $GetParam{$Key} . "\n";
-                }
+                $Self->{CommunicationLogObject}->ObjectLog(
+                    ObjectLogType => 'Message',
+                    Priority      => 'Debug',
+                    Key           => 'Kernel::System::PostMaster::FollowUp',
+                    Value =>
+                        "Article DynamicField (ArticleKey) update via '$Key'! Value: $GetParam{$Key}.",
+                );
             }
         }
     }
 
     # set ticket title
     if ( $GetParam{'X-OTRS-FollowUp-Title'} ) {
+
         $TicketObject->TicketTitleUpdate(
             Title    => $GetParam{'X-OTRS-FollowUp-Title'},
             TicketID => $Param{TicketID},
             UserID   => $Param{InmailUserID},
         );
 
-        if ( $Self->{Debug} > 0 ) {
-            print "Title: $GetParam{'X-OTRS-FollowUp-Title'}\n";
-        }
+        $Self->{CommunicationLogObject}->ObjectLog(
+            ObjectLogType => 'Message',
+            Priority      => 'Debug',
+            Key           => 'Kernel::System::PostMaster::FollowUp',
+            Value         => "Title update via 'X-OTRS-FollowUp-Title'! Value: $GetParam{'X-OTRS-FollowUp-Title'}.",
+        );
     }
 
     # write log
-    $Kernel::OM->Get('Kernel::System::Log')->Log(
-        Priority => 'notice',
-        Message  => "FollowUp Article to Ticket [$Param{Tn}] created "
-            . "(TicketID=$Param{TicketID}, ArticleID=$ArticleID). $Comment,"
+    $Self->{CommunicationLogObject}->ObjectLog(
+        ObjectLogType => 'Message',
+        Priority      => 'Notice',
+        Key           => 'Kernel::System::PostMaster::FollowUp',
+        Value         => "FollowUp Article to Ticket [$Param{Tn}] created "
+            . "(TicketID=$Param{TicketID}, ArticleID=$ArticleID). $Comment,",
     );
 
     return 1;

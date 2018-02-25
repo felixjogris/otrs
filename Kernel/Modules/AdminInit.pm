@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -48,15 +48,14 @@ sub Run {
     }
 
     # Create initial deployment (write ZZZAAuto file).
-    if (
-        !$SysConfigObject->ConfigurationDeploy(
-            Comments    => "Deployed by AdminInit",
-            AllSettings => 1,
-            UserID      => 1,
-            Force       => 1,
-        )
-        )
-    {
+    my %DeploymentResult = $SysConfigObject->ConfigurationDeploy(
+        Comments    => "Deployed by AdminInit",
+        AllSettings => 1,
+        UserID      => 1,
+        Force       => 1,
+    );
+
+    if ( !$DeploymentResult{Success} ) {
         return $LayoutObject->ErrorScreen();
     }
 

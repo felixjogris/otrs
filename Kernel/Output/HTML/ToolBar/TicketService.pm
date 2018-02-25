@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -9,7 +9,7 @@
 package Kernel::Output::HTML::ToolBar::TicketService;
 
 use Kernel::Language qw(Translatable);
-use base 'Kernel::Output::HTML::Base';
+use parent 'Kernel::Output::HTML::Base';
 
 use strict;
 use warnings;
@@ -40,6 +40,8 @@ sub Run {
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
     return if !$ConfigObject->Get('Ticket::Service');
 
+    return if !$ConfigObject->Get('Frontend::Module')->{AgentTicketService};
+
     # Get viewable locks.
     my @ViewableLockIDs = $Kernel::OM->Get('Kernel::System::Lock')->LockViewableLock( Type => 'ID' );
 
@@ -55,6 +57,9 @@ sub Run {
         Type   => 'ro',
     );
     my @ViewableQueueIDs = sort keys %ViewableQueues;
+    if ( !@ViewableQueueIDs ) {
+        @ViewableQueueIDs = (999_999);
+    }
 
     # Get custom services.
     #   Set the service IDs to an array of non existing service ids (0).

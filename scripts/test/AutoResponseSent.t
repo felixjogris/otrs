@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,13 +12,38 @@ use utf8;
 
 use vars (qw($Self));
 
+my $SendLastTicketArticleMail = sub {
+    my %Param = @_;
+
+    my $MailQueueObject = $Kernel::OM->Get('Kernel::System::MailQueue');
+    my $ArticleObject   = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+
+    my @Articles = $ArticleObject->ArticleList(
+        TicketID => $Param{TicketID},
+        OnlyLast => 1,
+    );
+    my $MailQueueItem = $MailQueueObject->Get(
+        ArticleID => $Articles[0]->{ArticleID},
+    );
+
+    if ( !$MailQueueItem || !%{$MailQueueItem} ) { return; }
+
+    $MailQueueObject->Send( %{$MailQueueItem}, );
+
+    return 1;
+};
+
 # get needed objects
-my $ConfigObject       = $Kernel::OM->Get('Kernel::Config');
-my $QueueObject        = $Kernel::OM->Get('Kernel::System::Queue');
-my $AutoResponseObject = $Kernel::OM->Get('Kernel::System::AutoResponse');
-my $TicketObject       = $Kernel::OM->Get('Kernel::System::Ticket');
-my $ArticleObject      = $Kernel::OM->Get('Kernel::System::Ticket::Article');
-my $TestEmailObject    = $Kernel::OM->Get('Kernel::System::Email::Test');
+my $ConfigObject         = $Kernel::OM->Get('Kernel::Config');
+my $QueueObject          = $Kernel::OM->Get('Kernel::System::Queue');
+my $AutoResponseObject   = $Kernel::OM->Get('Kernel::System::AutoResponse');
+my $TicketObject         = $Kernel::OM->Get('Kernel::System::Ticket');
+my $TestEmailObject      = $Kernel::OM->Get('Kernel::System::Email::Test');
+my $ArticleObject        = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForChannel(
+    ChannelName => 'Email',
+);
+my $MailQueueObject = $Kernel::OM->Get('Kernel::System::MailQueue');
 
 # get helper object
 $Kernel::OM->ObjectParamAdd(
@@ -28,6 +53,12 @@ $Kernel::OM->ObjectParamAdd(
     },
 );
 my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
+
+# don't validate email addresses
+$ConfigObject->Set(
+    Key   => 'CheckEmailAddresses',
+    Value => 0,
+);
 
 # use test email backend
 my $Success = $ConfigObject->Set(
@@ -46,7 +77,6 @@ my @Tests = (
         AutoResponseTypeID => 1,
         AutoResponseType   => 'auto reply',
         TicketState        => 'open',
-        ArticleType        => 'phone',
     },
     {
         Subject            => 'AutoResponse Follow Up',
@@ -54,7 +84,6 @@ my @Tests = (
         AutoResponseTypeID => 3,
         AutoResponseType   => 'auto follow up',
         TicketState        => 'open',
-        ArticleType        => 'webrequest',
     },
     {
         Subject            => 'AutoResponse Reject',
@@ -62,7 +91,6 @@ my @Tests = (
         AutoResponseTypeID => 2,
         AutoResponseType   => 'auto reject',
         TicketState        => 'closed successful',
-        ArticleType        => 'webrequest',
     },
     {
         Subject            => 'AutoResponse Reply/New Ticket',
@@ -70,14 +98,12 @@ my @Tests = (
         AutoResponseTypeID => 4,
         AutoResponseType   => 'auto reply/new ticket',
         TicketState        => 'closed successful',
-        ArticleType        => 'webrequest',
     },
     {
         Subject            => 'AutoResponse Remove',
         AutoResponseTypeID => 5,
         AutoResponseType   => 'auto remove',
         TicketState        => 'removed',
-        ArticleType        => 'webrequest',
     },
 );
 
@@ -167,22 +193,22 @@ for my $Test (@Tests) {
     push @TicketIDs, $TicketIDOne;
 
     # create article for test ticket one
-    my $ArticleIDOne = $ArticleObject->ArticleCreate(
-        TicketID         => $TicketIDOne,
-        ArticleType      => $Test->{ArticleType},
-        SenderType       => 'customer',
-        Subject          => 'UnitTest article one',
-        From             => '"test" <test@localunittest.com>',
-        To               => $QueueName,
-        Body             => 'UnitTest body',
-        Charset          => 'utf-8',
-        MimeType         => 'text/plain',
-        HistoryType      => 'PhoneCallCustomer',
-        HistoryComment   => 'Some free text!',
-        UserID           => 1,
-        UnlockOnAway     => 1,
-        AutoResponseType => $Test->{AutoResponseType},
-        OrigHeader       => {
+    my $ArticleIDOne = $ArticleBackendObject->ArticleCreate(
+        TicketID             => $TicketIDOne,
+        IsVisibleForCustomer => 1,
+        SenderType           => 'customer',
+        Subject              => 'UnitTest article one',
+        From                 => '"test" <test@localunittest.com>',
+        To                   => $QueueName,
+        Body                 => 'UnitTest body',
+        Charset              => 'utf-8',
+        MimeType             => 'text/plain',
+        HistoryType          => 'PhoneCallCustomer',
+        HistoryComment       => 'Some free text!',
+        UserID               => 1,
+        UnlockOnAway         => 1,
+        AutoResponseType     => $Test->{AutoResponseType},
+        OrigHeader           => {
             From    => '"test" <test@localunittest.com>',
             To      => $QueueName,
             Subject => 'UnitTest article one',
@@ -196,13 +222,20 @@ for my $Test (@Tests) {
         "Test $Count : ArticleCreate() - ArticleID $ArticleIDOne",
     );
 
-    # check if AutoResponse is sent
-    my $Emails = $TestEmailObject->EmailsGet();
-    $Self->Is(
-        scalar @{$Emails},
-        1,
-        "Test $Count : Emails fetched from backend - AutoResponse $Test->{AutoResponseType} sent",
-    );
+    {
+        # Get last article for the ticket and really send it
+        my $LastArticleMailSent = $SendLastTicketArticleMail->(
+            TicketID => $TicketIDOne,
+        );
+
+        # check if AutoResponse is sent
+        my $Emails = $TestEmailObject->EmailsGet();
+
+        $Self->True(
+            $LastArticleMailSent && ( scalar @{$Emails} ) == 1,
+            "Test $Count : Emails fetched from backend - AutoResponse $Test->{AutoResponseType} sent",
+        );
+    }
 
     # clean up test email backend again
     $Success = $TestEmailObject->CleanUp();
@@ -217,22 +250,22 @@ for my $Test (@Tests) {
     );
 
     # check auto response suppression with X-OTRS-Loop
-    $ArticleIDOne = $ArticleObject->ArticleCreate(
-        TicketID         => $TicketIDOne,
-        ArticleType      => $Test->{ArticleType},
-        SenderType       => 'customer',
-        Subject          => 'UnitTest article one',
-        From             => '"test" <test@localunittest.com>',
-        To               => $QueueName,
-        Body             => 'UnitTest body',
-        Charset          => 'utf-8',
-        MimeType         => 'text/plain',
-        HistoryType      => 'PhoneCallCustomer',
-        HistoryComment   => 'Some free text!',
-        UserID           => 1,
-        UnlockOnAway     => 1,
-        AutoResponseType => $Test->{AutoResponseType},
-        OrigHeader       => {
+    $ArticleIDOne = $ArticleBackendObject->ArticleCreate(
+        TicketID             => $TicketIDOne,
+        IsVisibleForCustomer => 1,
+        SenderType           => 'customer',
+        Subject              => 'UnitTest article one',
+        From                 => '"test" <test@localunittest.com>',
+        To                   => $QueueName,
+        Body                 => 'UnitTest body',
+        Charset              => 'utf-8',
+        MimeType             => 'text/plain',
+        HistoryType          => 'PhoneCallCustomer',
+        HistoryComment       => 'Some free text!',
+        UserID               => 1,
+        UnlockOnAway         => 1,
+        AutoResponseType     => $Test->{AutoResponseType},
+        OrigHeader           => {
             From          => '"test" <test@localunittest.com>',
             To            => $QueueName,
             Subject       => 'UnitTest article one',
@@ -247,13 +280,19 @@ for my $Test (@Tests) {
         "Test $Count : ArticleCreate() - ArticleID $ArticleIDOne",
     );
 
-    # check if AutoResponse is sent
-    $Emails = $TestEmailObject->EmailsGet();
-    $Self->Is(
-        scalar @{$Emails},
-        0,
-        "Test $Count : Emails fetched from backend - AutoResponse $Test->{AutoResponseType} suppressed by X-OTRS-Loop",
-    );
+    {
+        # Get last article for the ticket and really send it
+        my $LastArticleMailSent = $SendLastTicketArticleMail->(
+            TicketID => $TicketIDOne,
+        );
+
+        # check if AutoResponse is sent
+        my $Emails = $TestEmailObject->EmailsGet();
+        $Self->True(
+            !$LastArticleMailSent && !scalar( @{$Emails} ),
+            "Test $Count : Emails fetched from backend - AutoResponse $Test->{AutoResponseType} suppressed by X-OTRS-Loop",
+        );
+    }
 
     # clean up test email backend again
     $Success = $TestEmailObject->CleanUp();
@@ -268,22 +307,22 @@ for my $Test (@Tests) {
     );
 
     # check auto response re-enabling with X-OTRS-Loop
-    $ArticleIDOne = $ArticleObject->ArticleCreate(
-        TicketID         => $TicketIDOne,
-        ArticleType      => $Test->{ArticleType},
-        SenderType       => 'customer',
-        Subject          => 'UnitTest article one',
-        From             => '"test" <test@localunittest.com>',
-        To               => $QueueName,
-        Body             => 'UnitTest body',
-        Charset          => 'utf-8',
-        MimeType         => 'text/plain',
-        HistoryType      => 'PhoneCallCustomer',
-        HistoryComment   => 'Some free text!',
-        UserID           => 1,
-        UnlockOnAway     => 1,
-        AutoResponseType => $Test->{AutoResponseType},
-        OrigHeader       => {
+    $ArticleIDOne = $ArticleBackendObject->ArticleCreate(
+        TicketID             => $TicketIDOne,
+        IsVisibleForCustomer => 1,
+        SenderType           => 'customer',
+        Subject              => 'UnitTest article one',
+        From                 => '"test" <test@localunittest.com>',
+        To                   => $QueueName,
+        Body                 => 'UnitTest body',
+        Charset              => 'utf-8',
+        MimeType             => 'text/plain',
+        HistoryType          => 'PhoneCallCustomer',
+        HistoryComment       => 'Some free text!',
+        UserID               => 1,
+        UnlockOnAway         => 1,
+        AutoResponseType     => $Test->{AutoResponseType},
+        OrigHeader           => {
             From          => '"test" <test@localunittest.com>',
             To            => $QueueName,
             Subject       => 'UnitTest article one',
@@ -298,13 +337,19 @@ for my $Test (@Tests) {
         "Test $Count : ArticleCreate() - ArticleID $ArticleIDOne",
     );
 
-    # check if AutoResponse is sent
-    $Emails = $TestEmailObject->EmailsGet();
-    $Self->Is(
-        scalar @{$Emails},
-        1,
-        "Test $Count : Emails fetched from backend - AutoResponse $Test->{AutoResponseType} re-enabled by X-OTRS-Loop",
-    );
+    {
+        # Get last article for the ticket and really send it
+        my $LastArticleMailSent = $SendLastTicketArticleMail->(
+            TicketID => $TicketIDOne,
+        );
+
+        # check if AutoResponse is sent
+        my $Emails = $TestEmailObject->EmailsGet();
+        $Self->True(
+            $LastArticleMailSent && ( scalar @{$Emails} ) == 1,
+            "Test $Count : Emails fetched from backend - AutoResponse $Test->{AutoResponseType} re-enabled by X-OTRS-Loop",
+        );
+    }
 
     # clean up test email backend again
     $Success = $TestEmailObject->CleanUp();
@@ -356,22 +401,22 @@ for my $Test (@Tests) {
     push @TicketIDs, $TicketIDTwo;
 
     # create article two for test ticket two
-    my $ArticleIDTwo = $ArticleObject->ArticleCreate(
-        TicketID         => $TicketIDTwo,
-        ArticleType      => $Test->{ArticleType},
-        SenderType       => 'customer',
-        Subject          => 'UnitTest article two',
-        From             => '"test" <test@localunittest.com>',
-        To               => $QueueName,
-        Body             => 'UnitTest body',
-        Charset          => 'utf-8',
-        MimeType         => 'text/plain',
-        HistoryType      => 'PhoneCallCustomer',
-        HistoryComment   => 'Some free text!',
-        UserID           => 1,
-        UnlockOnAway     => 1,
-        AutoResponseType => $Test->{AutoResponseType},
-        OrigHeader       => {
+    my $ArticleIDTwo = $ArticleBackendObject->ArticleCreate(
+        TicketID             => $TicketIDTwo,
+        IsVisibleForCustomer => 1,
+        SenderType           => 'customer',
+        Subject              => 'UnitTest article two',
+        From                 => '"test" <test@localunittest.com>',
+        To                   => $QueueName,
+        Body                 => 'UnitTest body',
+        Charset              => 'utf-8',
+        MimeType             => 'text/plain',
+        HistoryType          => 'PhoneCallCustomer',
+        HistoryComment       => 'Some free text!',
+        UserID               => 1,
+        UnlockOnAway         => 1,
+        AutoResponseType     => $Test->{AutoResponseType},
+        OrigHeader           => {
             From    => '"test" <test@localunittest.com>',
             To      => $QueueName,
             Subject => 'UnitTest article two',
@@ -385,12 +430,21 @@ for my $Test (@Tests) {
         "Test $Count : ArticleCreate() - ArticleID $ArticleIDTwo",
     );
 
-    # check if AutoResponse is sent while invalid
-    $Self->IsDeeply(
-        $TestEmailObject->EmailsGet(),
-        [],
-        "Test $Count : Test backend Email empty - AutoResponse $Test->{AutoResponseType} not sent while invalid",
-    );
+    {
+        # Get last article for the ticket and really send it
+        my $LastArticleMailSent = $SendLastTicketArticleMail->(
+            TicketID => $TicketIDTwo,
+        );
+
+        my $Emails = $TestEmailObject->EmailsGet();
+
+        # check if AutoResponse is sent while invalid
+        $Self->True(
+            !$LastArticleMailSent && !( scalar @{$Emails} ),
+            "Test $Count : Test backend Email empty - AutoResponse $Test->{AutoResponseType} not sent while invalid",
+        );
+    }
+
     $Count++;
 }
 

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,6 +11,8 @@ use warnings;
 use utf8;
 
 use vars (qw($Self));
+
+use Kernel::System::PostMaster;
 
 # get needed objects
 my $AutoResponseObject = $Kernel::OM->Get('Kernel::System::AutoResponse');
@@ -166,7 +168,7 @@ my @Tests = (
             Body => 'OTRS_CUSTOMER_REALNAME tag: TestReplyTo@home.com',
         },
         ResultNotification => {
-            To   => 'TestFrom@home.com',
+            To   => 'TestReplyTo@home.com',
             Body => 'OTRS_CUSTOMER_REALNAME tag: TestReplyTo@home.com',
         },
     },
@@ -201,43 +203,55 @@ my @Tests = (
 # run test
 for my $Test (@Tests) {
 
-    my $ExitCode;
-    my $Result;
+    my $TicketID;
 
     {
-        local *STDIN;
-        open STDIN, '<:utf8', \$Test->{Email};    ## no critic
-        local *STDOUT;
-        open STDOUT, '>:utf8', \$Result;          ## no critic
+        $Kernel::OM->ObjectsDiscard( Objects => ['Kernel::System::CommunicationLog::LogModule::Email'] );
 
-        $ExitCode = $CommandObject->Execute( '--target-queue', $QueueNameRand, '--debug' );
+        my $CommunicationLogObject = $Kernel::OM->Create(
+            'Kernel::System::CommunicationLog',
+            ObjectParams => {
+                Transport => 'Email',
+                Direction => 'Incoming',
+            },
+        );
+        $CommunicationLogObject->ObjectLogStart( ObjectLogType => 'Message' );
 
-        $Self->Is(
-            $ExitCode,
-            0,
-            "$Test->{Name} - Maint::PostMaster::Read exit code with email input",
+        my $PostMasterObject = Kernel::System::PostMaster->new(
+            CommunicationLogObject => $CommunicationLogObject,
+            Trusted                => 1,
+            Email                  => \$Test->{Email},
         );
 
-        # discard Web::Request and Ticket object from OM to prevent duplicated entries
-        $Kernel::OM->ObjectsDiscard( Objects => [ 'Kernel::System::PostMaster', 'Kernel::System::Ticket' ] );
+        my @Return = $PostMasterObject->Run( Queue => $QueueNameRand );
+
+        $TicketID = $Return[1];
+
+        $CommunicationLogObject->ObjectLogStop(
+            ObjectLogType => 'Message',
+            Status        => 'Successful',
+        );
+        $CommunicationLogObject->CommunicationStop(
+            Status => 'Successful',
+        );
     }
 
-    my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
-
     # get test ticket ID
-    my ($TicketID) = $Result =~ m{TicketID:\s+(\d+)};
+    # my ($TicketID) = $Result =~ m{TicketID:\s+(\d+)};
     $Self->True(
         $TicketID,
         "TicketID $TicketID - created from email",
     );
 
+    my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+
     # get auto repsonse article data
-    my @ArticleIDs = $ArticleObject->ArticleIndex(
+    my @MetaArticles = $ArticleObject->ArticleList(
         TicketID => $TicketID,
     );
-    my %ArticleAutoResponse = $ArticleObject->ArticleGet(
-        ArticleID => $ArticleIDs[1],
-        UserID    => 1,
+
+    my %ArticleAutoResponse = $ArticleObject->BackendForArticle( %{ $MetaArticles[0] } )->ArticleGet(
+        %{ $MetaArticles[1] },
     );
 
     # check auto response article values
@@ -251,9 +265,8 @@ for my $Test (@Tests) {
     }
 
     # get notification article data
-    my %ArticleNotification = $ArticleObject->ArticleGet(
-        ArticleID => $ArticleIDs[2],
-        UserID    => 1,
+    my %ArticleNotification = $ArticleObject->BackendForArticle( %{ $MetaArticles[0] } )->ArticleGet(
+        %{ $MetaArticles[1] },
     );
 
     for my $NotificationKey ( sort keys %{ $Test->{ResultNotification} } ) {

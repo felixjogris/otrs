@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -124,6 +124,9 @@ $Selenium->RunTest(
             #   modules have this sidebar column present.
             $Selenium->find_element( "div.SidebarColumn", 'css' );
 
+            # check if a breadcrumb is present
+            $Selenium->find_element( "ul.BreadCrumb", 'css' );
+
             # Also check if the navigation is present (this is not the case
             #   for error messages and has "Admin" highlighted
             $Selenium->find_element( "li#nav-Admin.Selected", 'css' );
@@ -137,6 +140,56 @@ $Selenium->RunTest(
                 "Directory deleted - '$Directory'",
             );
         }
+
+        # Go to grid view.
+        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=Admin");
+
+        # Add AdminACL to favourites.
+        $Selenium->execute_script(
+            "\$('span[data-module=AdminACL]').trigger('click')"
+        );
+
+        # Wait until AdminACL gets class IsFavourite.
+        $Selenium->WaitFor(
+            JavaScript =>
+                "return typeof(\$) === 'function' && \$('li[data-module=\"AdminACL\"]').hasClass('IsFavourite');"
+        );
+
+        # Remove AdminACL from favourites.
+        $Selenium->execute_script(
+            "\$('.DataTable .RemoveFromFavourites').trigger('click')"
+        );
+
+        # Checks if Add as Favourite star is visible again.
+        $Self->True(
+            $Selenium->execute_script(
+                "return \$('span[data-module=AdminACL]').length === 1"
+            ),
+            "AddAsFavourite (Star) button is displayed as expected.",
+        );
+
+        $Selenium->WaitFor(
+            JavaScript => "return typeof(\$) === 'function' && \$('.RemoveFromFavourites').length === 1;"
+        );
+
+        # Removes AdminACL from favourites.
+        $Selenium->execute_script(
+            "\$('.DataTable .RemoveFromFavourites').trigger('click')"
+        );
+
+        # Wait until IsFavourite class is removed from AdminACL row.
+        $Selenium->WaitFor(
+            JavaScript =>
+                "return typeof(\$) === 'function' && !\$('tr[data-module=\"AdminACL\"]').hasClass('IsFavourite');"
+        );
+
+        # Check if AddAsFavourite on list view has IsFavourite class, false is expected.
+        $Self->True(
+            $Selenium->execute_script(
+                "return !\$('tr[data-module=\"AdminACL\"] a.AddAsFavourite').hasClass('IsFavourite')"
+            ),
+            "AddAsFavourite (star) on list view is visible.",
+        );
     }
 );
 

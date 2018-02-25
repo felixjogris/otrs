@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -135,29 +135,31 @@ sub Run {
 
             next USERID if !%Data;
 
-            # get time object
-            my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+            my $CurSystemDateTimeObject   = $Kernel::OM->Create('Kernel::System::DateTime');
+            my $CreateOutOfOfficeDTObject = sub {
+                my $Type = shift;
 
-            my $Time  = $TimeObject->SystemTime();
-            my $Start = sprintf(
-                "%04d-%02d-%02d 00:00:00",
-                $Data{OutOfOfficeStartYear}, $Data{OutOfOfficeStartMonth},
-                $Data{OutOfOfficeStartDay}
-            );
-            my $TimeStart = $TimeObject->TimeStamp2SystemTime(
-                String => $Start,
-            );
-            my $End = sprintf(
-                "%04d-%02d-%02d 23:59:59",
-                $Data{OutOfOfficeEndYear}, $Data{OutOfOfficeEndMonth}, $Data{OutOfOfficeEndDay}
-            );
-            my $TimeEnd = $TimeObject->TimeStamp2SystemTime(
-                String => $End,
-            );
+                my $DTString = sprintf(
+                    '%04d-%02d-%02d ' . ( $Type eq 'End' ? '23:59:59' : '00:00:00' ),
+                    $Data{"OutOfOffice${Type}Year"}, $Data{"OutOfOffice${Type}Month"},
+                    $Data{"OutOfOffice${Type}Day"}
+                );
 
-            next USERID if $TimeStart > $Time || $TimeEnd < $Time;
+                return $Kernel::OM->Create(
+                    'Kernel::System::DateTime',
+                    ObjectParams => {
+                        String => $DTString,
+                    },
+                );
+            };
 
-            $Data{OutOfOfficeUntil} = $End;
+            my $OOOStartDTObject = $CreateOutOfOfficeDTObject->('Start');
+            my $OOOEndDTObject   = $CreateOutOfOfficeDTObject->('End');
+
+            next USERID if $OOOStartDTObject > $CurSystemDateTimeObject
+                || $OOOEndDTObject < $CurSystemDateTimeObject;
+
+            $Data{OutOfOfficeUntil} = $OOOEndDTObject->ToString();
 
             # remember user and data
             $OutOfOffice->{User}->{ $Data{UserID} } = $Data{$SortBy};

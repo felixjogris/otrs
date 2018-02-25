@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -30,10 +30,6 @@ Core.Customer.TicketProcess = (function (TargetNS) {
     TargetNS.Init = function () {
 
         var PreSelectedProcessID = Core.Config.Get('PreSelectedProcessID');
-
-        if (typeof PreSelectedProcessID !== 'undefined') {
-            $('#ProcessEntityID').val(PreSelectedProcessID).trigger('change');
-        }
 
         $('#ProcessEntityID').on('change', function () {
             var Data = {
@@ -132,6 +128,9 @@ Core.Customer.TicketProcess = (function (TargetNS) {
                         // Register event for tree selection dialog
                         Core.UI.TreeSelection.InitTreeSelection();
 
+                        // initialize ajax dnd upload
+                        Core.UI.InitAjaxDnDUpload();
+
                         // move help triggers into field rows for dynamic fields
                         $('.Row > .FieldHelpContainer').each(function () {
                             if (!$(this).next('label').find('.Marker').length) {
@@ -155,6 +154,8 @@ Core.Customer.TicketProcess = (function (TargetNS) {
 
                         Core.TicketProcess.Init();
 
+                        // Publish event on first activity dialog load, so other code can know to execute again.
+                        Core.App.Publish('TicketProcess.Init.FirstActivityDialog.Load', [$ElementToUpdate]);
                     }
                     else {
 
@@ -171,6 +172,11 @@ Core.Customer.TicketProcess = (function (TargetNS) {
             }
             return false;
         });
+
+        // If process is pre-selected trigger change event on ProcessEntityID field.
+        if (typeof PreSelectedProcessID !== 'undefined') {
+            $('#ProcessEntityID').val(PreSelectedProcessID).trigger('change');
+        }
     };
 
     Core.Init.RegisterNamespace(TargetNS, 'APP_MODULE');

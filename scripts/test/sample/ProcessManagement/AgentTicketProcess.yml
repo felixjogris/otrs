@@ -44,7 +44,7 @@ ActivityDialogs:
       Fields:
         Article:
           Config:
-            ArticleType: phone
+            IsVisibleForCustomer: 1
           DefaultValue: ''
           DescriptionLong: ''
           DescriptionShort: ''
@@ -79,10 +79,11 @@ ActivityDialogs:
       - Queue
       - Article
       - DynamicField_TestDropdownACLProcess
+      - Type
       Fields:
         Article:
           Config:
-            ArticleType: note-internal
+            IsVisibleForCustomer: 0
           DefaultValue: ''
           DescriptionLong: ''
           DescriptionShort: ''
@@ -97,6 +98,11 @@ ActivityDialogs:
           DescriptionLong: ''
           DescriptionShort: ''
           Display: '1'
+        Type:
+          DefaultValue: ''
+          DescriptionLong: ''
+          DescriptionShort: ''
+          Display: '2'
       Interface:
       - AgentInterface
       - CustomerInterface

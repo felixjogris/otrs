@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,7 +13,7 @@ use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
 
-use base qw(Kernel::System::SysConfig::BaseValueType);
+use parent qw(Kernel::System::SysConfig::BaseValueType);
 
 our @ObjectDependencies = (
     'Kernel::Language',
@@ -136,7 +136,7 @@ sub SettingEffectiveValueCheck {
 
         for my $Hour ( @{ $Param{EffectiveValue}->{$Day} } ) {
 
-            if ( $Hour !~ m{^([0-9]|1[0-9]|2[0-3])$}gsmx ) {
+            if ( $Hour !~ m{^([0-9]|1[0-9]|2[0-3])$}msx ) {
                 $Result{Error} = "'$Hour' must be number(0-23)!";
                 last DAY;
             }
@@ -359,7 +359,7 @@ sub SettingRender {
     }
 
     for my $Day (qw(Mon Tue Wed Thu Fri Sat Sun)) {
-        $HTML .= "<p>" . $LanguageObject->Translate($Day) . "</p>\n";
+        $HTML .= "<p class='WorkingHoursDayName'>" . $LanguageObject->Translate($Day) . "</p>\n";
 
         for my $Hour ( 0 .. 23 ) {
             my $Checked = 0;
@@ -367,7 +367,14 @@ sub SettingRender {
                 $Checked = 1;
             }
 
-            $HTML .= "<div class='WorkingHoursItem'>\n";
+            my $Title = $Hour . ':00 - ' . $Hour . ':59';
+
+            $HTML
+                .= "<div title='"
+                . $Title
+                . "' class='WorkingHoursItem "
+                . ( ($Checked) ? 'Checked' : '' )
+                . "'><div><div>\n";
             $HTML .= "<label for='$Param{Name}$IDSuffix$Day$Hour'>$Hour</label>\n";
             $HTML .= "<input type='checkbox' value='$Hour' name='$Param{Name}' "
                 . "id='$Param{Name}$IDSuffix$Day$Hour' data-day='$Day' class='WorkingHours' ";
@@ -378,7 +385,7 @@ sub SettingRender {
 
             $HTML .= " />\n";
 
-            $HTML .= "</div>\n";
+            $HTML .= "</div></div></div>\n";
         }
 
         $HTML .= "<div class='Clear'></div>\n"

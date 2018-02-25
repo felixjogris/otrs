@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -745,12 +745,15 @@ sub ValidatePendingTime {
         return if int $Param{PendingTime}->{$TimeAttribute} < 0,
     }
 
-    # try to convert pending time to a SystemTime
-    my $SystemTime = $Kernel::OM->Get('Kernel::System::Time')->Date2SystemTime(
-        %{ $Param{PendingTime} },
-        Second => 0,
+    # try to convert pending time to a DateTime object
+    my $PendingTime = $Kernel::OM->Create(
+        'Kernel::System::DateTime',
+        ObjectParams => {
+            %{ $Param{PendingTime} },
+            Second => 0,
+            }
     );
-    return if !$SystemTime;
+    return if !$PendingTime;
 
     return 1;
 }
@@ -785,74 +788,6 @@ sub ValidateAutoResponseType {
     return;
 }
 
-=head2 ValidateArticleType()
-
-checks if the given ArticleType or ArticleType ID is valid.
-
-    my $Success = $CommonObject->ValidateArticleType(
-        ArticleTypeID => 123,
-    );
-
-    my $Success = $CommonObject->ValidateArticleType(
-        ArticleType => 'some ArticleType',
-    );
-
-    returns
-    $Success = 1            # or 0
-
-=cut
-
-sub ValidateArticleType {
-    my ( $Self, %Param ) = @_;
-
-    # check needed stuff
-    return if !$Param{ArticleTypeID} && !$Param{ArticleType};
-
-    my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
-
-    my %ArticleTypeList = $ArticleObject->ArticleTypeList(
-        Result => 'HASH',
-
-        # add type parameter for customer as requester with UserType parameter, if is not set
-        # to  'Customer' the Type parameter is ignored
-        Type => $Param{UserType} || '',
-    );
-
-    # check for ArticleType name sent
-    if (
-        $Param{ArticleType}
-        && $Param{ArticleType} ne ''
-        && !$Param{ArticleTypeID}
-        )
-    {
-        my $ArticleTypeID = $ArticleObject->ArticleTypeLookup(
-            ArticleType => $Param{ArticleType},
-        );
-
-        return if !$ArticleTypeID;
-
-        # check if $ArticleType is valid
-        return if !$ArticleTypeList{$ArticleTypeID};
-    }
-
-    # otherwise use ArticleTypeID
-    elsif ( $Param{ArticleTypeID} ) {
-        my $ArticleType = $ArticleObject->ArticleTypeLookup(
-            ArticleTypeID => $Param{ArticleTypeID},
-        );
-
-        return if !$ArticleType;
-
-        # check if $ArticleType is valid
-        return if !$ArticleTypeList{ $Param{ArticleTypeID} };
-    }
-    else {
-        return;
-    }
-
-    return 1;
-}
-
 =head2 ValidateFrom()
 
 checks if the given from is valid.
@@ -885,6 +820,42 @@ sub ValidateFrom {
     return 1;
 }
 
+=head2 ValidateArticleCommunicationChannel()
+
+checks if provided Communication Channel is valid.
+
+    my $Success = $CommonObject->ValidateArticleCommunicationChannel(
+        CommunicationChannel   => 'Internal',   # optional
+                                                # or
+        CommunicationChannelID => 1,            # optional
+    );
+
+    returns
+    $Success = 1            # or 0
+
+=cut
+
+sub ValidateArticleCommunicationChannel {
+    my ( $Self, %Param ) = @_;
+
+    # check needed stuff
+    if ( !$Param{CommunicationChannel} && !$Param{CommunicationChannelID} ) {
+        return;
+    }
+
+    my %CommunicationChannel = $Kernel::OM->Get('Kernel::System::CommunicationChannel')->ChannelGet(
+        ChannelID   => $Param{CommunicationChannelID},
+        ChannelName => $Param{CommunicationChannel},
+    );
+
+    return if !%CommunicationChannel;
+
+    # TicketCreate and TicketUpdate operations should only work with MIME based communication channels
+    return if $CommunicationChannel{ChannelName} !~ m{\AEmail|Internal|Phone\z}msxi;
+
+    return 1;
+}
+
 =head2 ValidateSenderType()
 
 checks if the given SenderType or SenderType ID is valid.
@@ -910,9 +881,7 @@ sub ValidateSenderType {
 
     my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
 
-    my %SenderTypeList = $ArticleObject->ArticleSenderTypeList(
-        Result => 'HASH',
-    );
+    my %SenderTypeList = $ArticleObject->ArticleSenderTypeList();
 
     # check for SenderType name sent
     if (
@@ -992,9 +961,8 @@ sub ValidateCharset {
     # check needed stuff
     return if !$Param{Charset};
 
-    my $CharsetList = $Self->_CharsetList();
-
-    return if !$CharsetList->{ $Param{Charset} };
+    use Encode;
+    return if !Encode::resolve_alias( $Param{Charset} );
 
     return 1;
 }
@@ -1276,11 +1244,10 @@ sub SetDynamicFieldValue {
 creates a new attachment for the given article.
 
     my $Result = $CommonObject->CreateAttachment(
-        Content     => $Data,                   # file content (Base64 encoded)
-        ContentType => 'some content type',
-        Filename    => 'some filename',
-        ArticleID   => 456,
-        UserID      => 123.
+        TicketID   => 123,
+        Attachment => $Data,                   # file content (Base64 encoded)
+        ArticleID  => 456,
+        UserID     => 123,
     );
 
     returns
@@ -1299,7 +1266,7 @@ sub CreateAttachment {
     my ( $Self, %Param ) = @_;
 
     # check needed stuff
-    for my $Needed (qw(Attachment ArticleID UserID)) {
+    for my $Needed (qw(TicketID Attachment ArticleID UserID)) {
         if ( !$Param{$Needed} ) {
             return {
                 Success      => 0,
@@ -1308,8 +1275,13 @@ sub CreateAttachment {
         }
     }
 
+    my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForArticle(
+        TicketID  => $Param{TicketID},
+        ArticleID => $Param{ArticleID},
+    );
+
     # write attachment
-    my $Success = $Kernel::OM->Get('Kernel::System::Ticket::Article')->ArticleWriteAttachment(
+    my $Success = $ArticleBackendObject->ArticleWriteAttachment(
         %{ $Param{Attachment} },
         Content   => MIME::Base64::decode_base64( $Param{Attachment}->{Content} ),
         ArticleID => $Param{ArticleID},
@@ -1318,7 +1290,7 @@ sub CreateAttachment {
 
     return {
         Success => $Success,
-        }
+    };
 }
 
 =head2 CheckCreatePermissions ()
@@ -1471,43 +1443,6 @@ sub _ValidateUser {
     return if !IsHashRefWithData( \%UserData );
 
     return 1;
-}
-
-=head2 _CharsetList()
-
-returns a list of all available charsets.
-
-    my $CharsetList = $CommonObject->_CharsetList(
-        UserID => 123,
-    );
-
-    returns
-    $Success = {
-        #...
-        iso-8859-1  => 1,
-        iso-8859-15 => 1,
-        MacRoman    => 1,
-        utf8        => 1,
-        #...
-    }
-
-=cut
-
-sub _CharsetList {
-    my ( $Self, %Param ) = @_;
-
-    # get charset array
-    use Encode;
-    my @CharsetList = Encode->encodings(":all");
-
-    my %CharsetHash;
-
-    # create a charset lookup table
-    for my $Charset (@CharsetList) {
-        $CharsetHash{$Charset} = 1;
-    }
-
-    return \%CharsetHash;
 }
 
 1;

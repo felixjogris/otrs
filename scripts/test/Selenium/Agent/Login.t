@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,20 +12,25 @@ use utf8;
 
 use vars (qw($Self));
 
-# get selenium object
+use Kernel::GenericInterface::Operation::Session::Common;
+
 my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
+
+# Cleanup existing settings to make sure session limit calculations are correct.
+my $AuthSessionObject = $Kernel::OM->Get('Kernel::System::AuthSession');
+for my $SessionID ( $AuthSessionObject->GetAllSessionIDs() ) {
+    $AuthSessionObject->RemoveSessionID( SessionID => $SessionID );
+}
 
 $Selenium->RunTest(
     sub {
 
-        # get helper object
         my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
         my @TestUserLogins;
 
+        # Create test users.
         for ( 0 .. 2 ) {
-
-            # create test user and login
             my $TestUserLogin = $Helper->TestUserCreate(
                 Groups => [ 'admin', 'users' ],
             ) || die "Did not get test user";
@@ -33,10 +38,9 @@ $Selenium->RunTest(
             push @TestUserLogins, $TestUserLogin;
         }
 
-        # get script alias
         my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
 
-        # First load the page so we can delete any pre-existing cookies
+        # First load the page so we can delete any pre-existing cookies.
         $Selenium->VerifiedGet("${ScriptAlias}index.pl");
         $Selenium->delete_all_cookies();
 
@@ -80,10 +84,16 @@ $Selenium->RunTest(
         $Element->is_enabled();
         $Element->send_keys( $TestUserLogins[0] );
 
-        # login
-        $Element->VerifiedSubmit();
+        # Login.
+        $Selenium->find_element( '#LoginButton', 'css' )->VerifiedClick();
 
-        # login successful?
+        # Try to expand the user profile sub menu by clicking the avatar.
+        $Selenium->find_element( '.UserAvatar > a', 'css' )->click();
+        $Selenium->WaitFor(
+            JavaScript => 'return typeof($) === "function" && $("li.UserAvatar > div:visible").length'
+        );
+
+        # Check if we see the logout button.
         $Element = $Selenium->find_element( 'a#LogoutButton', 'css' );
 
         # Check for version tag in the footer.
@@ -92,7 +102,7 @@ $Selenium->RunTest(
             "Version information present ($Product $Version)",
         );
 
-        # logout again
+        # Logout again.
         $Element->VerifiedClick();
 
         my @SessionIDs;
@@ -101,10 +111,10 @@ $Selenium->RunTest(
 
         for my $Counter ( 1 .. 2 ) {
 
-            # create new session id
+            # Create new session id.
             my $NewSessionID = $SessionObject->CreateSessionID(
                 UserLogin       => $TestUserLogins[$Counter],
-                UserLastRequest => $Kernel::OM->Get('Kernel::System::Time')->SystemTime(),
+                UserLastRequest => $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch(),
                 UserType        => 'User',
             );
 
@@ -114,6 +124,22 @@ $Selenium->RunTest(
             );
 
             push @SessionIDs, $NewSessionID;
+        }
+
+ # Create also two webservice session, to check that the sessions are not influence the active sessions and limit check.
+        for my $Counter ( 1 .. 2 ) {
+
+            my $NewSessionID = Kernel::GenericInterface::Operation::Session::Common->CreateSessionID(
+                Data => {
+                    UserLogin => $TestUserLogins[$Counter],
+                    Password  => $TestUserLogins[$Counter],
+                },
+            );
+
+            $Self->True(
+                $NewSessionID,
+                "Create webservice SessionID for user '$TestUserLogins[$Counter]'",
+            );
         }
 
         $Helper->ConfigSettingChange(
@@ -131,11 +157,17 @@ $Selenium->RunTest(
         $Element->is_enabled();
         $Element->send_keys( $TestUserLogins[0] );
 
-        $Element->VerifiedSubmit();
+        $Selenium->find_element( '#LoginButton', 'css' )->VerifiedClick();
 
         $Self->True(
             index( $Selenium->get_page_source(), 'Please note that the session limit is almost reached.' ) > -1,
             "AgentSessionLimitPriorWarning is reached.",
+        );
+
+        # Try to expand the user profile sub menu by clicking the avatar.
+        $Selenium->find_element( '.UserAvatar > a', 'css' )->click();
+        $Selenium->WaitFor(
+            JavaScript => 'return typeof($) === "function" && $("li.UserAvatar > div:visible").length'
         );
 
         $Element = $Selenium->find_element( 'a#LogoutButton', 'css' );
@@ -156,7 +188,7 @@ $Selenium->RunTest(
         $Element->is_enabled();
         $Element->send_keys( $TestUserLogins[2] );
 
-        $Element->VerifiedSubmit();
+        $Selenium->find_element( '#LoginButton', 'css' )->VerifiedClick();
 
         $Self->True(
             index( $Selenium->get_page_source(), 'Session per user limit reached!' ) > -1,
@@ -178,12 +210,39 @@ $Selenium->RunTest(
         $Element->is_enabled();
         $Element->send_keys( $TestUserLogins[0] );
 
-        $Element->VerifiedSubmit();
+        $Selenium->find_element( '#LoginButton', 'css' )->VerifiedClick();
 
         $Self->True(
             index( $Selenium->get_page_source(), 'Session limit reached! Please try again later.' ) > -1,
             "AgentSessionLimit is reached.",
         );
+
+        # Check if login works with a higher limit and that the webservice sessions have no influence on the limit.
+        $Helper->ConfigSettingChange(
+            Key   => 'AgentSessionLimit',
+            Value => 3,
+        );
+
+        $Element = $Selenium->find_element( 'input#User', 'css' );
+        $Element->is_displayed();
+        $Element->is_enabled();
+        $Element->send_keys( $TestUserLogins[0] );
+
+        $Element = $Selenium->find_element( 'input#Password', 'css' );
+        $Element->is_displayed();
+        $Element->is_enabled();
+        $Element->send_keys( $TestUserLogins[0] );
+
+        $Selenium->find_element( '#LoginButton', 'css' )->VerifiedClick();
+
+        # Try to expand the user profile sub menu by clicking the avatar.
+        $Selenium->find_element( '.UserAvatar > a', 'css' )->click();
+        $Selenium->WaitFor(
+            JavaScript => 'return typeof($) === "function" && $("li.UserAvatar > div:visible").length'
+        );
+
+        # Login successful?
+        $Element = $Selenium->find_element( 'a#LogoutButton', 'css' );
 
         $SessionObject->CleanUp();
     }

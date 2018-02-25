@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -62,7 +62,7 @@ sub Param {
     if ( $ParamObject->GetArray( Param => 'QueueID' ) ) {
         @CustomQueueIDs = $ParamObject->GetArray( Param => 'QueueID' );
     }
-    elsif ( $Param{UserData}->{UserID} && !defined $CustomQueueIDs[0] ) {
+    elsif ( $Param{UserData}->{UserID} ) {
         @CustomQueueIDs = $QueueObject->GetAllCustomQueues(
             UserID => $Param{UserData}->{UserID}
         );

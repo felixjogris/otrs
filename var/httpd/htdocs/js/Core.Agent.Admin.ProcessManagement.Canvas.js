@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -208,11 +208,7 @@ Core.Agent.Admin.ProcessManagement.Canvas = (function (TargetNS) {
             })
             .on('dblclick.Activity', function() {
                 var ConfigProcess = Core.Config.Get('ConfigProcess'),
-                    Path = ConfigProcess.PopupPathActivity + "EntityID=" + EntityID + ";ID=" + ActivityID,
-                    SessionData = Core.App.GetSessionInformation();
-                if (!Core.Config.Get('SessionIDCookie') && Path.indexOf(SessionData[Core.Config.Get('SessionName')]) === -1) {
-                    Path += ';' + encodeURIComponent(Core.Config.Get('SessionName')) + '=' + encodeURIComponent(SessionData[Core.Config.Get('SessionName')]);
-                }
+                    Path = ConfigProcess.PopupPathActivity + "EntityID=" + EntityID + ";ID=" + ActivityID;
 
                 Core.Agent.Admin.ProcessManagement.ShowOverlay();
                 Core.UI.Popup.OpenPopup(Path, 'Activity');
@@ -534,11 +530,7 @@ Core.Agent.Admin.ProcessManagement.Canvas = (function (TargetNS) {
             .show()
             .off('click')
             .on('click', function () {
-                var Path = ConfigProcess.PopupPathActivity + "EntityID=" + ElementID + ";ID=" + Activity[ElementID].ID,
-                    SessionData = Core.App.GetSessionInformation();
-                if (!Core.Config.Get('SessionIDCookie') && Path.indexOf(SessionData[Core.Config.Get('SessionName')]) === -1) {
-                    Path += ';' + encodeURIComponent(Core.Config.Get('SessionName')) + '=' + encodeURIComponent(SessionData[Core.Config.Get('SessionName')]);
-                }
+                var Path = ConfigProcess.PopupPathActivity + "EntityID=" + ElementID + ";ID=" + Activity[ElementID].ID;
 
                 Core.Agent.Admin.ProcessManagement.ShowOverlay();
                 Core.UI.Popup.OpenPopup(Path, 'Activity');
@@ -823,18 +815,13 @@ Core.Agent.Admin.ProcessManagement.Canvas = (function (TargetNS) {
         });
 
         Connection.bind('dblclick', function(ConnectionObject, Event) {
-            var EndActivityObject = ConnectionObject.endpoints[1],
-                SessionData = Core.App.GetSessionInformation();
+            var EndActivityObject = ConnectionObject.endpoints[1];
+
             // Do not open path dialog for dummy connections
             // dblclick on overlays (e.g. labels) propagate to the connection
             // prevent opening path dialog twice if clicked on label
             if (EndActivityObject !== 'Dummy' && !$(Event.srcElement).hasClass('TransitionLabel')) {
                 Core.Agent.Admin.ProcessManagement.ShowOverlay();
-
-                if (!Core.Config.Get('SessionIDCookie') && PopupPath.indexOf(SessionData[Core.Config.Get('SessionName')]) === -1) {
-                    PopupPath += ';' + encodeURIComponent(Core.Config.Get('SessionName')) + '=' + encodeURIComponent(SessionData[Core.Config.Get('SessionName')]);
-                }
-
                 Core.UI.Popup.OpenPopup(PopupPath, 'Path');
             }
             Event.stopImmediatePropagation();
@@ -860,8 +847,7 @@ Core.Agent.Admin.ProcessManagement.Canvas = (function (TargetNS) {
             Path = Config.Process[ProcessEntityID].Path,
             TransitionEntityID = Connection.component.getParameter('TransitionID'),
             StartActivityID = Connection.component.sourceId,
-            PopupPath = ConfigProcess.PopupPathPath + "ProcessEntityID=" + ProcessEntityID + ";TransitionEntityID=" + TransitionEntityID + ";StartActivityID=" + StartActivityID,
-            SessionData = Core.App.GetSessionInformation();
+            PopupPath = ConfigProcess.PopupPathPath + "ProcessEntityID=" + ProcessEntityID + ";TransitionEntityID=" + TransitionEntityID + ";StartActivityID=" + StartActivityID;
 
         if (TargetNS.DragTransitionAction) {
             $(Connection.canvas).addClass('ReadyToDrop');
@@ -888,9 +874,6 @@ Core.Agent.Admin.ProcessManagement.Canvas = (function (TargetNS) {
         if (!$(Connection.canvas).find('.Edit').length) {
             $(Connection.canvas).append('<a class="Edit" title="' + Core.Language.Translate('Edit this transition') + '" href="#"><i class="fa fa-edit"></i></a>').find('.Edit').on('click', function(Event) {
                 if (EndActivity !== 'Dummy') {
-                    if (!Core.Config.Get('SessionIDCookie') && PopupPath.indexOf(SessionData[Core.Config.Get('SessionName')]) === -1) {
-                        PopupPath += ';' + encodeURIComponent(Core.Config.Get('SessionName')) + '=' + encodeURIComponent(SessionData[Core.Config.Get('SessionName')]);
-                    }
                     Core.Agent.Admin.ProcessManagement.ShowOverlay();
                     Core.UI.Popup.OpenPopup(PopupPath, 'Path');
                 }

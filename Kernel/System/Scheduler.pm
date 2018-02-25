@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -128,6 +128,38 @@ sub FutureTaskList {
     my @List = $Kernel::OM->Get('Kernel::System::Daemon::SchedulerDB')->FutureTaskList(%Param);
 
     return @List;
+}
+
+=head2 TaskList()
+
+get the list of scheduler tasks
+
+    my @List = $SchedulerObject->TaskList(
+        Type => 'some type',  # optional
+    );
+
+Returns:
+
+    @List = (
+        {
+            TaskID => 123,
+            Name   => 'any name',
+            Type   => 'GenericInterface',
+        },
+        {
+            TaskID => 456,
+            Name   => 'any other name',
+            Type   => 'GenericInterface',
+        },
+        # ...
+    );
+
+=cut
+
+sub TaskList {
+    my ( $Self, %Param ) = @_;
+
+    return $Kernel::OM->Get('Kernel::System::Daemon::SchedulerDB')->TaskList(%Param);
 }
 
 =head2 FutureTaskDelete()

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -29,7 +29,10 @@ $Kernel::OM->ObjectParamAdd(
 );
 my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
-my $Home = $ConfigObject->Get('Home');
+my $Home    = $ConfigObject->Get('Home');
+my $Version = $ConfigObject->Get('Version');
+($Version) = $Version =~ m{^(\d+\.\d+)};
+$Version .= '.x';
 
 my $CachePopulate = sub {
     my $CacheSet = $CacheObject->Set(
@@ -65,7 +68,7 @@ my $CacheClearedCheck = sub {
     );
 };
 
-my $String = '<?xml version="1.0" encoding="utf-8" ?>
+my $String = qq|<?xml version="1.0" encoding="utf-8" ?>
 <otrs_package version="1.0">
   <Name>Test</Name>
   <Version>0.0.1</Version>
@@ -76,17 +79,7 @@ my $String = '<?xml version="1.0" encoding="utf-8" ?>
   <Description Lang="en">A test package (some test &lt; &gt; &amp;).</Description>
   <Description Lang="de">Ein Test Paket (some test &lt; &gt; &amp;).</Description>
   <ModuleRequired Version="1.112">Encode</ModuleRequired>
-  <Framework>6.0.x</Framework>
-  <Framework>3.3.x</Framework>
-  <Framework>3.2.x</Framework>
-  <Framework>3.1.x</Framework>
-  <Framework>3.0.x</Framework>
-  <Framework>2.5.x</Framework>
-  <Framework>2.4.x</Framework>
-  <Framework>2.3.x</Framework>
-  <Framework>2.2.x</Framework>
-  <Framework>2.1.x</Framework>
-  <Framework>2.0.x</Framework>
+  <Framework>$Version</Framework>
   <BuildDate>2005-11-10 21:17:16</BuildDate>
   <BuildHost>yourhost.example.com</BuildHost>
   <CodeInstall>
@@ -118,9 +111,9 @@ my $String = '<?xml version="1.0" encoding="utf-8" ?>
     <File Location="var/Test" Permission="644" Encode="Base64">aGVsbG8K</File>
   </Filelist>
 </otrs_package>
-';
+|;
 
-my $StringSecond = '<?xml version="1.0" encoding="utf-8" ?>
+my $StringSecond = qq|<?xml version="1.0" encoding="utf-8" ?>
 <otrs_package version="1.0">
   <Name>TestSecond</Name>
   <Version>0.0.1</Version>
@@ -131,17 +124,7 @@ my $StringSecond = '<?xml version="1.0" encoding="utf-8" ?>
   <Description Lang="en">A test package (some test &lt; &gt; &amp;).</Description>
   <Description Lang="de">Ein Test Paket (some test &lt; &gt; &amp;).</Description>
   <ModuleRequired Version="1.112">Encode</ModuleRequired>
-  <Framework>6.0.x</Framework>
-  <Framework>3.3.x</Framework>
-  <Framework>3.2.x</Framework>
-  <Framework>3.1.x</Framework>
-  <Framework>3.0.x</Framework>
-  <Framework>2.5.x</Framework>
-  <Framework>2.4.x</Framework>
-  <Framework>2.3.x</Framework>
-  <Framework>2.2.x</Framework>
-  <Framework>2.1.x</Framework>
-  <Framework>2.0.x</Framework>
+  <Framework>$Version</Framework>
   <BuildDate>2005-11-10 21:17:16</BuildDate>
   <BuildHost>yourhost.example.com</BuildHost>
   <Filelist>
@@ -149,7 +132,7 @@ my $StringSecond = '<?xml version="1.0" encoding="utf-8" ?>
     <File Location="var/TestSecond" Permission="644" Encode="Base64">aGVsbG8K</File>
   </Filelist>
 </otrs_package>
-';
+|;
 
 # check if the package is already installed - check by name
 my $PackageIsInstalledByName = $PackageObject->PackageIsInstalled( Name => 'Test' );
@@ -391,7 +374,7 @@ $Self->True(
 
 $CacheClearedCheck->();
 
-$String = '<?xml version="1.0" encoding="utf-8" ?>
+$String = qq|<?xml version="1.0" encoding="utf-8" ?>
 <otrs_package version="1.0">
   <Name>Test2</Name>
   <Version>0.0.1</Version>
@@ -401,24 +384,14 @@ $String = '<?xml version="1.0" encoding="utf-8" ?>
   <Description Lang="en">A test package.</Description>
   <Description Lang="de">Ein Test Paket.</Description>
   <PackageRequired Version="0.1">SomeNotExistingModule</PackageRequired>
-  <Framework>6.0.x</Framework>
-  <Framework>3.3.x</Framework>
-  <Framework>3.2.x</Framework>
-  <Framework>3.1.x</Framework>
-  <Framework>3.0.x</Framework>
-  <Framework>2.5.x</Framework>
-  <Framework>2.4.x</Framework>
-  <Framework>2.3.x</Framework>
-  <Framework>2.2.x</Framework>
-  <Framework>2.1.x</Framework>
-  <Framework>2.0.x</Framework>
+  <Framework>$Version</Framework>
   <BuildDate>2005-11-10 21:17:16</BuildDate>
   <BuildHost>yourhost.example.com</BuildHost>
   <Filelist>
     <File Location="Test" Permission="644" Encode="Base64">aGVsbG8K</File>
   </Filelist>
 </otrs_package>
-';
+|;
 $PackageInstall = $PackageObject->PackageInstall( String => $String );
 
 $Self->True(
@@ -426,7 +399,7 @@ $Self->True(
     '#2 PackageInstall() - PackageRequired not installed',
 );
 
-$String = '<?xml version="1.0" encoding="utf-8" ?>
+$String = qq|<?xml version="1.0" encoding="utf-8" ?>
 <otrs_package version="1.0">
   <Name>TestOSDetection1</Name>
   <Version>0.0.1</Version>
@@ -436,24 +409,14 @@ $String = '<?xml version="1.0" encoding="utf-8" ?>
   <Description Lang="en">A test package.</Description>
   <Description Lang="de">Ein Test Paket.</Description>
   <OS>NonExistingOS</OS>
-  <Framework>6.0.x</Framework>
-  <Framework>3.3.x</Framework>
-  <Framework>3.2.x</Framework>
-  <Framework>3.1.x</Framework>
-  <Framework>3.0.x</Framework>
-  <Framework>2.5.x</Framework>
-  <Framework>2.4.x</Framework>
-  <Framework>2.3.x</Framework>
-  <Framework>2.2.x</Framework>
-  <Framework>2.1.x</Framework>
-  <Framework>2.0.x</Framework>
+  <Framework>$Version</Framework>
   <BuildDate>2005-11-10 21:17:16</BuildDate>
   <BuildHost>yourhost.example.com</BuildHost>
   <Filelist>
     <File Location="Test" Permission="644" Encode="Base64">aGVsbG8K</File>
   </Filelist>
 </otrs_package>
-';
+|;
 $PackageInstall = $PackageObject->PackageInstall( String => $String );
 
 $Self->True(
@@ -461,7 +424,7 @@ $Self->True(
     'PackageInstall() - OSCheck not installed',
 );
 
-$String = '<?xml version="1.0" encoding="utf-8" ?>
+$String = qq|<?xml version="1.0" encoding="utf-8" ?>
 <otrs_package version="1.0">
   <Name>TestOSDetection2</Name>
   <Version>0.0.1</Version>
@@ -474,24 +437,14 @@ $String = '<?xml version="1.0" encoding="utf-8" ?>
   <OS>linux</OS>
   <OS>freebsd</OS>
   <OS>MSWin32</OS>
-  <Framework>6.0.x</Framework>
-  <Framework>3.3.x</Framework>
-  <Framework>3.2.x</Framework>
-  <Framework>3.1.x</Framework>
-  <Framework>3.0.x</Framework>
-  <Framework>2.5.x</Framework>
-  <Framework>2.4.x</Framework>
-  <Framework>2.3.x</Framework>
-  <Framework>2.2.x</Framework>
-  <Framework>2.1.x</Framework>
-  <Framework>2.0.x</Framework>
+  <Framework>$Version</Framework>
   <BuildDate>2005-11-10 21:17:16</BuildDate>
   <BuildHost>yourhost.example.com</BuildHost>
   <Filelist>
     <File Location="Test" Permission="644" Encode="Base64">aGVsbG8K</File>
   </Filelist>
 </otrs_package>
-';
+|;
 $PackageInstall = $PackageObject->PackageInstall( String => $String );
 
 $Self->True(
@@ -506,7 +459,7 @@ $Self->True(
     'PackageUninstall() - OSCheck uninstalled',
 );
 
-$String = '<?xml version="1.0" encoding="utf-8" ?>
+$String = qq|<?xml version="1.0" encoding="utf-8" ?>
 <otrs_package version="1.0">
   <Name>Test2</Name>
   <Version>0.0.1</Version>
@@ -516,31 +469,21 @@ $String = '<?xml version="1.0" encoding="utf-8" ?>
   <Description Lang="en">A test package.</Description>
   <Description Lang="de">Ein Test Paket.</Description>
   <ModuleRequired Version="0.1">SomeNotExistingModule</ModuleRequired>
-  <Framework>6.0.x</Framework>
-  <Framework>3.3.x</Framework>
-  <Framework>3.2.x</Framework>
-  <Framework>3.1.x</Framework>
-  <Framework>3.0.x</Framework>
-  <Framework>2.5.x</Framework>
-  <Framework>2.4.x</Framework>
-  <Framework>2.3.x</Framework>
-  <Framework>2.2.x</Framework>
-  <Framework>2.1.x</Framework>
-  <Framework>2.0.x</Framework>
+  <Framework>$Version</Framework>
   <BuildDate>2005-11-10 21:17:16</BuildDate>
   <BuildHost>yourhost.example.com</BuildHost>
   <Filelist>
     <File Location="Test" Permission="644" Encode="Base64">aGVsbG8K</File>
   </Filelist>
 </otrs_package>
-';
+|;
 $PackageInstall = $PackageObject->PackageInstall( String => $String );
 
 $Self->True(
     !$PackageInstall || 0,
     '#3 PackageInstall() - ModuleRequired not installed',
 );
-$String = '<?xml version="1.0" encoding="utf-8" ?>
+$String = qq|<?xml version="1.0" encoding="utf-8" ?>
 <otrs_package version="1.0">
   <Name>Test2</Name>
   <Version>0.0.1</Version>
@@ -550,24 +493,14 @@ $String = '<?xml version="1.0" encoding="utf-8" ?>
   <Description Lang="en">A test package.</Description>
   <Description Lang="de">Ein Test Paket.</Description>
   <ModuleRequired Version="12.999">Encode</ModuleRequired>
-  <Framework>6.0.x</Framework>
-  <Framework>3.3.x</Framework>
-  <Framework>3.2.x</Framework>
-  <Framework>3.1.x</Framework>
-  <Framework>3.0.x</Framework>
-  <Framework>2.5.x</Framework>
-  <Framework>2.4.x</Framework>
-  <Framework>2.3.x</Framework>
-  <Framework>2.2.x</Framework>
-  <Framework>2.1.x</Framework>
-  <Framework>2.0.x</Framework>
+  <Framework>$Version</Framework>
   <BuildDate>2005-11-10 21:17:16</BuildDate>
   <BuildHost>yourhost.example.com</BuildHost>
   <Filelist>
     <File Location="Test" Permission="644" Encode="Base64">aGVsbG8K</File>
   </Filelist>
 </otrs_package>
-';
+|;
 $PackageInstall = $PackageObject->PackageInstall( String => $String );
 
 $Self->True(
@@ -576,7 +509,7 @@ $Self->True(
 );
 
 # #5 file exists tests
-my $String1 = '<?xml version="1.0" encoding="utf-8" ?>
+my $String1 = qq|<?xml version="1.0" encoding="utf-8" ?>
 <otrs_package version="1.0">
   <Name>Test2</Name>
   <Version>0.0.1</Version>
@@ -585,30 +518,20 @@ my $String1 = '<?xml version="1.0" encoding="utf-8" ?>
   <License>GNU GENERAL PUBLIC LICENSE Version 2, June 1991</License>
   <Description Lang="en">A test package.</Description>
   <Description Lang="de">Ein Test Paket.</Description>
-  <Framework>6.0.x</Framework>
-  <Framework>3.3.x</Framework>
-  <Framework>3.2.x</Framework>
-  <Framework>3.1.x</Framework>
-  <Framework>3.0.x</Framework>
-  <Framework>2.5.x</Framework>
-  <Framework>2.4.x</Framework>
-  <Framework>2.3.x</Framework>
-  <Framework>2.2.x</Framework>
-  <Framework>2.1.x</Framework>
-  <Framework>2.0.x</Framework>
+  <Framework>$Version</Framework>
   <BuildDate>2005-11-10 21:17:16</BuildDate>
   <BuildHost>yourhost.example.com</BuildHost>
   <Filelist>
     <File Location="Test" Permission="644" Encode="Base64">aGVsbG8K</File>
   </Filelist>
 </otrs_package>
-';
+|;
 $PackageInstall = $PackageObject->PackageInstall( String => $String1 );
 $Self->True(
     $PackageInstall,
     '#5 PackageInstall() - 1/3 File already exists in package X.',
 );
-my $String2 = '<?xml version="1.0" encoding="utf-8" ?>
+my $String2 = qq|<?xml version="1.0" encoding="utf-8" ?>
 <otrs_package version="1.0">
   <Name>Test3</Name>
   <Version>0.0.1</Version>
@@ -617,31 +540,21 @@ my $String2 = '<?xml version="1.0" encoding="utf-8" ?>
   <License>GNU GENERAL PUBLIC LICENSE Version 2, June 1991</License>
   <Description Lang="en">A test package.</Description>
   <Description Lang="de">Ein Test Paket.</Description>
-  <Framework>6.0.x</Framework>
-  <Framework>3.3.x</Framework>
-  <Framework>3.2.x</Framework>
-  <Framework>3.1.x</Framework>
-  <Framework>3.0.x</Framework>
-  <Framework>2.5.x</Framework>
-  <Framework>2.4.x</Framework>
-  <Framework>2.3.x</Framework>
-  <Framework>2.2.x</Framework>
-  <Framework>2.1.x</Framework>
-  <Framework>2.0.x</Framework>
+  <Framework>$Version</Framework>
   <BuildDate>2005-11-10 21:17:16</BuildDate>
   <BuildHost>yourhost.example.com</BuildHost>
   <Filelist>
     <File Location="Test" Permission="644" Encode="Base64">aGVsbG8K</File>
   </Filelist>
 </otrs_package>
-';
+|;
 $PackageInstall = $PackageObject->PackageInstall( String => $String2 );
 
 $Self->True(
     !$PackageInstall || 0,
     '#5 PackageInstall() - 2/3 File already exists in package X.',
 );
-my $String3 = '<?xml version="1.0" encoding="utf-8" ?>
+my $String3 = qq|<?xml version="1.0" encoding="utf-8" ?>
 <otrs_package version="1.0">
   <Name>Test3</Name>
   <Version>0.0.2</Version>
@@ -650,26 +563,16 @@ my $String3 = '<?xml version="1.0" encoding="utf-8" ?>
   <License>GNU GENERAL PUBLIC LICENSE Version 2, June 1991</License>
   <Description Lang="en">A test package.</Description>
   <Description Lang="de">Ein Test Paket.</Description>
-  <Framework>6.0.x</Framework>
-  <Framework>3.3.x</Framework>
-  <Framework>3.2.x</Framework>
-  <Framework>3.1.x</Framework>
-  <Framework>3.0.x</Framework>
-  <Framework>2.5.x</Framework>
-  <Framework>2.4.x</Framework>
-  <Framework>2.3.x</Framework>
-  <Framework>2.2.x</Framework>
-  <Framework>2.1.x</Framework>
-  <Framework>2.0.x</Framework>
+  <Framework>$Version</Framework>
   <BuildDate>2005-11-10 21:17:16</BuildDate>
   <BuildHost>yourhost.example.com</BuildHost>
   <Filelist>
     <File Location="Test3" Permission="644" Encode="Base64">aGVsbG8K</File>
   </Filelist>
 </otrs_package>
-';
+|;
 $PackageInstall = $PackageObject->PackageInstall( String => $String3 );
-my $String3a = '<?xml version="1.0" encoding="utf-8" ?>
+my $String3a = qq|<?xml version="1.0" encoding="utf-8" ?>
 <otrs_package version="1.0">
   <Name>Test3</Name>
   <Version>0.0.3</Version>
@@ -678,24 +581,14 @@ my $String3a = '<?xml version="1.0" encoding="utf-8" ?>
   <License>GNU GENERAL PUBLIC LICENSE Version 2, June 1991</License>
   <Description Lang="en">A test package.</Description>
   <Description Lang="de">Ein Test Paket.</Description>
-  <Framework>6.0.x</Framework>
-  <Framework>3.3.x</Framework>
-  <Framework>3.2.x</Framework>
-  <Framework>3.1.x</Framework>
-  <Framework>3.0.x</Framework>
-  <Framework>2.5.x</Framework>
-  <Framework>2.4.x</Framework>
-  <Framework>2.3.x</Framework>
-  <Framework>2.2.x</Framework>
-  <Framework>2.1.x</Framework>
-  <Framework>2.0.x</Framework>
+  <Framework>$Version</Framework>
   <BuildDate>2005-11-10 21:17:16</BuildDate>
   <BuildHost>yourhost.example.com</BuildHost>
   <Filelist>
     <File Location="Test" Permission="644" Encode="Base64">aGVsbG8K</File>
   </Filelist>
 </otrs_package>
-';
+|;
 
 my $PackageUpgrade = $PackageObject->PackageUpgrade( String => $String3a );
 
@@ -714,17 +607,6 @@ my $String3b = '<?xml version="1.0" encoding="utf-8" ?>
   <License>GNU GENERAL PUBLIC LICENSE Version 2, June 1991</License>
   <Description Lang="en">A test package.</Description>
   <Description Lang="de">Ein Test Paket.</Description>
-  <Framework>6.0.x</Framework>
-  <Framework>3.3.x</Framework>
-  <Framework>3.2.x</Framework>
-  <Framework>3.1.x</Framework>
-  <Framework>3.0.x</Framework>
-  <Framework>2.5.x</Framework>
-  <Framework>2.4.x</Framework>
-  <Framework>2.3.x</Framework>
-  <Framework>2.2.x</Framework>
-  <Framework>2.1.x</Framework>
-  <Framework>2.0.x</Framework>
   <BuildDate>2005-11-10 21:17:16</BuildDate>
   <BuildHost>yourhost.example.com</BuildHost>
   <CodeUpgrade Type="pre" Version="0.0.4">
@@ -860,7 +742,7 @@ $Self->True(
 );
 
 # 9 pre tests
-$String = '<?xml version="1.0" encoding="utf-8" ?>
+$String = qq|<?xml version="1.0" encoding="utf-8" ?>
 <otrs_package version="1.0">
   <Name>Test2</Name>
   <Version>0.0.1</Version>
@@ -869,17 +751,7 @@ $String = '<?xml version="1.0" encoding="utf-8" ?>
   <License>GNU GENERAL PUBLIC LICENSE Version 2, June 1991</License>
   <Description Lang="en">A test package.</Description>
   <Description Lang="de">Ein Test Paket.</Description>
-  <Framework>6.0.x</Framework>
-  <Framework>3.3.x</Framework>
-  <Framework>3.2.x</Framework>
-  <Framework>3.1.x</Framework>
-  <Framework>3.0.x</Framework>
-  <Framework>2.5.x</Framework>
-  <Framework>2.4.x</Framework>
-  <Framework>2.3.x</Framework>
-  <Framework>2.2.x</Framework>
-  <Framework>2.1.x</Framework>
-  <Framework>2.0.x</Framework>
+  <Framework>$Version</Framework>
   <BuildDate>2005-11-10 21:17:16</BuildDate>
   <BuildHost>yourhost.example.com</BuildHost>
   <Filelist>
@@ -906,7 +778,7 @@ $String = '<?xml version="1.0" encoding="utf-8" ?>
     <TableDrop Name="test_package"/>
   </DatabaseUninstall>
 </otrs_package>
-';
+|;
 $PackageInstall = $PackageObject->PackageInstall( String => $String );
 
 $Self->True(
@@ -934,7 +806,7 @@ $Self->True(
 );
 
 # 10 post tests
-$String = '<?xml version="1.0" encoding="utf-8" ?>
+$String = qq|<?xml version="1.0" encoding="utf-8" ?>
 <otrs_package version="1.0">
   <Name>Test2</Name>
   <Version>0.0.1</Version>
@@ -943,17 +815,7 @@ $String = '<?xml version="1.0" encoding="utf-8" ?>
   <License>GNU GENERAL PUBLIC LICENSE Version 2, June 110101</License>
   <Description Lang="en">A test package.</Description>
   <Description Lang="de">Ein Test Paket.</Description>
-  <Framework>6.0.x</Framework>
-  <Framework>3.3.x</Framework>
-  <Framework>3.2.x</Framework>
-  <Framework>3.1.x</Framework>
-  <Framework>3.0.x</Framework>
-  <Framework>2.5.x</Framework>
-  <Framework>2.4.x</Framework>
-  <Framework>2.3.x</Framework>
-  <Framework>2.2.x</Framework>
-  <Framework>2.1.x</Framework>
-  <Framework>2.0.x</Framework>
+  <Framework>$Version</Framework>
   <BuildDate>2005-11-10 21:17:16</BuildDate>
   <BuildHost>yourhost.example.com</BuildHost>
   <Filelist>
@@ -980,7 +842,7 @@ $String = '<?xml version="1.0" encoding="utf-8" ?>
     <TableDrop Name="test_package"/>
   </DatabaseUninstall>
 </otrs_package>
-';
+|;
 $PackageInstall = $PackageObject->PackageInstall( String => $String );
 
 $Self->True(
@@ -1027,11 +889,7 @@ my $FileNotAllowedString = "<?xml version=\"1.0\" encoding=\"utf-8\" ?>
   <License>GNU GENERAL PUBLIC LICENSE Version 2, June 1991</License>
   <Description Lang=\"en\">A test package.</Description>
   <Description Lang=\"de\">Ein Test Paket.</Description>
-  <Framework>6.0.x</Framework>
-  <Framework>3.3.x</Framework>
-  <Framework>3.2.x</Framework>
-  <Framework>3.1.x</Framework>
-  <Framework>3.0.x</Framework>
+  <Framework>$Version</Framework>
   <BuildDate>2005-11-10 21:17:16</BuildDate>
   <BuildHost>yourhost.example.com</BuildHost>
   <Filelist>\n";
@@ -1080,10 +938,9 @@ $Self->True(
 # find out if it is an developer installation with files
 # from the version control system.
 my $DeveloperSystem = 0;
-my $Version         = $ConfigObject->Get('Version');
 if (
     !-e $Home . '/ARCHIVE'
-    && $Version =~ m{git}
+    && $ConfigObject->Get('Version') =~ m{git}
     )
 {
     $DeveloperSystem = 1;
@@ -1096,7 +953,7 @@ if ( !$DeveloperSystem ) {
     my $RemoveFile          = $Home . '/' . 'bin/otrs.CheckSum.pl.save';
     my $RemoveFileFramework = $Home . '/' . 'bin/otrs.CheckSum.pl';
     copy( $RemoveFileFramework, $RemoveFileFramework . '.orig' );
-    $String = '<?xml version="1.0" encoding="utf-8" ?>
+    $String = qq|<?xml version="1.0" encoding="utf-8" ?>
     <otrs_package version="1.0">
       <Name>TestFrameworkFileCheck</Name>
       <Version>0.0.1</Version>
@@ -1105,24 +962,14 @@ if ( !$DeveloperSystem ) {
       <License>GNU GENERAL PUBLIC LICENSE Version 2, June 1991</License>
       <Description Lang="en">A test package.</Description>
       <Description Lang="de">Ein Test Paket.</Description>
-      <Framework>6.0.x</Framework>
-      <Framework>3.3.x</Framework>
-      <Framework>3.2.x</Framework>
-      <Framework>3.1.x</Framework>
-      <Framework>3.0.x</Framework>
-      <Framework>2.5.x</Framework>
-      <Framework>2.4.x</Framework>
-      <Framework>2.3.x</Framework>
-      <Framework>2.2.x</Framework>
-      <Framework>2.1.x</Framework>
-      <Framework>2.0.x</Framework>
+      <Framework>$Version</Framework>
       <BuildDate>2005-11-10 21:17:16</BuildDate>
       <BuildHost>yourhost.example.com</BuildHost>
       <Filelist>
         <File Location="bin/otrs.CheckSum.pl" Permission="644" Encode="Base64">aGVsbG8K</File>
       </Filelist>
     </otrs_package>
-    ';
+    |;
     $PackageInstall = $PackageObject->PackageInstall( String => $String );
 
     $Self->True(
@@ -1180,7 +1027,7 @@ if ( !$DeveloperSystem ) {
     my $SaveFile          = $Home . '/' . 'bin/otrs.CheckSum.pl.save';
     my $SaveFileFramework = $Home . '/' . 'bin/otrs.CheckSum.pl';
     copy( $SaveFileFramework, $SaveFileFramework . '.orig' );
-    $String = '<?xml version="1.0" encoding="utf-8" ?>
+    $String = qq|<?xml version="1.0" encoding="utf-8" ?>
     <otrs_package version="1.0">
       <Name>TestFrameworkFileCheck</Name>
       <Version>0.0.1</Version>
@@ -1189,24 +1036,14 @@ if ( !$DeveloperSystem ) {
       <License>GNU GENERAL PUBLIC LICENSE Version 2, June 1991</License>
       <Description Lang="en">A test package.</Description>
       <Description Lang="de">Ein Test Paket.</Description>
-      <Framework>6.0.x</Framework>
-      <Framework>3.3.x</Framework>
-      <Framework>3.2.x</Framework>
-      <Framework>3.1.x</Framework>
-      <Framework>3.0.x</Framework>
-      <Framework>2.5.x</Framework>
-      <Framework>2.4.x</Framework>
-      <Framework>2.3.x</Framework>
-      <Framework>2.2.x</Framework>
-      <Framework>2.1.x</Framework>
-      <Framework>2.0.x</Framework>
+      <Framework>$Version</Framework>
       <BuildDate>2005-11-10 21:17:16</BuildDate>
       <BuildHost>yourhost.example.com</BuildHost>
       <Filelist>
         <File Location="bin/otrs.CheckSum.pl" Permission="644" Encode="Base64">aGVsbG8K</File>
       </Filelist>
     </otrs_package>
-    ';
+    |;
     $PackageInstall = $PackageObject->PackageInstall( String => $String );
 
     $Self->True(

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -236,12 +236,18 @@ my $FilterRand1      = 'filter' . $Helper->GetRandomID();
 $PostMasterFilter->FilterAdd(
     Name           => $FilterRand1,
     StopAfterMatch => 0,
-    Match          => {
-        'X-OTRS-BodyDecrypted' => 'Hi',
-    },
-    Set => {
-        'X-OTRS-Queue' => 'Junk',
-    },
+    Match          => [
+        {
+            Key   => 'X-OTRS-BodyDecrypted',
+            Value => 'Hi',
+        },
+    ],
+    Set => [
+        {
+            Key   => 'X-OTRS-Queue',
+            Value => 'Junk',
+        },
+    ],
 );
 
 # Read email content (from a file).
@@ -273,9 +279,19 @@ $ConfigObject->Set(
         }
 );
 
+my $CommunicationLogObject = $Kernel::OM->Create(
+    'Kernel::System::CommunicationLog',
+    ObjectParams => {
+        Transport => 'Email',
+        Direction => 'Incoming',
+    },
+);
+$CommunicationLogObject->ObjectLogStart( ObjectLogType => 'Message' );
+
 my $PostMasterObject = Kernel::System::PostMaster->new(
-    Email   => $Email,
-    Trusted => 1,
+    CommunicationLogObject => $CommunicationLogObject,
+    Email                  => $Email,
+    Trusted                => 1,
 );
 
 my @Return = $PostMasterObject->Run( Queue => '' );
@@ -291,6 +307,14 @@ $Self->True(
     "Create new ticket (TicketID)",
 );
 
+$CommunicationLogObject->ObjectLogStop(
+    ObjectLogType => 'Message',
+    Status        => 'Successful',
+);
+$CommunicationLogObject->CommunicationStop(
+    Status => 'Successful',
+);
+
 # Get ticket object.
 my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
 
@@ -300,10 +324,14 @@ my %Ticket = $TicketObject->TicketGet(
     TicketID => $Return[1],
 );
 
-my @ArticleIndex = $Kernel::OM->Get('Kernel::System::Ticket::Article')->ArticleGet(
+my $ArticleObject        = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+my $ArticleBackendObject = $ArticleObject->BackendForChannel( ChannelName => 'Email' );
+my @ArticleIndex         = $ArticleObject->ArticleList(
     TicketID => $Return[1],
     UserID   => 1,
 );
+
+my %FirstArticle = $ArticleBackendObject->ArticleGet( %{ $ArticleIndex[0] } );
 
 $Self->Is(
     $Ticket{Queue},
@@ -311,13 +339,13 @@ $Self->Is(
     "Ticket created in $Ticket{Queue}",
 );
 
-my $GetBody = $ArticleIndex[0]{Body};
+my $GetBody = $FirstArticle{Body};
 chomp($GetBody);
 
 $Self->Is(
     $GetBody,
     'Hi',
-    "Body decrypted $ArticleIndex[0]{Body}",
+    "Body decrypted $FirstArticle{Body}",
 );
 
 # Delete needed test directories.

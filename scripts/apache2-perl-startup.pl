@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU AFFERO General Public License as published by
@@ -34,12 +34,12 @@ BEGIN {
     # on Fedora, $0 is not a path which would break OTRS.
     # see bug # 8533
     if ( !-e $0 ) {
-        $0 = '/opt/otrs/bin/cgi-bin/index.pl';
+        $0 = '/opt/otrs/bin/cgi-bin/index.pl';    ## no critic
     }
 }
 
-use Apache2::RequestRec;
-use ModPerl::Util;
+use Apache2::RequestRec ();
+use ModPerl::Util       ();
 
 use lib "/opt/otrs/";
 use lib "/opt/otrs/Kernel/cpan-lib";
@@ -50,7 +50,7 @@ use CGI ();
 CGI->compile(':cgi');
 use CGI::Carp ();
 
-use Apache::DBI;
+use Apache::DBI ();
 
 # enable this if you use mysql
 #use DBD::mysql ();
@@ -64,10 +64,15 @@ use Apache::DBI;
 #use DBD::Oracle ();
 #use Kernel::System::DB::oracle;
 
-# preload Net::DNS if it is installed. It is important to preload Net::DNS because otherwise it
-# can be that loading of Net::DNS tooks more than 30 seconds.
+# Preload Net::DNS if it is installed. It is important to preload Net::DNS because otherwise loading
+#   could take more than 30 seconds.
 eval { require Net::DNS };
 
+# Preload DateTime, an expensive external dependency.
+use DateTime ();
+
+# Preload dependencies that are always used.
+use Template ();
 use Encode qw(:all);
 
 1;

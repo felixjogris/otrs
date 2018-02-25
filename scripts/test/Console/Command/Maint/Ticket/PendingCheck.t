@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -23,7 +23,6 @@ my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
 # get needed objects
 my $CommandObject = $Kernel::OM->Get('Kernel::System::Console::Command::Maint::Ticket::PendingCheck');
-my $TimeObject    = $Kernel::OM->Get('Kernel::System::Time');
 my $TicketObject  = $Kernel::OM->Get('Kernel::System::Ticket');
 
 my $TicketID = $TicketObject->TicketCreate(
@@ -55,9 +54,12 @@ $Self->True(
 );
 
 # test the pending auto close, with a time before the pending time
-my $SystemTime = $TimeObject->TimeStamp2SystemTime(
-    String => '2014-01-01 12:00:00',
-);
+my $SystemTime = $Kernel::OM->Create(
+    'Kernel::System::DateTime',
+    ObjectParams => {
+        String => '2014-01-01 12:00:00',
+    },
+)->ToEpoch();
 
 # set the fixed time
 $Helper->FixedTimeSet($SystemTime);
@@ -81,9 +83,12 @@ $Self->Is(
 );
 
 # test the pending auto close, for a reached pending time
-$SystemTime = $TimeObject->TimeStamp2SystemTime(
-    String => '2014-01-03 03:00:00',
-);
+$SystemTime = $Kernel::OM->Create(
+    'Kernel::System::DateTime',
+    ObjectParams => {
+        String => '2014-01-03 03:00:00',
+    },
+)->ToEpoch();
 
 # set the fixed time
 $Helper->FixedTimeSet($SystemTime);

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -14,6 +14,9 @@
     <input type="hidden" name="TicketUnlock" value="[% Data.TicketUnlock | html %]"/>
     <input type="hidden" name="OwnerAll" id="OwnerAll" value="[% Data.OwnerAll | html %]"/>
     <input type="hidden" name="NoSubmit"     value=""/>
+    <input type="hidden" name="FormDraftTitle" value="[% Data.FormDraftTitle | html %]"/>
+    <input type="hidden" name="FormDraftID" value="[% Data.FormDraftID | html %]"/>
+    <input type="hidden" name="FormDraftAction" id="FormDraftAction" />
 
     <div class="LayoutPopup ARIARoleMain">
         <div class="Header">
@@ -37,6 +40,7 @@
 
         </div>
         <div class="Content">
+            [% INCLUDE "FormElements/DraftNotifications.tt" %]
             <div class="WidgetSimple Expanded">
                 <div class="Header">
                     <div class="WidgetAction Toggle">
@@ -191,11 +195,6 @@
                         <label>[% Translate("Options") | html %]:</label>
                         <div class="Field">
 <!-- OutputFilterHook_TicketOptionsBegin -->
-
-[% RenderBlockStart("SpellCheck") %]
-                            <a href="#" id="OptionSpellCheck">[ [% Translate("Spell check") | html %] ]</a>
-[% RenderBlockEnd("SpellCheck") %]
-
 <!-- OutputFilterHook_TicketOptionsEnd -->
 
                         </div>
@@ -208,7 +207,7 @@
                         <label for="StandardTemplateID">[% Translate("Text Template") | html %]:</label>
                         <div class="Field">
                         [% Data.StandardTemplateStrg %]
-                            <p class="FieldExplanation">[% Translate("Setting a template will overwrite any text or attachment.") %]</p>
+                            <p class="FieldExplanation">[% Translate("Setting a template will overwrite any text or attachment.") | html %]</p>
                         </div>
                         <div class="Clear"></div>
 [% RenderBlockEnd("StandardTemplate") %]
@@ -226,23 +225,12 @@
                         </div>
                         <div class="Clear"></div>
 
-                        <label>[% Translate("Attachment") | html %]:</label>
+                        <label>[% Translate("Attachments") | html %]:</label>
                         <div class="Field">
-                            <ul>
-[% RenderBlockStart("Attachment") %]
-                                <li>
-                                [% Data.Filename | html %] ([% Data.Filesize | html %])
-                                    <button type="button" id="AttachmentDeleteButton[% Data.FileID | html %]" name="AttachmentDeleteButton[% Data.FileID | html %]" value="[% Translate("Delete") | html %]" class="SpacingLeft">[% Translate("Delete") | html %]</button>
-                                    <input type="hidden" id="AttachmentDelete[% Data.FileID | html %]" name="AttachmentDelete[% Data.FileID | html %]" />
-                                </li>
-[% RenderBlockEnd("Attachment") %]
-                                <li>
-                                    <input id="FileUpload" name="FileUpload" type="file" size="40" />
-                                    <input type="hidden" id="AttachmentUpload" name="AttachmentUpload" value="0" />
-                                </li>
-                            </ul>
+[% INCLUDE "FormElements/AttachmentList.tt" %]
                         </div>
                         <div class="Clear"></div>
+
 [% RenderBlockEnd("Note") %]
 [% RenderBlockStart("TimeUnitsLabel") %]
                         <label for="TimeUnits">[% Translate("Time units") | html %] [% Translate(Config("Ticket::Frontend::TimeUnits")) | html %]:</label>
@@ -262,10 +250,12 @@
                 </div>
             </div>
 [% RenderBlockEnd("WidgetArticle") %]
-
         </div>
         <div class="Footer">
-            <button class="CallForAction Primary" id="submitRichText" accesskey="g" title="[% Translate("Move") | html %] (g)" type="submit" value="[% Translate("Move") | html %]"><span>[% Translate("Move") | html %]</span></button>
+            <button class="CallForAction Primary" id="submitRichText" accesskey="g" title="[% Translate("Move") | html %] (g)" type="submit" value="[% Translate("Move") | html %]">
+                <span>[% Translate("Move") | html %]</span>
+            </button>
+            [% INCLUDE "FormElements/DraftButtons.tt" %]
         </div>
     </div>
 </form>

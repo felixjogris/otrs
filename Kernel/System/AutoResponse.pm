@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -574,7 +574,7 @@ sub _NameExistsCheck {
     if ($Flag) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => "An Auto-Response with name '$Param{Name}' already exists!",
+            Message  => "An auto-response with the name '$Param{Name}' already exists.",
         );
         return;
     }

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -20,11 +20,9 @@ for my $SourceBackend (qw(ArticleStorageDB ArticleStorageFS)) {
     # Make sure that all objects get recreated for each loop.
     $Kernel::OM->ObjectsDiscard();
 
-    # get needed objects
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
     my $MainObject   = $Kernel::OM->Get('Kernel::System::Main');
 
-    # get helper object
     $Kernel::OM->ObjectParamAdd(
         'Kernel::System::UnitTest::Helper' => {
             RestoreDatabase  => 1,
@@ -34,17 +32,18 @@ for my $SourceBackend (qw(ArticleStorageDB ArticleStorageFS)) {
     my $Helper = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
     $ConfigObject->Set(
-        Key   => 'Ticket::StorageModule',
-        Value => 'Kernel::System::Ticket::' . $SourceBackend,
+        Key   => 'Ticket::Article::Backend::MIMEBase::ArticleStorage',
+        Value => 'Kernel::System::Ticket::Article::Backend::MIMEBase::' . $SourceBackend,
     );
 
-    my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
-    my $TicketObject  = $Kernel::OM->Get('Kernel::System::Ticket');
+    my $TicketObject         = $Kernel::OM->Get('Kernel::System::Ticket');
+    my $ArticleObject        = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+    my $ArticleBackendObject = $ArticleObject->BackendForChannel( ChannelName => 'Email' );
 
     $Self->Is(
-        $ArticleObject->{ArticleStorageModule},
-        'Kernel::System::Ticket::' . $SourceBackend,
-        "TicketObject loaded the correct backend",
+        $ArticleBackendObject->{ArticleStorageModule},
+        'Kernel::System::Ticket::Article::Backend::MIMEBase::' . $SourceBackend,
+        'Article backend loaded the correct storage module'
     );
 
     my @TicketIDs;
@@ -64,8 +63,18 @@ for my $SourceBackend (qw(ArticleStorageDB ArticleStorageFS)) {
         );
         my @Content = @{$ContentRef};
 
+        my $CommunicationLogObject = $Kernel::OM->Create(
+            'Kernel::System::CommunicationLog',
+            ObjectParams => {
+                Transport => 'Email',
+                Direction => 'Incoming',
+            },
+        );
+        $CommunicationLogObject->ObjectLogStart( ObjectLogType => 'Message' );
+
         my $PostMasterObject = Kernel::System::PostMaster->new(
-            Email => \@Content,
+            CommunicationLogObject => $CommunicationLogObject,
+            Email                  => \@Content,
         );
 
         my @Return = $PostMasterObject->Run();
@@ -79,16 +88,27 @@ for my $SourceBackend (qw(ArticleStorageDB ArticleStorageFS)) {
             $NamePrefix . " Run() - NewTicket/TicketID:$Return[1]",
         );
 
+        $CommunicationLogObject->ObjectLogStop(
+            ObjectLogType => 'Message',
+            Status        => 'Successful',
+        );
+        $CommunicationLogObject->CommunicationStop(
+            Status => 'Successful',
+        );
+
         # remember created tickets
         push @TicketIDs, $Return[1];
 
-        # remember created article and attachments
-        my @ArticleBox = $ArticleObject->ArticleContentIndex(
+        # Remember created article and attachments.
+        my @Articles = $ArticleObject->ArticleList(
             TicketID => $Return[1],
             UserID   => 1,
         );
-        for my $Article (@ArticleBox) {
-            $ArticleIDs{ $Article->{ArticleID} } = { %{ $Article->{Atms} } };
+        for my $Article (@Articles) {
+            my %AttachmentIndex = $ArticleBackendObject->ArticleAttachmentIndex(
+                ArticleID => $Article->{ArticleID},
+            );
+            $ArticleIDs{ $Article->{ArticleID} } = \%AttachmentIndex;
         }
     }
 
@@ -106,9 +126,8 @@ for my $SourceBackend (qw(ArticleStorageDB ArticleStorageFS)) {
 
         # verify
         for my $ArticleID ( sort keys %ArticleIDs ) {
-            my %Index = $ArticleObject->ArticleAttachmentIndex(
+            my %Index = $ArticleBackendObject->ArticleAttachmentIndex(
                 ArticleID => $ArticleID,
-                UserID    => 1,
             );
 
             # check file attributes
@@ -127,7 +146,7 @@ for my $SourceBackend (qw(ArticleStorageDB ArticleStorageFS)) {
                         $Self->Is(
                             $Index{$ID}->{$Attribute},
                             $ArticleIDs{$ArticleID}->{$AttachmentID}->{$Attribute},
-                            "$NamePrefix - Verify before - $Attribute (ArticleID:$ArticleID)",
+                            "$NamePrefix - Verify before - $Attribute (ArticleID:$ArticleID)"
                         );
                     }
                 }
@@ -144,15 +163,14 @@ for my $SourceBackend (qw(ArticleStorageDB ArticleStorageFS)) {
             );
             $Self->True(
                 $Success,
-                "$NamePrefix - backend move TicketID:$TicketID",
+                "$NamePrefix - backend move TicketID: $TicketID"
             );
         }
 
         # verify
         for my $ArticleID ( sort keys %ArticleIDs ) {
-            my %Index = $ArticleObject->ArticleAttachmentIndex(
+            my %Index = $ArticleBackendObject->ArticleAttachmentIndex(
                 ArticleID => $ArticleID,
-                UserID    => 1,
             );
 
             # check file attributes
@@ -171,7 +189,7 @@ for my $SourceBackend (qw(ArticleStorageDB ArticleStorageFS)) {
                         $Self->Is(
                             $Index{$ID}->{$Attribute},
                             $ArticleIDs{$ArticleID}->{$AttachmentID}->{$Attribute},
-                            "$NamePrefix - Verify after - $Attribute (ArticleID:$ArticleID)",
+                            "$NamePrefix - Verify after - $Attribute (ArticleID: $ArticleID)"
                         );
                     }
                 }

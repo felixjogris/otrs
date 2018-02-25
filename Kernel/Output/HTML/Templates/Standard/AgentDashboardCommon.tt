@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -19,12 +19,13 @@
                 <input type="hidden" name="Action" value="[% Env("Action") %]"/>
                 <input type="hidden" name="Subaction" value="UpdateSettings"/>
                 <input type="hidden" name="CustomerID" value="[% Data.CustomerID | html %]"/>
+                <input type="hidden" name="CustomerUserID" value="[% Data.CustomerUserID | html %]"/>
                 <ul>
 [% RenderBlockStart("ContentSettings") %]
                     <li>
                         <span title="[% Translate(Data.Description) | html %]">
                             <label for="Settings[% Data.Name | html %]">
-                                <input type="checkbox" name="Backend" id="Settings[% Data.Name | html %]" value="[% Data.Name | html %]" [% Data.Checked %]/>
+                                <input type="checkbox" name="Backend" id="Settings[% Data.Name | html %]" value="[% Data.Name | html %]" [% Data.Checked %] [% Data.Readonly %]/>
                                 [% Translate(Data.Title) | html %]
                             </label>
                         </span>
@@ -56,11 +57,13 @@
                     </a>
                 </div>
 [% RenderBlockEnd("ContentSmallRefresh") %]
-                <div class="WidgetAction Close">
-                    <a href="[% Env("Baselink") %]Action=[% Env("Action") %];Subaction=UpdateRemove;Name=[% Data.Name | uri %];CustomerID=[% Data.CustomerID | uri %];[% Env("ChallengeTokenParam") | html %]" title="[% Translate("Close this widget") | html %]">
+[% RenderBlockStart("ContentSmallRemove") %]
+                 <div class="WidgetAction Close">
+                    <a href="[% Env("Baselink") %]Action=[% Env("Action") %];Subaction=UpdateRemove;Name=[% Data.Name | uri %];CustomerID=[% Data.CustomerID | uri %];CustomerUserID=[% Data.CustomerUserID | uri %];[% Env("ChallengeTokenParam") | html %]" title="[% Translate("Close this widget") | html %]">
                         <i class="fa fa-times"></i>
                     </a>
                 </div>
+[% RenderBlockEnd("ContentSmallRemove") %]
                 <div class="Clear"></div>
             </div>
             <h2 title="[% Translate(Data.Description) | html %]">[% Translate(Data.Title) | html %]</h2>
@@ -72,6 +75,7 @@
                     <input type="hidden" name="Subaction" value="UpdatePreferences"/>
                     <input type="hidden" name="Name" value="[% Data.Name | html %]"/>
                     <input type="hidden" name="CustomerID" value="[% Data.CustomerID | html %]"/>
+                    <input type="hidden" name="CustomerUserID" value="[% Data.CustomerUserID | html %]"/>
                     <fieldset class="TableLike DontPrint">
 [% RenderBlockStart("ContentSmallPreferencesItem") %]
 [% RenderBlockStart("ContentSmallPreferencesItemOption") %]
@@ -142,11 +146,13 @@
                     </a>
                 </div>
 [% RenderBlockEnd("ContentLargePreferences") %]
-                <div class="WidgetAction Close">
-                    <a href="[% Env("Baselink") %]Action=[% Env("Action") %];Subaction=UpdateRemove;Name=[% Data.Name | uri %];CustomerID=[% Data.CustomerID | uri %];[% Env("ChallengeTokenParam") | html %]" title="[% Translate("Close this widget") | html %]">
+[% RenderBlockStart("ContentLargeRemove") %]
+                 <div class="WidgetAction Close">
+                    <a href="[% Env("Baselink") %]Action=[% Env("Action") %];Subaction=UpdateRemove;Name=[% Data.Name | uri %];CustomerID=[% Data.CustomerID | uri %];CustomerUserID=[% Data.CustomerUserID | uri %];[% Env("ChallengeTokenParam") | html %]" title="[% Translate("Close this widget") | html %]">
                         <i class="fa fa-times"></i>
                     </a>
                 </div>
+[% RenderBlockEnd("ContentLargeRemove") %]
                 <div class="Clear"></div>
             </div>
             <h2 title="[% Translate(Data.Description) | html %]">[% Translate(Data.Title) | html %]</h2>
@@ -159,6 +165,7 @@
                     <input type="hidden" name="Subaction" value="UpdatePreferences"/>
                     <input type="hidden" name="Name" value="[% Data.Name | html %]"/>
                     <input type="hidden" name="CustomerID" value="[% Data.CustomerID | html %]"/>
+                    <input type="hidden" name="CustomerUserID" value="[% Data.CustomerUserID | html %]"/>
                     <fieldset class="TableLike FixedLabelSmall DontPrint">
 [% RenderBlockStart("ContentLargePreferencesItem") %]
 [% RenderBlockStart("ContentLargePreferencesItemOption") %]

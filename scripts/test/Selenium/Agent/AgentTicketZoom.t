@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -52,15 +52,29 @@ $Selenium->RunTest(
             Value => '::',
         );
 
+        # Enable NewArticleIgnoreSystemSender config.
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'Ticket::NewArticleIgnoreSystemSender',
+            Value => 1,
+        );
+
         # create and login test user
+        my $Language      = 'de';
         my $TestUserLogin = $Helper->TestUserCreate(
-            Groups => [ 'admin', 'users' ],
+            Groups   => [ 'admin', 'users' ],
+            Language => $Language,
         ) || die "Did not get test user";
 
         $Selenium->Login(
             Type     => 'Agent',
             User     => $TestUserLogin,
             Password => $TestUserLogin,
+        );
+
+        # Get language object.
+        my $LanguageObject = Kernel::Language->new(
+            UserLanguage => $Language,
         );
 
         # create test customer
@@ -72,8 +86,7 @@ $Selenium->RunTest(
             User => $TestCustomerUser,
         );
 
-        my $TicketObject  = $Kernel::OM->Get('Kernel::System::Ticket');
-        my $ArticleObject = $Kernel::OM->Get('Kernel::System::Ticket::Article');
+        my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
 
         # create test ticket
         my $TitleRandom  = "Title" . $Helper->GetRandomID();
@@ -95,20 +108,28 @@ $Selenium->RunTest(
             "Ticket is created - ID $TicketID",
         );
 
+        my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForChannel(
+            ChannelName => 'Phone',
+        );
+
         # create two ticket articles
         my @ArticleIDs;
         for my $ArticleCreate ( 1 .. 2 ) {
-            my $ArticleID = $ArticleObject->ArticleCreate(
-                TicketID       => $TicketID,
-                ArticleType    => 'note-internal',
-                SenderType     => 'agent',
-                Subject        => 'Selenium subject test',
-                Body           => "Article $ArticleCreate",
-                ContentType    => 'text/plain; charset=ISO-8859-15',
-                HistoryType    => 'OwnerUpdate',
-                HistoryComment => 'Some free text!',
-                UserID         => 1,
-                NoAgentNotify  => 1,
+            my $SenderType = 'agent';
+            if ( $ArticleCreate == 2 ) {
+                $SenderType = 'system';
+            }
+            my $ArticleID = $ArticleBackendObject->ArticleCreate(
+                TicketID             => $TicketID,
+                IsVisibleForCustomer => 1,
+                SenderType           => $SenderType,
+                Subject              => 'Selenium subject test',
+                Body                 => "Article $ArticleCreate",
+                ContentType          => 'text/plain; charset=ISO-8859-15',
+                HistoryType          => 'OwnerUpdate',
+                HistoryComment       => 'Some free text!',
+                UserID               => 1,
+                NoAgentNotify        => 1,
             );
             $Self->True(
                 $ArticleID,
@@ -146,6 +167,22 @@ $Selenium->RunTest(
             $Element->is_displayed();
         }
 
+        my $OTRSBusinessIsInstalled = $Kernel::OM->Get('Kernel::System::OTRSBusiness')->OTRSBusinessIsInstalled();
+        my $OBTeaser                = $LanguageObject->Translate('All attachments (OTRS Business Solution™)');
+        my $OBTeaserFound           = index( $Selenium->get_page_source(), $OBTeaser ) > -1;
+        if ( !$OTRSBusinessIsInstalled ) {
+            $Self->True(
+                $OBTeaserFound,
+                "OTRSBusiness teaser found on page",
+            );
+        }
+        else {
+            $Self->False(
+                $OBTeaserFound,
+                "OTRSBusiness teaser not found on page",
+            );
+        }
+
         # verify article order in zoom screen
         $Self->Is(
             $Selenium->execute_script(
@@ -160,6 +197,21 @@ $Selenium->RunTest(
             ),
             'Row1',
             "Second Article in table is first created article",
+        );
+
+        # Verify selected article. Config 'NewArticleIgnoreSystemSender' is enable.
+        #   Non system sender type article should be selected ( first created article ).
+        $Self->True(
+            $Selenium->execute_script(
+                "return \$('#ArticleItems').find('[name=\"Article$ArticleIDs[0]\"]').length"
+            ),
+            "First 'agent' sender type article is selected"
+        );
+        $Self->False(
+            $Selenium->execute_script(
+                "return \$('#ArticleItems').find('[name=\"Article$ArticleIDs[1]\"]').length"
+            ),
+            "Second 'system' sender type article is not selected"
         );
 
         # click to sort by article number
@@ -186,15 +238,17 @@ $Selenium->RunTest(
             JavaScript =>
                 'return typeof($) === "function" && $(".SidebarColumn div:nth-of-type(2) a.AsPopup").length'
         );
-        $Selenium->find_element( ".SidebarColumn div:nth-of-type(2) a.AsPopup", "css" )->VerifiedClick();
+        $Selenium->find_element( ".SidebarColumn div:nth-of-type(2) a.AsPopup", "css" )->click();
 
         # Wait for popup and switch.
         $Selenium->WaitFor( WindowCount => 2 );
         my $Handles = $Selenium->get_window_handles();
         $Selenium->switch_to_window( $Handles->[1] );
 
-        # wait until page has loaded, if necessary
-        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("a.UndoClosePopup").length' );
+        # Wait until page has loaded, if necessary.
+        $Selenium->WaitFor(
+            JavaScript => 'return typeof(Core) == "object" && typeof(Core.App) == "object" && Core.App.PageLoadComplete'
+        );
 
         # close note pop-up window
         $Selenium->close();
@@ -204,6 +258,15 @@ $Selenium->RunTest(
             TicketID => $TicketID,
             UserID   => 1,
         );
+
+        # Ticket deletion could fail if apache still writes to ticket history. Try again in this case.
+        if ( !$Success ) {
+            sleep 3;
+            $Success = $TicketObject->TicketDelete(
+                TicketID => $TicketID,
+                UserID   => 1,
+            );
+        }
         $Self->True(
             $Success,
             "Ticket is deleted - ID $TicketID"

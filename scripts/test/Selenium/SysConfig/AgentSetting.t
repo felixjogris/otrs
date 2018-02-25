@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -23,8 +23,9 @@ $Selenium->RunTest(
         my $HelperObject    = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
         my $ConfigObject    = $Kernel::OM->Get('Kernel::Config');
         my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');
+        my $UserObject      = $Kernel::OM->Get('Kernel::System::User');
 
-        # Disable CSS loader to actually see the CSS files in the html source
+        # Disable CSS loader to actually see the CSS files in the html source.
         $HelperObject->ConfigSettingChange(
             Valid => 1,
             Key   => 'Loader::Enabled::CSS',
@@ -43,7 +44,7 @@ $Selenium->RunTest(
             Groups   => ['users'],
             Language => $Language,
         ) || die "Did not get test user";
-        my $TestUserID1 = $Kernel::OM->Get('Kernel::System::User')->UserLookup(
+        my $TestUserID1 = $UserObject->UserLookup(
             UserLogin => $TestUserLogin1,
         );
 
@@ -52,7 +53,7 @@ $Selenium->RunTest(
             Groups   => ['users'],
             Language => $Language,
         ) || die "Did not get test user";
-        my $TestUserID2 = $Kernel::OM->Get('Kernel::System::User')->UserLookup(
+        my $TestUserID2 = $UserObject->UserLookup(
             UserLogin => $TestUserLogin2,
         );
 
@@ -80,39 +81,44 @@ EOF
 
         my $FilePath = $Home . '/Kernel/Config/Files/User/' . $TestUserID1 . '.pm';
 
-        my $MainObject = $Kernel::OM->Get('Kernel::System::Main');
-
         # Define the file to be written (global or user specific).
-        $MainObject->FileWrite(
+        $Kernel::OM->Get('Kernel::System::Main')->FileWrite(
             Location => $FilePath,
             Content  => \$UserFileContent,
         );
 
+        # Login as the first created user.
         $Selenium->Login(
             Type     => 'Agent',
             User     => $TestUserLogin1,
             Password => $TestUserLogin1,
         );
 
-        # get script alias
         my $ScriptAlias = $ConfigObject->Get('ScriptAlias');
 
-        # navigate to AgentDashboard screen
+        # Navigate to AgentDashboard screen.
         $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AgentDashboard");
 
         # WebPath is different on each system.
         my $WebPath = $ConfigObject->Get('Frontend::WebPath');
 
-        # Link to ivory skin file should be present.
-        my $ExpectedLinkedFile
-            = '<link href="' . $WebPath . 'skins/Agent/ivory/css/Core.Default.css" type="text/css" rel="stylesheet" />';
+        # Compile the regex for checking if ivory skin file has been included. Some platforms might sort additional
+        #   HTML attributes in unexpected order, therefore this check cannot be simple one.
+        my $ExpectedLinkedFile = qr{<link .*? \s href="${WebPath}skins/Agent/ivory/css/Core.Default.css"}x;
 
+        # Link to ivory skin file should be present.
         $Self->True(
-            index( $Selenium->get_page_source(), $ExpectedLinkedFile ) > -1,
-            "Ivory skin should be selected",
+            $Selenium->get_page_source() =~ $ExpectedLinkedFile,
+            'Ivory skin should be selected'
         );
 
-        # logout
+        # Try to expand the user profile sub menu by clicking the avatar.
+        $Selenium->find_element( '.UserAvatar > a', 'css' )->click();
+        $Selenium->WaitFor(
+            JavaScript => 'return typeof($) === "function" && $("li.UserAvatar > div:visible").length'
+        );
+
+        # Logout.
         my $Element = $Selenium->find_element( 'a#LogoutButton', 'css' );
         $Element->VerifiedClick();
 
@@ -125,15 +131,14 @@ EOF
 
         # Link to ivory skin file shouldn't be present.
         $Self->True(
-            index( $Selenium->get_page_source(), $ExpectedLinkedFile ) == -1,
-            "Ivory skin shouldn't be selected",
+            $Selenium->get_page_source() !~ $ExpectedLinkedFile,
+            "Ivory skin shouldn't be selected"
         );
 
         # Cleanup system.
         if ( -e $FilePath ) {
             unlink $FilePath;
         }
-
     }
 );
 

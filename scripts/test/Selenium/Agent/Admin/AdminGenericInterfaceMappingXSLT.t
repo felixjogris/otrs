@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -14,20 +14,24 @@ use vars (qw($Self));
 
 use Kernel::GenericInterface::Debugger;
 
-# get selenium object
 my $Selenium = $Kernel::OM->Get('Kernel::System::UnitTest::Selenium');
 
 $Selenium->RunTest(
     sub {
 
-        # get needed objects
         my $Helper           = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
         my $WebserviceObject = $Kernel::OM->Get('Kernel::System::GenericInterface::Webservice');
 
-        # define needed variable
+        # Do not check RichText.
+        $Helper->ConfigSettingChange(
+            Valid => 1,
+            Key   => 'Frontend::RichText',
+            Value => 0,
+        );
+
         my $RandomID = $Helper->GetRandomID();
 
-        # create test webservice
+        # Create test web service.
         my $WebserviceID = $WebserviceObject->WebserviceAdd(
             Config => {
                 Debugger => {
@@ -40,17 +44,17 @@ $Selenium->RunTest(
                     },
                 },
             },
-            Name    => "Selenium $RandomID webservice",
+            Name    => "Selenium $RandomID web service",
             ValidID => 1,
             UserID  => 1,
         );
 
         $Self->True(
             $WebserviceID,
-            "Webservice ID $WebserviceID is created"
+            "Web service ID $WebserviceID is created"
         );
 
-        # create debugger object
+        # Create debugger object.
         my $DebuggerObject = Kernel::GenericInterface::Debugger->new(
             DebuggerConfig => {
                 DebugThreshold => 'debug',
@@ -66,7 +70,7 @@ $Selenium->RunTest(
             'DebuggerObject instantiate correctly',
         );
 
-        # create test user and login
+        # Create test user and login.
         my $TestUserLogin = $Helper->TestUserCreate(
             Groups => ['admin'],
         ) || die "Did not get test user";
@@ -77,54 +81,65 @@ $Selenium->RunTest(
             Password => $TestUserLogin,
         );
 
-        # get script alias
         my $ScriptAlias = $Kernel::OM->Get('Kernel::Config')->Get('ScriptAlias');
 
-        # navigate to AdminGenericInterfaceWebservice screen
+        # Navigate to AdminGenericInterfaceWebservice screen.
         $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AdminGenericInterfaceWebservice");
 
-        # click on created webservice
+        # Click on created web service.
         $Selenium->find_element("//a[contains(\@href, 'WebserviceID=$WebserviceID')]")->VerifiedClick();
 
-        # check breadcrumb on Overview screen
+        # Check breadcrumb on Overview screen.
         $Self->True(
             $Selenium->find_element( '.BreadCrumb', 'css' ),
             "Breadcrumb is found on Overview screen.",
         );
 
-        # select 'Ticket::TicketCreate' as option
+        # Select 'Ticket::TicketCreate' as option.
         $Selenium->execute_script(
             "\$('#OperationList').val('Ticket::TicketCreate').trigger('redraw.InputField').trigger('change');"
         );
 
-        # wait for page to load if necessary
+        # Wait for page to load if necessary.
         $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("#Operation").length' );
 
-        # create webservice operation
+        # Create web service operation.
         $Selenium->find_element( "#Operation", 'css' )->send_keys('SeleniumOperation');
 
-        # select XSLT mapping for inbound data
+        # Select XSLT mapping for inbound data.
         $Selenium->execute_script(
             "\$('#MappingInbound').val('XSLT').trigger('redraw.InputField').trigger('change');"
         );
 
-        # submit operation
-        $Selenium->find_element("//button[\@value='Save and continue']")->VerifiedClick();
+        # Set include ticket data to Yes.
+        $Selenium->execute_script(
+            "\$('#IncludeTicketData').val('1').trigger('redraw.InputField').trigger('change');"
+        );
 
-        # click to configure inbound mapping XSLT
+        # Submit operation.
+        $Selenium->find_element( "#Submit", 'css' )->VerifiedClick();
+
+        # Verify ticket data option.
+        $Self->Is(
+            $Selenium->find_element( '#IncludeTicketData', 'css' )->get_value(),
+            '1',
+            'Include ticket data set to Yes'
+        );
+
+        # Click to configure inbound mapping XSLT.
         $Selenium->find_element("//button[\@id='MappingInboundConfigureButton']")->VerifiedClick();
 
-        # check screen
+        # Check screen.
         $Self->True(
             $Selenium->find_element( "#Template", 'css' ),
             "Input field for XSLT data is found"
         );
 
-        # check for breadcrumb on screen
+        # Check for breadcrumb on screen.
         my $Count = 1;
         for my $Breadcrumb (
             "Web Service Management",
-            "Selenium $RandomID webservice",
+            "Selenium $RandomID web service",
             "Operation: SeleniumOperation",
             "XSLT Mapping for Incoming Data"
             )
@@ -138,8 +153,12 @@ $Selenium->RunTest(
             $Count++;
         }
 
-        # submit empty form and check client side validation
-        $Selenium->find_element("//button[\@value='Save']")->click();
+        # Submit empty form and check client side validation.
+        $Selenium->find_element( "#Submit", 'css' )->click();
+        $Selenium->WaitFor(
+            JavaScript => "return typeof(\$) === 'function' && \$('#Template.Error').length"
+        );
+
         $Self->Is(
             $Selenium->execute_script(
                 "return \$('#Template').hasClass('Error')"
@@ -148,20 +167,29 @@ $Selenium->RunTest(
             'Client side validation correctly detected missing input value',
         );
 
-        # input invalid XSLT data
+        # Input invalid XSLT data.
         $Selenium->find_element( "#Template", 'css' )->send_keys($RandomID);
 
-        # submit invalid XSLT
-        $Selenium->find_element("//button[\@value='Save']")->click();
+        # Submit invalid XSLT.
+        $Selenium->find_element( "#Submit", 'css' )->click();
+        $Selenium->WaitFor(
+            JavaScript =>
+                'return $(".Dialog.Modal #DialogButton1").length'
+        );
 
-        # click to confirm error and verify it
+        # Click to confirm error and verify it.
         $Selenium->find_element( "#DialogButton1", 'css' )->click();
+        $Selenium->WaitFor(
+            JavaScript =>
+                'return !$(".Dialog.Modal").length'
+        );
+
         $Self->True(
             $Selenium->find_element( "#Accessibility_AlertMessage", 'css' ),
             "Error for invalid XSLT data is found"
         );
 
-        # input correct XSLT data
+        # Input correct XSLT data.
         my $XSLTData = '<?xml version="1.0" encoding="UTF-8"?>
 <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
 <xsl:output method="xml" encoding="utf-8" indent="yes"/>
@@ -173,49 +201,157 @@ $Selenium->RunTest(
         $Selenium->find_element( "#Template", 'css' )->clear();
         $Selenium->find_element( "#Template", 'css' )->send_keys($XSLTData);
 
-        # click on 'Save'
-        $Selenium->find_element("//button[\@value='Save']")->click();
-
-        # verify we are still on same screen
-        $Self->True(
-            $Selenium->find_element( "#Template", 'css' ),
-            'After click on Save it is the same screen'
+        # Add invalid pre XSLT regex.
+        $Selenium->find_element( '#WidgetRegExFiltersPre', 'css' )->click();
+        $Selenium->WaitFor(
+            JavaScript => "return \$('#WidgetRegExFiltersPre.Expanded').length"
+        );
+        $Selenium->find_element( "#PreAddValue", 'css' )->click();
+        $Selenium->WaitFor(
+            JavaScript => "return \$('.PreValueInsert .ValueRow #PreKey_1').length"
         );
 
-        # click on 'Save and finish' test JS redirection
-        $Selenium->find_element("//button[\@value='Save and finish']")->VerifiedClick();
+        # Submit invalid pre XSLT regex.
+        $Selenium->find_element( "#Submit", 'css' )->click();
+        $Selenium->WaitFor(
+            JavaScript => "return typeof(\$) === 'function' && \$('#PreKey_1.Error').length"
+        );
+
+        # Check client side validation.
+        $Self->Is(
+            $Selenium->execute_script(
+                "return \$('#PreKey_1').hasClass('Error')"
+            ),
+            '1',
+            'Client side validation correctly detected missing input value',
+        );
+
+        # Add correct pre XSLT regex.
+        $Selenium->find_element( "#PreKey_1",   'css' )->send_keys( $RandomID . 'PreKey_1' );
+        $Selenium->find_element( "#PreValue_1", 'css' )->send_keys( $RandomID . 'PreValue_1' );
+
+        $Selenium->find_element( "#PreAddValue", 'css' )->click();
+        $Selenium->WaitFor(
+            JavaScript => "return \$('.PreValueInsert .ValueRow #PreKey_2').length"
+        );
+
+        $Selenium->find_element( "#PreAddValue", 'css' )->click();
+        $Selenium->WaitFor(
+            JavaScript => "return \$('.PreValueInsert .ValueRow #PreKey_3').length"
+        );
+
+        $Selenium->find_element( "#PreKey_2",   'css' )->send_keys( $RandomID . 'PreKey_2' );
+        $Selenium->find_element( "#PreKey_3",   'css' )->send_keys( $RandomID . 'PreKey_3' );
+        $Selenium->find_element( "#PreValue_3", 'css' )->send_keys( $RandomID . 'PreValue_3' );
+
+        # Add post XSLT regex.
+        $Selenium->find_element( '#WidgetRegExFiltersPost', 'css' )->click();
+        $Selenium->WaitFor(
+            JavaScript => "return \$('#WidgetRegExFiltersPost.Expanded').length"
+        );
+
+        $Selenium->find_element( '#PostAddValue', 'css' )->click();
+        $Selenium->WaitFor(
+            JavaScript => "return \$('.PostValueInsert .ValueRow #PostKey_1').length"
+        );
+
+        my $PostKey   = $RandomID . 'PostKey_1';
+        my $PostValue = $RandomID . 'PostValue_1';
+        $Selenium->execute_script("\$('#PostKey_1').val('$PostKey');");
+        $Selenium->execute_script("\$('#PostValue_1').val('$PostValue');");
+
+        # Add data include configuration.
+        $Selenium->execute_script(
+            "\$('#DataInclude').val('ProviderRequestInput').trigger('redraw.InputField').trigger('change');"
+        );
+
+        # Click on 'Save and finish' test JS redirection.
+        $Selenium->find_element( "#Submit", 'css' )->VerifiedClick();
 
         $Self->True(
             index( $Selenium->get_current_url(), 'AdminGenericInterfaceOperationDefault' ) > -1,
             'JS redirection is successful to AdminGenericInterfaceOperationDefault screen'
         );
 
-        # wait for page to load if necessary
         $Selenium->WaitFor(
             JavaScript => 'return typeof($) === "function" && $("#MappingInboundConfigureButton").length'
         );
 
-        # click on configure inbound mapping XSLT again
+        # Click on configure inbound mapping XSLT again.
         $Selenium->find_element("//button[\@id='MappingInboundConfigureButton']")->VerifiedClick();
 
-        # verify saved data
+        # Verify saved data.
         $Self->Is(
             $Selenium->find_element( "#Template", 'css' )->get_value(),
             $XSLTData,
             "XSLT data is successfully saved"
         );
+        $Self->Is(
+            $Selenium->find_element( '#DataInclude', 'css' )->get_value(),
+            'ProviderRequestInput',
+            "#DataInclude stored value",
+        );
 
-        # delete test created webservice
+        # Verify saved regex data.
+        $Self->Is(
+            $Selenium->find_element( "#PreKey_1", 'css' )->get_value(),
+            $RandomID . 'PreKey_1',
+            "Pre RegEx data is successfully saved"
+        );
+
+        $Self->Is(
+            $Selenium->find_element( "#PreValue_1", 'css' )->get_value(),
+            $RandomID . 'PreValue_1',
+            "Pre RegEx data is successfully saved"
+        );
+
+        $Self->Is(
+            $Selenium->find_element( "#PreKey_2", 'css' )->get_value(),
+            $RandomID . 'PreKey_2',
+            "Pre RegEx data is successfully saved"
+        );
+
+        $Self->Is(
+            $Selenium->find_element( "#PreValue_2", 'css' )->get_value(),
+            '',
+            "Pre RegEx data is successfully saved"
+        );
+
+        $Self->Is(
+            $Selenium->find_element( "#PreKey_3", 'css' )->get_value(),
+            $RandomID . 'PreKey_3',
+            "Pre RegEx data is successfully saved"
+        );
+
+        $Self->Is(
+            $Selenium->find_element( "#PreValue_3", 'css' )->get_value(),
+            $RandomID . 'PreValue_3',
+            "Pre RegEx data is successfully saved"
+        );
+
+        $Self->Is(
+            $Selenium->find_element( "#PostKey_1", 'css' )->get_value(),
+            $RandomID . 'PostKey_1',
+            "Post RegEx data is successfully saved"
+        );
+
+        $Self->Is(
+            $Selenium->find_element( "#PostValue_1", 'css' )->get_value(),
+            $RandomID . 'PostValue_1',
+            "Post RegEx data is successfully saved"
+        );
+
+        # Delete test created web service.
         my $Success = $WebserviceObject->WebserviceDelete(
             ID     => $WebserviceID,
             UserID => 1,
         );
         $Self->True(
             $Success,
-            "Webservice ID $WebserviceID is deleted"
+            "Web service ID $WebserviceID is deleted"
         );
 
-        # make sure cache is correct
+        # Make sure cache is correct.
         $Kernel::OM->Get('Kernel::System::Cache')->CleanUp( Type => 'Webservice' );
 
     }

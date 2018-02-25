@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -47,16 +47,6 @@ sub new {
 
     $Self->{CacheType} = 'State';
     $Self->{CacheTTL}  = 60 * 60 * 24 * 20;
-
-    # check needed config options
-    for my $Needed (qw(Ticket::ViewableStateType Ticket::UnlockStateType)) {
-        if ( !$Kernel::OM->Get('Kernel::Config')->Get($Needed) ) {
-            $Kernel::OM->Get('Kernel::System::Log')->Log(
-                Priority => 'error',
-                Message  => "$Needed is missing in the configuration!",
-            );
-        }
-    }
 
     return $Self;
 }

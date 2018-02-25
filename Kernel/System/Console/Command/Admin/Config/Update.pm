@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,7 +13,7 @@ use warnings;
 
 use Kernel::System::VariableCheck qw( IsHashRefWithData );
 
-use base qw(Kernel::System::Console::BaseCommand);
+use parent qw(Kernel::System::Console::BaseCommand);
 
 our @ObjectDependencies = (
     'Kernel::System::Main',
@@ -167,14 +167,14 @@ sub Run {
         return $Self->ExitCodeOk();
     }
 
-    $Success = $SysConfigObject->ConfigurationDeploy(
+    my %DeploymentResult = $SysConfigObject->ConfigurationDeploy(
         Comments      => "Admin::Config::Update $SettingName",
         UserID        => 1,
         Force         => 1,
         DirtySettings => [$SettingName],
     );
 
-    if ( !$Success ) {
+    if ( !$DeploymentResult{Success} ) {
         $Self->PrintError("Deployment failed!\n");
         return $Self->ExitCodeError();
     }

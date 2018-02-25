@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU AFFERO General Public License as published by
@@ -34,28 +34,43 @@ use Getopt::Long();
 my $OTRSDirectory       = dirname($RealBin);
 my $OTRSDirectoryLength = length($OTRSDirectory);
 
-my $OtrsUser   = 'otrs';    # default otrs
-my $WebGroup   = '';        # no default, too different
-my $AdminGroup = 'root';    # default root
+my $OtrsUser = 'otrs';    # default: otrs
+my $WebGroup = '';        # Try to find a default from predefined group list, take the first match.
+
+WEBGROUP:
+for my $GroupCheck (qw(wwwrun apache www-data www _www)) {
+    my ($GroupName) = getgrnam $GroupCheck;
+    if ($GroupName) {
+        $WebGroup = $GroupName;
+        last WEBGROUP;
+    }
+}
+
+my $AdminGroup = 'root';    # default: root
 my ( $Help, $DryRun, $SkipArticleDir, @SkipRegex, $OtrsUserID, $WebGroupID, $AdminGroupID );
 
 sub PrintUsage {
     print <<EOF;
-bin/otrs.SetPermissions.pl - set OTRS file permissions
-Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
 
-Usage: otrs.SetPermissions.pl
-    --web-group=<WEB_GROUP>         # web server group ('www', 'www-data' or similar)
-    [--otrs-user=<OTRS_USER>]       # OTRS user, defaults to 'otrs'
-    [--admin-group=<ADMIN_GROUP>]   # admin group, defaults to 'root'
-    [--skip-article-dir]            # Skip var/article as it might take too long on some systems.
-    [--skip-regex="..."]            # Add another skip regex like "^/var/my/directory".
-                                    # Paths start with / but are relative to the OTRS directory.
-                                    # --skip-regex can be specified multiple times.
-    [--dry-run]                     # only report, don't change
-    [--help]
+Set OTRS file permissions.
 
-Example: otrs.SetPermissions.pl --web-group=www-data
+Usage:
+ otrs.SetPermissions.pl [--otrs-user=<OTRS_USER>] [--web-group=<WEB_GROUP>] [--admin-group=<ADMIN_GROUP>] [--skip-article-dir] [--skip-regex="REGEX"] [--dry-run]
+
+Options:
+ [--otrs-user=<OTRS_USER>]     - OTRS user, defaults to 'otrs'.
+ [--web-group=<WEB_GROUP>]     - Web server group ('_www', 'www-data' or similar), try to find a default.
+ [--admin-group=<ADMIN_GROUP>] - Admin group, defaults to 'root'.
+ [--skip-article-dir]          - Skip var/article as it might take too long on some systems.
+ [--skip-regex="REGEX"]        - Add another skip regex like "^/var/my/directory". Paths start with / but are relative to the OTRS directory. --skip-regex can be specified multiple times.
+ [--dry-run]                   - Only report, don't change.
+ [--help]                      - Display help for this command.
+
+Help:
+Using this script without any options it will try to detect the correct user and group settings needed for your setup.
+
+ otrs.SetPermissions.pl
+
 EOF
     return;
 }
@@ -74,7 +89,7 @@ my @IgnoreFiles = (
 # Files to be marked as executable.
 my @ExecutableFiles = (
     qr{\.(?:pl|psgi|sh)$}smx,
-    qr{^/scripts/suse-rcotrs$}smx,
+    qr{^/var/git/hooks/(?:pre|post)-receive$}smx,
 );
 
 # Special files that must not be written by web server user.
@@ -86,11 +101,6 @@ my @ProtectedFiles = (
 my $ExitStatus = 0;
 
 sub Run {
-    if ( !@ARGV ) {
-        PrintUsage();
-        exit 0;
-    }
-
     Getopt::Long::GetOptions(
         'help'             => \$Help,
         'otrs-user=s'      => \$OtrsUser,
@@ -127,7 +137,6 @@ sub Run {
         print STDERR "ERROR: --admin-group is invalid.\n";
         exit 1;
     }
-
     if ( defined $SkipArticleDir ) {
         push @IgnoreFiles, qr{^/var/article}smx;
     }

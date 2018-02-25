@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -62,7 +62,9 @@ $Selenium->RunTest(
 
         # Check client side validation.
         $Selenium->find_element( "#EditName", 'css' )->clear();
-        $Selenium->find_element( "#EditName", 'css' )->VerifiedSubmit();
+        $Selenium->execute_script("\$('#Submit').click();");
+        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("#EditName.Error").length' );
+
         $Self->Is(
             $Selenium->execute_script(
                 "return \$('#EditName').hasClass('Error')"
@@ -118,32 +120,15 @@ $Selenium->RunTest(
 
         $Selenium->find_element( "#EditName", 'css' )->send_keys($PostMasterName);
         $Selenium->execute_script("\$('#MatchHeader1').val('Body').trigger('redraw.InputField').trigger('change');");
-        $Selenium->find_element( "#MatchNot1",   'css' )->VerifiedClick();
+        $Selenium->find_element( "#MatchNot1",   'css' )->click();
         $Selenium->find_element( "#MatchValue1", 'css' )->send_keys($PostMasterBody);
         $Selenium->execute_script(
             "\$('#SetHeader1').val('X-OTRS-Priority').trigger('redraw.InputField').trigger('change');"
         );
 
-        # Make sure that "Body" is disabled on other condition selects.
-        my $BodyDisabled
-            = $Selenium->execute_script("return \$('#MatchHeader2 option[Value=\"Body\"]').attr('disabled');");
-        $Self->Is(
-            $BodyDisabled,
-            "disabled",
-            "Body is disabled in #MatchHeader2."
-        );
-
-        # Make sure that "X-OTRS-Priority" is disabled on other selects.
-        my $XOTRSPriorityDisabled
-            = $Selenium->execute_script("return \$('#SetHeader2 option[Value=\"X-OTRS-Priority\"]').attr('disabled');");
-        $Self->Is(
-            $XOTRSPriorityDisabled,
-            "disabled",
-            "X-OTRS-Priority is disabled in #SetHeader2."
-        );
-
         $Selenium->find_element( "#SetValue1", 'css' )->send_keys($PostMasterPriority);
-        $Selenium->find_element( "#EditName",  'css' )->VerifiedSubmit();
+        $Selenium->execute_script("\$('#Submit').click();");
+        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("#PostMasterFilters").length;' );
 
         # Check for created first test PostMasterFilter on screen.
         $Self->True(
@@ -202,13 +187,15 @@ $Selenium->RunTest(
         my $EditPostMasterPriority = "4 high";
 
         $Selenium->execute_script("\$('#StopAfterMatch').val('1').trigger('redraw.InputField').trigger('change');");
-        $Selenium->find_element( "#MatchNot1", 'css' )->VerifiedClick();
+        $Selenium->find_element( "#MatchNot1", 'css' )->click();
         $Selenium->find_element( "#SetValue1", 'css' )->clear();
         $Selenium->find_element( "#SetValue1", 'css' )->send_keys($EditPostMasterPriority);
-        $Selenium->find_element( "#EditName",  'css' )->VerifiedSubmit();
+        $Selenium->execute_script("\$('#Submit').click();");
+        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("#PostMasterFilters").length;' );
 
         # Check edited test PostMasterFilter values.
-        $Selenium->find_element( $PostMasterName, 'link_text' )->VerifiedClick();
+        $Selenium->find_element( $PostMasterName, 'link_text' )->click();
+        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("#StopAfterMatch").length;' );
 
         $Self->Is(
             $Selenium->find_element( '#StopAfterMatch', 'css' )->get_value(),
@@ -231,25 +218,7 @@ $Selenium->RunTest(
         $Selenium->find_element( "#MatchValue1", 'css' )->send_keys('0');
         $Selenium->find_element( "#SetValue1",   'css' )->clear();
         $Selenium->find_element( "#SetValue1",   'css' )->send_keys('0');
-        $Selenium->find_element( "#EditName",    'css' )->VerifiedSubmit();
-
-        # Check edited test PostMasterFilter values.
-        $Selenium->find_element( $PostMasterName, 'link_text' )->VerifiedClick();
-
-        $Self->Is(
-            $Selenium->find_element( '#MatchValue1', 'css' )->get_value(),
-            0,
-            "#SetValue1 updated value",
-        );
-
-        $Self->Is(
-            $Selenium->find_element( '#SetValue1', 'css' )->get_value(),
-            0,
-            "#SetValue1 updated value",
-        );
-
-        # Go back to AdminPostMasterFilter screen.
-        $Selenium->VerifiedGet("${ScriptAlias}index.pl?Action=AdminPostMasterFilter");
+        $Selenium->find_element( "#Submit",      'css' )->VerifiedClick();
 
         # Try to create PostMasterFilter with the same name, (see https://bugs.otrs.org/show_bug.cgi?id=12718).
         $Selenium->find_element("//a[contains(\@href, \'Action=AdminPostMasterFilter;Subaction=AddAction' )]")
@@ -262,7 +231,10 @@ $Selenium->RunTest(
             "\$('#SetHeader1').val('X-OTRS-Priority').trigger('redraw.InputField').trigger('change');"
         );
         $Selenium->find_element( "#SetValue1", 'css' )->send_keys($PostMasterPriority);
-        $Selenium->find_element( "#EditName",  'css' )->VerifiedSubmit();
+        $Selenium->execute_script("\$('#Submit').click();");
+
+        # Wait for dialog to appears.
+        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("#DialogButton1").length;' );
 
         # Confirm JS error.
         $Selenium->find_element( "#DialogButton1", 'css' )->click();
@@ -280,7 +252,8 @@ $Selenium->RunTest(
         my $PostMasterName2 = $PostMasterName . '2';
         $Selenium->find_element( "#EditName", 'css' )->clear();
         $Selenium->find_element( "#EditName", 'css' )->send_keys($PostMasterName2);
-        $Selenium->find_element( "#EditName", 'css' )->VerifiedSubmit();
+        $Selenium->execute_script("\$('#Submit').click();");
+        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("#PostMasterFilters").length;' );
 
         # Verify second PostMasterFilter is created.
         $Self->True(
@@ -294,7 +267,10 @@ $Selenium->RunTest(
         # Try to change name as first PostMasterFilter, verify duplication error.
         $Selenium->find_element( "#EditName", 'css' )->clear();
         $Selenium->find_element( "#EditName", 'css' )->send_keys($PostMasterName);
-        $Selenium->find_element( "#EditName", 'css' )->VerifiedSubmit();
+        $Selenium->execute_script("\$('#Submit').click();");
+
+        # Wait for dialog to appears.
+        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("#DialogButton1").length;' );
 
         # Confirm JS error.
         $Selenium->find_element( "#DialogButton1", 'css' )->click();
@@ -313,7 +289,8 @@ $Selenium->RunTest(
         my $PostMasterName3 = $PostMasterName . '3';
         $Selenium->find_element( "#EditName", 'css' )->clear();
         $Selenium->find_element( "#EditName", 'css' )->send_keys($PostMasterName3);
-        $Selenium->find_element( "#EditName", 'css' )->VerifiedSubmit();
+        $Selenium->execute_script("\$('#Submit').click();");
+        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("#PostMasterFilters").length;' );
 
         $Self->True(
             index( $Selenium->get_page_source(), $PostMasterName2 ) == -1,
@@ -330,10 +307,10 @@ $Selenium->RunTest(
         )->click();
 
         # Wait for dialog to appears.
-        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $(".Dialog:visible").length === 1;' );
+        $Selenium->WaitFor( JavaScript => 'return typeof($) === "function" && $("#DialogButton1").length;' );
 
         # Verify delete dialog message.
-        my $DeleteMessage = "Do you really want to delete this postmaster filter?";
+        my $DeleteMessage = $LanguageObject->Translate("Do you really want to delete this postmaster filter?");
         $Self->True(
             index( $Selenium->get_page_source(), $DeleteMessage ) > -1,
             "Delete message is found",

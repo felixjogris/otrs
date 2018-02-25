@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -31,14 +31,14 @@ Core.Agent.Statistics = (function (TargetNS) {
      */
     TargetNS.InitAddScreen = function () {
 
-        $('.BigButtons a').on('click', function () {
+        $('.ItemListGrid a').on('click', function () {
             var $Link = $(this);
 
             if ($Link.hasClass('Disabled')) {
                 return false;
             }
 
-            $('.BigButtons a').removeClass('Active');
+            $('.ItemListGrid a').removeClass('Active');
             $Link.addClass('Active');
 
             $('#GeneralSpecifications').fadeIn(function() {
@@ -120,6 +120,10 @@ Core.Agent.Statistics = (function (TargetNS) {
                 }
                 RebuildEditDialogAddSelection();
                 Core.UI.InputFields.Activate($('#EditDialog .Fields'));
+
+                $('.CustomerAutoCompleteSimple').each(function() {
+                    Core.Agent.CustomerSearch.InitSimple($(this));
+                });
             }
 
             function EditDialogDelete(ElementName) {
@@ -161,6 +165,11 @@ Core.Agent.Statistics = (function (TargetNS) {
                 $CloneFormFieldsElement.appendTo('#EditDialog .Fields');
 
                 Core.UI.InputFields.Activate($('#EditDialog .Fields'));
+
+                $('.CustomerAutoCompleteSimple').each(function() {
+                    Core.Agent.CustomerSearch.InitSimple($(this));
+                });
+
                 if (ConfigurationLimit && $('#EditDialog .Fields .Element').length >= ConfigurationLimit) {
                     $('#EditDialog .Add').hide();
                 }

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -8,7 +8,7 @@
 
 package Kernel::Output::HTML::NavBar::AgentTicketService;
 
-use base 'Kernel::Output::HTML::Base';
+use parent 'Kernel::Output::HTML::Base';
 
 use strict;
 use warnings;
@@ -31,14 +31,14 @@ sub Run {
 
     return if !IsHashRefWithData($Config);
     return if !IsHashRefWithData($Navigation);
-    return if !IsHashRefWithData( $Navigation->{1} );
+    return if !IsArrayRefWithData( $Navigation->{'002-Ticket'} );
 
     # check if ticket service feature is enabled, in such case there is nothing to do
     return if $ConfigObject->Get('Ticket::Service');
 
     # frontend module is enabled but not ticket service, then remove the menu entry
     my $NavBarName = $Config->{NavBarName};
-    my $Priority = sprintf( "%07d", $Navigation->{1}->{Prio} );
+    my $Priority = sprintf( '%07d', $Navigation->{'002-Ticket'}->[0]->{Prio} );
 
     my %Return = %{ $Param{NavBar}->{Sub} };
 

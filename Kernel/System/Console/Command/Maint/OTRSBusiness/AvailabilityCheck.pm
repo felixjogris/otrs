@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,18 +12,18 @@ use strict;
 use warnings;
 use utf8;
 
-use base qw(Kernel::System::Console::BaseCommand);
+use parent qw(Kernel::System::Console::BaseCommand);
 
 our @ObjectDependencies = (
+    'Kernel::System::DateTime',
     'Kernel::System::OTRSBusiness',
     'Kernel::System::SystemData',
-    'Kernel::System::Time',
 );
 
 sub Configure {
     my ( $Self, %Param ) = @_;
 
-    $Self->Description('Checks if OTRS Business Solution™ is available for the current system.');
+    $Self->Description('Check if OTRS Business Solution™ is available for the current system.');
 
     $Self->AddOption(
         Name        => 'force',
@@ -64,23 +64,24 @@ sub Run {
             Key => 'OTRSBusiness::AvailabilityCheck::NextUpdateTime',
         );
 
-        my $NextUpdateSystemTime = 0;
-
-        # get time object
-        my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+        my $NextUpdateSystemTime;
 
         # if there is a defined NextUpdeTime convert it system time
         if ($AvailabilityCheckNextUpdateTime) {
-            $NextUpdateSystemTime = $TimeObject->TimeStamp2SystemTime(
-                String => $AvailabilityCheckNextUpdateTime,
+            $NextUpdateSystemTime = $Kernel::OM->Create(
+                'Kernel::System::DateTime',
+                ObjectParams => {
+                    String => $AvailabilityCheckNextUpdateTime,
+                },
             );
         }
 
         # get current system time (to compare with next update time)
-        my $SystemTime = $TimeObject->SystemTime();
+        my $SystemTime = $Kernel::OM->Create('Kernel::System::DateTime');
 
         # skip if is not time yet to check again
-        return $Self->SkippCheck() if $SystemTime < $NextUpdateSystemTime
+        return $Self->SkippCheck() if $NextUpdateSystemTime
+            && $SystemTime < $NextUpdateSystemTime;
     }
 
     # call the OTRS Business Solution™ availability cloud service

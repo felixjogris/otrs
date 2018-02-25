@@ -143,6 +143,7 @@ div.InputField_Selection div.Remove a {
     color: #fff;
     padding: 2px 4px;
     display: block;
+    border-bottom: none;
 }
 
 div.InputField_More {
@@ -153,7 +154,7 @@ div.InputField_More {
 
 div.InputField_ListContainer {
     position: absolute;
-    z-index: 5000;
+    z-index: 6100;
     display: none;
     text-shadow: none;
 }
@@ -181,13 +182,13 @@ div.InputField_ToolbarContainer {
     min-height: 21px;
 }
 
-.div.InputField_ToolbarContainer ul {
-    width:100%;
+div.InputField_ToolbarContainer ul {
+    width: 100%;
+    display: table;
 }
 
 div.InputField_ToolbarContainer ul li {
     display: table-cell;
-    width: 1%;
     text-align: center;
 }
 
@@ -197,7 +198,6 @@ div.InputField_ToolbarContainer ul li:after {
     display: inline-block;
     float: right;
     cursor: default;
-    width: 0;
 }
 
 div.InputField_ToolbarContainer ul li:last-child:after {
@@ -215,8 +215,7 @@ div.InputField_ToolbarContainer ul li:last-child:after {
 div.InputField_ToolbarContainer ul li a {
     color: #000;
     display: inline-block;
-    width: 100%;
-    margin: 2px 0;
+    margin: 2px 5px;
     font-size: 11px;
     line-height: 15px;
 }
@@ -228,13 +227,6 @@ div.InputField_ToolbarContainer i {
 div.InputField_ToolbarContainer ul li a:hover {
     border-bottom: 2px solid #f92;
     margin-bottom: 0;
-}
-
-.InputField_Loading {
-    background-image: url('../img/loader.gif');
-    background-position: 99.5% center;
-    background-position: right 3px center;
-    background-repeat: no-repeat;
 }
 
 .InputField_Confirm,
@@ -254,7 +246,6 @@ div.InputField_ToolbarContainer ul li a:hover {
 
 .InputField_FiltersList span {
     margin-right: 5px;
-    vertical-align: 15%;
     cursor: default;
 }
 
@@ -496,10 +487,6 @@ div.InputField_ToolbarContainer ul li a:hover {
     background-color: transparent;
     background-image: none;
     background-position: 0 0;
-}
-
-.jstree-InputField > .jstree-container-ul .jstree-loading > .jstree-ocl {
-    background: url('../img/loader.gif') center center no-repeat;
 }
 
 .jstree-InputField.jstree-rtl .jstree-node {

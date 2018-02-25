@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -148,7 +148,7 @@ Core.Agent.Admin.ACL = (function (TargetNS) {
                 $ItemObjLevel1
                     .attr('data-content', Level1Key)
                     .find('strong')
-                    .text(Level1Key)
+                    .text(Core.App.EscapeHTML(Level1Key))
                     .next('ul')
                     .find('.Icon.AddButton')
                     .after($('#' + Level1Key).parent().html());
@@ -171,7 +171,7 @@ Core.Agent.Admin.ACL = (function (TargetNS) {
                             $ItemObjLevel2
                                 .attr('data-content', Level2Key)
                                 .find('strong')
-                                .text(Level2Key)
+                                .text(Core.App.EscapeHTML(Level2Key))
                                 .next('ul')
                                 .find('.Icon.AddButton')
                                 .next('input')
@@ -209,7 +209,7 @@ Core.Agent.Admin.ACL = (function (TargetNS) {
                                         $ItemObjLevel3
                                             .attr('data-content', Value)
                                             .find('em')
-                                            .before('<span>' + Value + '</span>');
+                                            .before('<span>' + Core.App.EscapeHTML(Value) + '</span>');
 
                                         $TempObjLevel3.append($ItemObjLevel3);
                                     }
@@ -234,7 +234,7 @@ Core.Agent.Admin.ACL = (function (TargetNS) {
                                             $ItemObjLevel3
                                                 .attr('data-content', Level3Key)
                                                 .children('.Icon')
-                                                .after('<span>' + Level3Key + '</span>' + ':');
+                                                .after('<span>' + Core.App.EscapeHTML(Level3Key) + '</span>' + ':');
 
                                             if (typeof Data[Level1Key][Level2Key][Level3Key] !== 'object') {
 
@@ -269,7 +269,7 @@ Core.Agent.Admin.ACL = (function (TargetNS) {
                                                         $ItemObjLevel4
                                                             .attr('data-content', Value)
                                                             .find('em')
-                                                            .before('<span>' + Value + '</span>');
+                                                            .before('<span>' + Core.App.EscapeHTML(Value) + '</span>');
 
                                                         $TempObjLevel4.append($ItemObjLevel4);
                                                     }
@@ -309,6 +309,7 @@ Core.Agent.Admin.ACL = (function (TargetNS) {
 
         var AlreadyAdded = false,
             Value = $Object.val(),
+            ValueEscaped = Core.App.EscapeHTML(Value),
             Level = parseInt($Object.attr('data-level'), 10),
             $LevelObj, $Target, $TriggerObj,
             Prefix, SelectHTML,
@@ -330,7 +331,7 @@ Core.Agent.Admin.ACL = (function (TargetNS) {
                 $LevelObj
                     .attr('data-content', Value)
                     .find('strong')
-                    .text(Value)
+                    .text(ValueEscaped)
                     .next('ul')
                     .find('.Icon.AddButton')
                     .after($('#' + Value).parent().html());
@@ -364,7 +365,7 @@ Core.Agent.Admin.ACL = (function (TargetNS) {
                 $LevelObj
                     .attr('data-content', Value)
                     .find('strong')
-                    .text(Value)
+                    .text(ValueEscaped)
                     .next('ul')
                     .find('.Icon.AddButton')
                     .next('input')
@@ -405,7 +406,7 @@ Core.Agent.Admin.ACL = (function (TargetNS) {
                 $LevelObj
                     .attr('data-content', Value)
                     .children('.Icon')
-                    .after('<span>' + Value + '</span>' + ':');
+                    .after('<span>' + ValueEscaped + '</span>' + ':');
                 $LevelObj.insertBefore($Object.parent());
 
                 if (Type === 'Boolean') {
@@ -612,6 +613,7 @@ Core.Agent.Admin.ACL = (function (TargetNS) {
         $('.ACLStructure').on('blur keydown', '.NewDataKey', function(Event) {
             if ((Event.type === 'keydown' && Event.which === 13) || Event.type !== 'keydown') {
                 TargetNS.AddItem($(this));
+                Core.UI.InputFields.Activate();
                 return false;
             }
         });
@@ -661,7 +663,7 @@ Core.Agent.Admin.ACL = (function (TargetNS) {
 
             if (LastLevel) {
 
-                // get contents of the 'prefixes' selectbox to decide wether or not we
+                // get contents of the 'prefixes' selectbox to decide whether or not we
                 // are dealing with a special type of string
                 $SelectObj.find('option').each(function() {
 
@@ -820,6 +822,7 @@ Core.Agent.Admin.ACL = (function (TargetNS) {
 
         $('.ACLStructure').on('change', '.ItemAdd', function() {
             TargetNS.AddItem($(this));
+            Core.UI.InputFields.Activate();
         });
 
         $('#SubmitAndContinue').on('click', function() {

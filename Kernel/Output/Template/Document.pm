@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -12,7 +12,7 @@ package Kernel::Output::Template::Document;
 use strict;
 use warnings;
 
-use base qw (Template::Document);
+use parent qw (Template::Document);
 
 our $ObjectManagerDisabled = 1;
 

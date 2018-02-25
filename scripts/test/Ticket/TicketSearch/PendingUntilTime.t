@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -15,7 +15,6 @@ use vars (qw($Self));
 use Kernel::System::VariableCheck qw(:all);
 
 my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
-my $TimeObject   = $Kernel::OM->Get('Kernel::System::Time');
 
 $Kernel::OM->ObjectParamAdd(
     'Kernel::System::UnitTest::Helper' => {
@@ -178,9 +177,18 @@ my @Tests = (
     {
         Description =>
             "Test search param 'TicketPendingTimeNewerMinutes' with tickets which have a pending time and correct state",
-        TimeStamp          => '2016-04-14 19:30:00',
+        TimeStamp          => '2016-04-14 19:15:00',
         TicketSearchConfig => {
             TicketPendingTimeNewerMinutes => '60',
+        },
+        ExpectedResultTicketIDs => [ $TicketIDs[3] ],
+    },
+    {
+        Description =>
+            "Test search param 'TicketPendingTimeNewerMinutes' with tickets which have a pending time in future and correct state",
+        TimeStamp          => '2016-04-14 17:15:00',
+        TicketSearchConfig => {
+            TicketPendingTimeNewerMinutes => '-60',
         },
         ExpectedResultTicketIDs => [ $TicketIDs[3] ],
     },
@@ -214,9 +222,12 @@ for my $Test (@Tests) {
     if ( $Test->{TimeStamp} ) {
 
         # set the fixed time
-        my $SystemTime = $TimeObject->TimeStamp2SystemTime(
-            String => $Test->{TimeStamp},
-        );
+        my $SystemTime = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                String => $Test->{TimeStamp},
+                }
+        )->ToEpoch();
         $Helper->FixedTimeSet($SystemTime);
     }
 
@@ -268,7 +279,8 @@ for my $Test (@Tests) {
         %{ $Test->{TicketSearchConfig} },
     );
 
-    @FoundTicketIDs = sort @FoundTicketIDs;
+    @FoundTicketIDs = sort { $a <=> $b } @FoundTicketIDs;
+    @{ $Test->{ExpectedResultTicketIDs} } = sort { $a <=> $b } @{ $Test->{ExpectedResultTicketIDs} };
 
     $Self->IsDeeply(
         \@FoundTicketIDs,

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -47,12 +47,6 @@ $Selenium->RunTest(
         $Selenium->find_element( "table",             'css' );
         $Selenium->find_element( "table thead tr th", 'css' );
         $Selenium->find_element( "table tbody tr td", 'css' );
-
-        # check breadcrumb on Overview screen
-        $Self->True(
-            $Selenium->find_element( '.BreadCrumb', 'css' ),
-            "Breadcrumb is found on Overview screen.",
-        );
 
         # check add button
         $Self->True(
@@ -154,23 +148,6 @@ $Selenium->RunTest(
             StatID => $StatsIDFirst,
             UserID => 1,
         );
-
-        # check breadcrumb on Edit screen
-        my $Count = 1;
-        for my $BreadcrumbText (
-            'Statistics Overview',
-            'Edit ' . $ConfigObject->Get('Stats::StatsHook') . $StatsData->{StatNumber}
-            )
-        {
-            $Self->Is(
-                $Selenium->execute_script("return \$('.BreadCrumb li:eq($Count)').text().trim()"),
-                $BreadcrumbText,
-                "Breadcrumb text '$BreadcrumbText' is found on screen"
-            );
-
-            $Count++;
-        }
-
     }
 );
 

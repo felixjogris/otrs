@@ -1,7 +1,7 @@
 #!/bin/sh
 # --
 # auto_build.sh - build automatically OTRS tar, rpm and src-rpm
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU AFFERO General Public License as published by
@@ -20,7 +20,7 @@
 # --
 
 echo "auto_build.sh - build OTRS release files"
-echo "Copyright (C) 2001-2017 OTRS AG, http://otrs.com/";
+echo "Copyright (C) 2001-2018 OTRS AG, http://otrs.com/";
 
 PATH_TO_CVS_SRC=$1
 PRODUCT=OTRS
@@ -168,13 +168,10 @@ function CreateRPM() {
     mv $SYSTEM_SRPM_DIR/$PACKAGE*$VERSION*$RELEASE*.src.rpm $PACKAGE_DEST_DIR/SRPMS/$TargetPath
 }
 
-CreateRPM "SuSE 11"   "suse11-otrs.spec"   "suse/11/"
 CreateRPM "SuSE 12"   "suse12-otrs.spec"   "suse/12/"
 CreateRPM "SuSE 13"   "suse13-otrs.spec"   "suse/13/"
-CreateRPM "Fedora 20" "fedora20-otrs.spec" "fedora/20/"
-CreateRPM "Fedora 21" "fedora21-otrs.spec" "fedora/21/"
-CreateRPM "Fedora 22" "fedora22-otrs.spec" "fedora/22/"
-CreateRPM "RHEL 6"    "rhel6-otrs.spec"    "rhel/6"
+CreateRPM "Fedora 25" "fedora25-otrs.spec" "fedora/25/"
+CreateRPM "Fedora 26" "fedora26-otrs.spec" "fedora/26/"
 CreateRPM "RHEL 7"    "rhel7-otrs.spec"    "rhel/7"
 
 echo "-----------------------------------------------------------------";
@@ -189,7 +186,7 @@ else
     echo "No md5sum found in \$PATH!"
 fi
 echo "--------------------------------------------------------------------------";
-echo "Note: You may have to tag your git tree: git tag rel-3_x_x -a -m \"3.x.x\"";
+echo "Note: You may have to tag your git tree: git tag rel-6_x_x -a -m \"6.x.x\"";
 echo "--------------------------------------------------------------------------";
 
 # --

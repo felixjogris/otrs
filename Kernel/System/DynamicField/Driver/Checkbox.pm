@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -13,7 +13,7 @@ use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
 
-use base qw(Kernel::System::DynamicField::Driver::Base);
+use parent qw(Kernel::System::DynamicField::Driver::Base);
 
 our @ObjectDependencies = (
     'Kernel::Config',
@@ -341,6 +341,26 @@ EOF
         $ErrorMessage
     </p>
 </div>
+EOF
+    }
+
+    if ( $Param{AJAXUpdate} ) {
+
+        my $FieldsToUpdate = '';
+        if ( IsArrayRefWithData( $Param{UpdatableFields} ) ) {
+
+            # Remove current field from updatable fields list.
+            my @FieldsToUpdate = grep { $_ ne $FieldName } @{ $Param{UpdatableFields} };
+
+            # Quote all fields, put commas between them.
+            $FieldsToUpdate = join( ', ', map {"'$_'"} @FieldsToUpdate );
+        }
+
+        # Add JS to call FormUpdate() on change event.
+        $Param{LayoutObject}->AddJSOnDocumentComplete( Code => <<"EOF");
+\$('#$FieldName').on('change', function () {
+    Core.AJAX.FormUpdate(\$(this).parents('form'), 'AJAXUpdate', '$FieldName', [ $FieldsToUpdate ]);
+});
 EOF
     }
 

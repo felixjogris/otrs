@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -361,7 +361,7 @@ for my $Test (@Tests) {
 # ActivityDialogGet()
 #
 
-my @AddedActivityDialogsList = map {$_} sort keys %AddedActivityDialogs;
+my @AddedActivityDialogsList = map {$_} sort { $a <=> $b } keys %AddedActivityDialogs;
 @Tests = (
     {
         Name    => 'ActivityDialogGet Test 1: No params',

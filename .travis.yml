@@ -4,6 +4,7 @@ perl:
   - "5.18"
   - "5.20"
   - "5.22"
+  - "5.24"
 
 services:
   - mysql
@@ -24,6 +25,8 @@ matrix:
       env: DB=mysql
     - perl: "5.22"
       env: DB=postgresql
+    - perl: "5.24"
+      env: DB=mysql
 
 # Use 12.04 platform. Docker based VMs seem slower, and trusty beta has not enough available VMs.
 # See https://docs.travis-ci.com/user/ci-environment/
@@ -37,6 +40,7 @@ addons:
 
 # Install nodejs from external source as it is outdated in 12.04
 before_install:
+  - df -h
   - curl -sL https://deb.nodesource.com/setup_4.x | sudo -E bash -
   - sudo apt-get install -y nodejs
   - npm -g install eslint
@@ -65,7 +69,7 @@ script:
   - perl -cw bin/cgi-bin/app.psgi
   - perl bin/otrs.Console.pl Maint::Database::Check
   - perl bin/otrs.Console.pl Maint::Config::Rebuild
-  - perl bin/otrs.Console.pl Dev::UnitTest::Run
+  - scripts/tools/travis/runtests.sh
 
 notifications:
   email:

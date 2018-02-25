@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -1162,7 +1162,8 @@ sub _GetChecks {
 
         # compare if data is different and skip on same data
         if (
-            !DataIsDifferent(
+            $Checks{DynamicField}->{$TicketAttribute}
+            && !DataIsDifferent(
                 Data1 => $Checks{Ticket}->{$TicketAttribute},
                 Data2 => $Checks{DynamicField}->{$TicketAttribute},
             )
@@ -1671,8 +1672,8 @@ sub _GetChecks {
 
     # use state data (if given)
     if ( $CheckAll || $RequiredChecks{State} ) {
-        if ( $Param{NextStateID} && !$Param{StateID} ) {
-            $Param{StateID} = $Param{NextStateID}
+        if ( !$Param{StateID} ) {
+            $Param{StateID} = $Param{NextStateID} || $Param{NewStateID};
         }
         if ( $Param{StateID} ) {
             my %State = $StateObject->StateGet(

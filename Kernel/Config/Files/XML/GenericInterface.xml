@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <otrs_config version="2.0" init="Application">
     <Setting Name="Ticket::EventModulePost###9900-GenericInterface" Required="0" Valid="1">
-        <Description Translatable="1">Performs the configured action for each event (as an Invoker) for each configured Webservice.</Description>
-        <Navigation>Core::Ticket</Navigation>
+        <Description Translatable="1">Performs the configured action for each event (as an Invoker) for each configured web service.</Description>
+        <Navigation>Core::Event::Ticket</Navigation>
         <Value>
             <Hash>
                 <Item Key="Module">Kernel::GenericInterface::Event::Handler</Item>
@@ -12,8 +12,8 @@
         </Value>
     </Setting>
     <Setting Name="Package::EventModulePost###9900-GenericInterface" Required="0" Valid="1">
-        <Description Translatable="1">Performs the configured action for each event (as an Invoker) for each configured Webservice.</Description>
-        <Navigation>Core::Package</Navigation>
+        <Description Translatable="1">Performs the configured action for each event (as an Invoker) for each configured web service.</Description>
+        <Navigation>Core::Event::Package</Navigation>
         <Value>
             <Hash>
                 <Item Key="Module">Kernel::GenericInterface::Event::Handler</Item>
@@ -23,8 +23,8 @@
         </Value>
     </Setting>
     <Setting Name="CustomerCompany::EventModulePost###9900-GenericInterface" Required="0" Valid="1">
-        <Description Translatable="1">Performs the configured action for each event (as an Invoker) for each configured Webservice.</Description>
-        <Navigation>Core::CustomerCompany</Navigation>
+        <Description Translatable="1">Performs the configured action for each event (as an Invoker) for each configured web service.</Description>
+        <Navigation>Core::Event::CustomerCompany</Navigation>
         <Value>
             <Hash>
                 <Item Key="Module">Kernel::GenericInterface::Event::Handler</Item>
@@ -34,8 +34,8 @@
         </Value>
     </Setting>
     <Setting Name="CustomerUser::EventModulePost###9900-GenericInterface" Required="0" Valid="1">
-        <Description Translatable="1">Performs the configured action for each event (as an Invoker) for each configured Webservice.</Description>
-        <Navigation>Core::CustomerUser</Navigation>
+        <Description Translatable="1">Performs the configured action for each event (as an Invoker) for each configured web service.</Description>
+        <Navigation>Core::Event::CustomerUser</Navigation>
         <Value>
             <Hash>
                 <Item Key="Module">Kernel::GenericInterface::Event::Handler</Item>
@@ -45,8 +45,8 @@
         </Value>
     </Setting>
     <Setting Name="Queue::EventModulePost###9900-GenericInterface" Required="0" Valid="1">
-        <Description Translatable="1">Performs the configured action for each event (as an Invoker) for each configured Webservice.</Description>
-        <Navigation>Core::Queue</Navigation>
+        <Description Translatable="1">Performs the configured action for each event (as an Invoker) for each configured web service.</Description>
+        <Navigation>Core::Event::Queue</Navigation>
         <Value>
             <Hash>
                 <Item Key="Module">Kernel::GenericInterface::Event::Handler</Item>
@@ -56,8 +56,8 @@
         </Value>
     </Setting>
     <Setting Name="DynamicField::EventModulePost###9900-GenericInterface" Required="0" Valid="1">
-        <Description Translatable="1">Performs the configured action for each event (as an Invoker) for each configured Webservice.</Description>
-        <Navigation>Core::DynamicFields</Navigation>
+        <Description Translatable="1">Performs the configured action for each event (as an Invoker) for each configured web service.</Description>
+        <Navigation>Core::Event::DynamicField</Navigation>
         <Value>
             <Hash>
                 <Item Key="Module">Kernel::GenericInterface::Event::Handler</Item>
@@ -68,21 +68,21 @@
     </Setting>
     <Setting Name="GenericInterface::WebserviceConfig::CacheTTL" Required="1" Valid="1">
         <Description Translatable="1">Cache time in seconds for the web service config backend.</Description>
-        <Navigation>GenericInterface::Webservice</Navigation>
+        <Navigation>GenericInterface</Navigation>
         <Value>
             <Item ValueType="String" ValueRegex="^\d+$">86400</Item><!-- default 1 day -->
         </Value>
     </Setting>
     <Setting Name="GenericInterface::Operation::Common::CachedAuth::AgentCacheTTL" Required="1" Valid="1">
         <Description Translatable="1">Cache time in seconds for agent authentication in the GenericInterface.</Description>
-        <Navigation>GenericInterface::Webservice</Navigation>
+        <Navigation>GenericInterface::Operation</Navigation>
         <Value>
             <Item ValueType="String" ValueRegex="^\d+$">300</Item><!-- default 5 min -->
         </Value>
     </Setting>
     <Setting Name="GenericInterface::Operation::Common::CachedAuth::CustomerCacheTTL" Required="1" Valid="1">
         <Description Translatable="1">Cache time in seconds for customer authentication in the GenericInterface.</Description>
-        <Navigation>GenericInterface::Webservice</Navigation>
+        <Navigation>GenericInterface::Operation</Navigation>
         <Value>
             <Item ValueType="String" ValueRegex="^\d+$">300</Item><!-- default 5 min -->
         </Value>
@@ -111,7 +111,7 @@
     </Setting>
     <Setting Name="Loader::Module::AdminGenericInterfaceDebugger###002-GenericInterface" Required="0" Valid="1">
         <Description Translatable="1">Loader module registration for the agent interface.</Description>
-        <Navigation>Frontend::Admin::ModuleRegistration</Navigation>
+        <Navigation>Frontend::Admin::ModuleRegistration::Loader</Navigation>
         <Value>
             <Hash>
                 <Item Key="CSS">
@@ -125,6 +125,18 @@
                     </Array>
                 </Item>
             </Hash>
+        </Value>
+    </Setting>
+    <Setting Name="Frontend::Navigation###AdminGenericInterfaceDebugger###002-GenericInterface" Required="0" Valid="0">
+        <Description Translatable="1">Main menu item registration.</Description>
+        <Navigation>Frontend::Admin::ModuleRegistration::MainMenu</Navigation>
+        <Value>
+            <Array>
+                <DefaultItem ValueType="FrontendNavigation">
+                    <Hash>
+                    </Hash>
+                </DefaultItem>
+            </Array>
         </Value>
     </Setting>
     <Setting Name="Frontend::Module###AdminGenericInterfaceWebservice" Required="0" Valid="1">
@@ -151,7 +163,7 @@
     </Setting>
     <Setting Name="Loader::Module::AdminGenericInterfaceWebservice###002-GenericInterface" Required="0" Valid="1">
         <Description Translatable="1">Loader module registration for the agent interface.</Description>
-        <Navigation>Frontend::Admin::ModuleRegistration</Navigation>
+        <Navigation>Frontend::Admin::ModuleRegistration::Loader</Navigation>
         <Value>
             <Hash>
                 <Item Key="CSS">
@@ -167,9 +179,21 @@
             </Hash>
         </Value>
     </Setting>
+    <Setting Name="Frontend::Navigation###AdminGenericInterfaceWebservice###002-GenericInterface" Required="0" Valid="0">
+        <Description Translatable="1">Main menu item registration.</Description>
+        <Navigation>Frontend::Admin::ModuleRegistration::MainMenu</Navigation>
+        <Value>
+            <Array>
+                <DefaultItem ValueType="FrontendNavigation">
+                    <Hash>
+                    </Hash>
+                </DefaultItem>
+            </Array>
+        </Value>
+    </Setting>
     <Setting Name="Frontend::NavigationModule###AdminGenericInterfaceWebservice" Required="0" Valid="1">
         <Description Translatable="1">Admin area navigation for the agent interface.</Description>
-        <Navigation>Frontend::Admin::ModuleRegistration</Navigation>
+        <Navigation>Frontend::Admin::ModuleRegistration::AdminOverview</Navigation>
         <Value>
             <Hash>
                 <Item Key="Group">
@@ -183,11 +207,10 @@
                 </Item>
                 <Item Key="Module">Kernel::Output::HTML::NavBar::ModuleAdmin</Item>
                 <Item Key="Name" Translatable="1">Web Services</Item>
-                <Item Key="Block">System</Item>
+                <Item Key="Block">Automation</Item>
                 <Item Key="Description" Translatable="1">Create and manage web services.</Item>
                 <Item Key="IconBig"></Item>
                 <Item Key="IconSmall"></Item>
-                <Item Key="Prio">1000</Item>
             </Hash>
         </Value>
     </Setting>
@@ -215,7 +238,7 @@
     </Setting>
     <Setting Name="Loader::Module::AdminGenericInterfaceTransportHTTPSOAP###002-GenericInterface" Required="0" Valid="1">
         <Description Translatable="1">Loader module registration for the agent interface.</Description>
-        <Navigation>Frontend::Admin::ModuleRegistration</Navigation>
+        <Navigation>Frontend::Admin::ModuleRegistration::Loader</Navigation>
         <Value>
             <Hash>
                 <Item Key="CSS">
@@ -257,7 +280,7 @@
     </Setting>
     <Setting Name="Loader::Module::AdminGenericInterfaceTransportHTTPREST###002-GenericInterface" Required="0" Valid="1">
         <Description Translatable="1">Loader module registration for the agent interface.</Description>
-        <Navigation>Frontend::Admin::ModuleRegistration</Navigation>
+        <Navigation>Frontend::Admin::ModuleRegistration::Loader</Navigation>
         <Value>
             <Hash>
                 <Item Key="CSS">
@@ -289,7 +312,7 @@
                         </Array>
                     </Item>
                     <Item Key="Description">Admin</Item>
-                    <Item Key="Title" Translatable="1">GenericInterface Webservice History GUI</Item>
+                    <Item Key="Title" Translatable="1">GenericInterface Web Service History GUI</Item>
                     <Item Key="NavBarName"></Item>
                 </Hash>
             </Item>
@@ -297,7 +320,7 @@
     </Setting>
     <Setting Name="Loader::Module::AdminGenericInterfaceWebserviceHistory###002-GenericInterface" Required="0" Valid="1">
         <Description Translatable="1">Loader module registration for the agent interface.</Description>
-        <Navigation>Frontend::Admin::ModuleRegistration</Navigation>
+        <Navigation>Frontend::Admin::ModuleRegistration::Loader</Navigation>
         <Value>
             <Hash>
                 <Item Key="CSS">
@@ -337,7 +360,7 @@
     </Setting>
     <Setting Name="Loader::Module::AdminGenericInterfaceOperationDefault###002-GenericInterface" Required="0" Valid="1">
         <Description Translatable="1">Loader module registration for the agent interface.</Description>
-        <Navigation>Frontend::Admin::ModuleRegistration</Navigation>
+        <Navigation>Frontend::Admin::ModuleRegistration::Loader</Navigation>
         <Value>
             <Hash>
                 <Item Key="CSS">
@@ -377,7 +400,7 @@
     </Setting>
     <Setting Name="Loader::Module::AdminGenericInterfaceInvokerDefault###002-GenericInterface" Required="0" Valid="1">
         <Description Translatable="1">Loader module registration for the agent interface.</Description>
-        <Navigation>Frontend::Admin::ModuleRegistration</Navigation>
+        <Navigation>Frontend::Admin::ModuleRegistration::Loader</Navigation>
         <Value>
             <Hash>
                 <Item Key="CSS">
@@ -388,6 +411,46 @@
                 <Item Key="JavaScript">
                     <Array>
                         <Item>Core.Agent.Admin.GenericInterfaceInvoker.js</Item>
+                    </Array>
+                </Item>
+            </Hash>
+        </Value>
+    </Setting>
+    <Setting Name="Frontend::Module###AdminGenericInterfaceInvokerEvent" Required="0" Valid="1">
+        <Description Translatable="1">Frontend module registration for the agent interface.</Description>
+        <Navigation>Frontend::Admin::ModuleRegistration</Navigation>
+        <Value>
+            <Item ValueType="FrontendRegistration">
+                <Hash>
+                    <Item Key="GroupRo">
+                        <Array>
+                        </Array>
+                    </Item>
+                    <Item Key="Group">
+                        <Array>
+                            <Item>admin</Item>
+                        </Array>
+                    </Item>
+                    <Item Key="Description">Admin</Item>
+                    <Item Key="Title" Translatable="1">GenericInterface Invoker Event GUI</Item>
+                    <Item Key="NavBarName"></Item>
+                </Hash>
+            </Item>
+        </Value>
+    </Setting>
+    <Setting Name="Loader::Module::AdminGenericInterfaceInvokerEvent###002-GenericInterface" Required="0" Valid="1">
+        <Description Translatable="1">Loader module registration for the agent interface.</Description>
+        <Navigation>Frontend::Admin::ModuleRegistration::Loader</Navigation>
+        <Value>
+            <Hash>
+                <Item Key="CSS">
+                    <Array>
+                        <Item>Core.Agent.Admin.GenericInterface.css</Item>
+                    </Array>
+                </Item>
+                <Item Key="JavaScript">
+                    <Array>
+                        <Item>Core.Agent.Admin.GenericInterfaceInvokerEvent.js</Item>
                     </Array>
                 </Item>
             </Hash>
@@ -484,7 +547,7 @@
                         </Array>
                     </Item>
                     <Item Key="Description">Admin</Item>
-                    <Item Key="Title" Translatable="1">GenericInterface Webservice Mapping GUI</Item>
+                    <Item Key="Title" Translatable="1">GenericInterface Web Service Mapping GUI</Item>
                     <Item Key="NavBarName"></Item>
                 </Hash>
             </Item>
@@ -492,7 +555,7 @@
     </Setting>
     <Setting Name="Loader::Module::AdminGenericInterfaceMappingSimple###002-GenericInterface" Required="0" Valid="1">
         <Description Translatable="1">Loader module registration for the agent interface.</Description>
-        <Navigation>Frontend::Admin::ModuleRegistration</Navigation>
+        <Navigation>Frontend::Admin::ModuleRegistration::Loader</Navigation>
         <Value>
             <Hash>
                 <Item Key="CSS">
@@ -533,7 +596,7 @@
                         </Array>
                     </Item>
                     <Item Key="Description">Admin</Item>
-                    <Item Key="Title" Translatable="1">GenericInterface Webservice Mapping GUI</Item>
+                    <Item Key="Title" Translatable="1">GenericInterface Web Service Mapping GUI</Item>
                     <Item Key="NavBarName"></Item>
                 </Hash>
             </Item>
@@ -541,7 +604,7 @@
     </Setting>
     <Setting Name="Loader::Module::AdminGenericInterfaceMappingXSLT###002-GenericInterface" Required="0" Valid="1">
         <Description Translatable="1">Loader module registration for the agent interface.</Description>
-        <Navigation>Frontend::Admin::ModuleRegistration</Navigation>
+        <Navigation>Frontend::Admin::ModuleRegistration::Loader</Navigation>
         <Value>
             <Hash>
                 <Item Key="CSS">
@@ -572,6 +635,17 @@
         <Value>
             <Hash>
                 <Item Key="Name">SessionCreate</Item>
+                <Item Key="Controller">Session</Item>
+                <Item Key="ConfigDialog">AdminGenericInterfaceOperationDefault</Item>
+            </Hash>
+        </Value>
+    </Setting>
+    <Setting Name="GenericInterface::Operation::Module###Session::SessionGet" Required="0" Valid="1">
+         <Description Translatable="1">GenericInterface module registration for the operation layer.</Description>
+         <Navigation>GenericInterface::Operation::ModuleRegistration</Navigation>
+         <Value>
+            <Hash>
+                <Item Key="Name">SessionGet</Item>
                 <Item Key="Controller">Session</Item>
                 <Item Key="ConfigDialog">AdminGenericInterfaceOperationDefault</Item>
             </Hash>
@@ -621,11 +695,22 @@
             </Hash>
         </Value>
     </Setting>
-    <Setting Name="GenericInterface::Operation::TicketCreate###ArticleType" Required="1" Valid="1">
-        <Description Translatable="1">Defines the default type of the article for this operation.</Description>
+    <Setting Name="GenericInterface::Operation::Module###Ticket::TicketHistoryGet" Required="0" Valid="1">
+        <Description Translatable="1">GenericInterface module registration for the operation layer.</Description>
+        <Navigation>GenericInterface::Operation::ModuleRegistration</Navigation>
+        <Value>
+            <Hash>
+                <Item Key="Name">TicketHistoryGet</Item>
+                <Item Key="Controller">Ticket</Item>
+                <Item Key="ConfigDialog">AdminGenericInterfaceOperationDefault</Item>
+            </Hash>
+        </Value>
+    </Setting>
+    <Setting Name="GenericInterface::Operation::TicketCreate###IsVisibleForCustomer" Required="1" Valid="1">
+        <Description Translatable="1">Defines the default visibility of the article to customer for this operation.</Description>
         <Navigation>GenericInterface::Operation::TicketCreate</Navigation>
         <Value>
-            <Item ValueType="String" ValueRegex="">webrequest</Item>
+            <Item ValueType="Checkbox">1</Item>
         </Value>
     </Setting>
     <Setting Name="GenericInterface::Operation::TicketCreate###HistoryType" Required="1" Valid="1">
@@ -649,16 +734,16 @@
             <Item ValueType="String" ValueRegex="">auto reply</Item>
         </Value>
     </Setting>
-    <Setting Name="GenericInterface::Operation::TicketUpdate###ArticleType" Required="1" Valid="1">
-        <Description Translatable="1">Defines the default type of the article for this operation.</Description>
+    <Setting Name="GenericInterface::Operation::TicketUpdate###IsVisibleForCustomer" Required="1" Valid="1">
+        <Description Translatable="1">Defines the default visibility of the article to customer for this operation.</Description>
         <Navigation>GenericInterface::Operation::TicketUpdate</Navigation>
         <Value>
-            <Item ValueType="String" ValueRegex="">webrequest</Item>
+            <Item ValueType="Checkbox">1</Item>
         </Value>
     </Setting>
     <Setting Name="GenericInterface::Operation::ResponseLoggingMaxSize" Required="1" Valid="1">
         <Description Translatable="1">Defines the maximum size in KiloByte of GenericInterface responses that get logged to the gi_debugger_entry_content table.</Description>
-        <Navigation>GenericInterface::Operation::ResponseLoggingMaxSize</Navigation>
+        <Navigation>GenericInterface::Operation</Navigation>
         <Value>
             <Item ValueType="String" ValueRegex="^\d+$">200</Item>
         </Value>
@@ -713,6 +798,98 @@
                 <Item ValueType="Option" Value="Down" Translatable="1">Down</Item>
                 <Item ValueType="Option" Value="Up" Translatable="1">Up</Item>
             </Item>
+        </Value>
+    </Setting>
+    <Setting Name="GenericInterface::ErrorHandling::Module###RequestRetry" Required="0" Valid="1">
+        <Description Translatable="1">GenericInterface module registration for an error handling module.</Description>
+        <Navigation>GenericInterface::ErrorHandling::ModuleRegistration</Navigation>
+        <Value>
+            <Hash>
+                <Item Key="Name">RequestRetry</Item>
+                <Item Key="ConfigDialog">AdminGenericInterfaceErrorHandlingRequestRetry</Item>
+                <Item Key="CommunicationTypeFilter">Requester</Item>
+            </Hash>
+        </Value>
+    </Setting>
+    <Setting Name="Frontend::Module###AdminGenericInterfaceErrorHandlingDefault" Required="0" Valid="1">
+        <Description Translatable="1">Frontend module registration for the agent interface.</Description>
+        <Navigation>Frontend::Admin::ModuleRegistration</Navigation>
+        <Value>
+            <Item ValueType="FrontendRegistration">
+                <Hash>
+                    <Item Key="GroupRo">
+                        <Array>
+                        </Array>
+                    </Item>
+                    <Item Key="Group">
+                        <Array>
+                            <Item>admin</Item>
+                        </Array>
+                    </Item>
+                    <Item Key="Description">Admin</Item>
+                    <Item Key="Title" Translatable="1">GenericInterface ErrorHandling GUI</Item>
+                    <Item Key="NavBarName"></Item>
+                </Hash>
+            </Item>
+        </Value>
+    </Setting>
+    <Setting Name="Loader::Module::AdminGenericInterfaceErrorHandlingDefault###002-GenericInterface" Required="0" Valid="1">
+        <Description Translatable="1">Loader module registration for the agent interface.</Description>
+        <Navigation>Frontend::Admin::ModuleRegistration::Loader</Navigation>
+        <Value>
+            <Hash>
+                <Item Key="CSS">
+                    <Array>
+                        <Item>Core.Agent.Admin.GenericInterface.css</Item>
+                    </Array>
+                </Item>
+                <Item Key="JavaScript">
+                    <Array>
+                        <Item>Core.Agent.Admin.GenericInterfaceErrorHandling.js</Item>
+                    </Array>
+                </Item>
+            </Hash>
+        </Value>
+    </Setting>
+    <Setting Name="Frontend::Module###AdminGenericInterfaceErrorHandlingRequestRetry" Required="0" Valid="1">
+        <Description Translatable="1">Frontend module registration for the agent interface.</Description>
+        <Navigation>Frontend::Admin::ModuleRegistration</Navigation>
+        <Value>
+            <Item ValueType="FrontendRegistration">
+                <Hash>
+                    <Item Key="GroupRo">
+                        <Array>
+                        </Array>
+                    </Item>
+                    <Item Key="Group">
+                        <Array>
+                            <Item>admin</Item>
+                        </Array>
+                    </Item>
+                    <Item Key="Description">Admin</Item>
+                    <Item Key="Title" Translatable="1">GenericInterface ErrorHandling GUI</Item>
+                    <Item Key="NavBarName"></Item>
+                </Hash>
+            </Item>
+        </Value>
+    </Setting>
+    <Setting Name="Loader::Module::AdminGenericInterfaceErrorHandlingRequestRetry###002-GenericInterface" Required="0" Valid="1">
+        <Description Translatable="1">Loader module registration for the agent interface.</Description>
+        <Navigation>Frontend::Admin::ModuleRegistration::Loader</Navigation>
+        <Value>
+            <Hash>
+                <Item Key="CSS">
+                    <Array>
+                        <Item>Core.Agent.Admin.GenericInterface.css</Item>
+                    </Array>
+                </Item>
+                <Item Key="JavaScript">
+                    <Array>
+                        <Item>Core.Agent.Admin.GenericInterfaceErrorHandling.js</Item>
+                        <Item>Core.Agent.Admin.GenericInterfaceErrorHandlingRequestRetry.js</Item>
+                    </Array>
+                </Item>
+            </Hash>
         </Value>
     </Setting>
 </otrs_config>

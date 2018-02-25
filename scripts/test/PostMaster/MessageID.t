@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -15,10 +15,12 @@ use vars (qw($Self));
 
 use Kernel::System::PostMaster;
 
-# get needed objects
-my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
-my $MainObject   = $Kernel::OM->Get('Kernel::System::Main');
-my $TicketObject = $Kernel::OM->Get('Kernel::System::Ticket');
+my $ConfigObject         = $Kernel::OM->Get('Kernel::Config');
+my $MainObject           = $Kernel::OM->Get('Kernel::System::Main');
+my $TicketObject         = $Kernel::OM->Get('Kernel::System::Ticket');
+my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForChannel(
+    ChannelName => 'Email',
+);
 
 # get helper object
 $Kernel::OM->ObjectParamAdd(
@@ -63,11 +65,29 @@ for my $File (qw(1 2 3 5 6 11 21)) {
     );
 
     {
+        my $CommunicationLogObject = $Kernel::OM->Create(
+            'Kernel::System::CommunicationLog',
+            ObjectParams => {
+                Transport => 'Email',
+                Direction => 'Incoming',
+            },
+        );
+        $CommunicationLogObject->ObjectLogStart( ObjectLogType => 'Message' );
+
         my $PostMasterObject = Kernel::System::PostMaster->new(
-            Email => \@Content,
+            CommunicationLogObject => $CommunicationLogObject,
+            Email                  => \@Content,
         );
 
         @Return = $PostMasterObject->Run();
+
+        $CommunicationLogObject->ObjectLogStop(
+            ObjectLogType => 'Message',
+            Status        => 'Successful',
+        );
+        $CommunicationLogObject->CommunicationStop(
+            Status => 'Successful',
+        );
     }
 
     $Self->Is(
@@ -76,14 +96,14 @@ for my $File (qw(1 2 3 5 6 11 21)) {
         ' Run() - NewTicket',
     );
 
-    my $TicketID = $Kernel::OM->Get('Kernel::System::Ticket::Article')->ArticleGetTicketIDOfMessageID(
+    my %Article = $ArticleBackendObject->ArticleGetByMessageID(
         MessageID => $MessageID,
     );
 
     $Self->Is(
-        $TicketID,
+        $Article{TicketID},
         $Return[1],
-        "ArticleGetTicketIDOfMessageID - TicketID for message ID $MessageID"
+        "ArticleGetByMessageID - TicketID for message ID $MessageID"
     );
 }
 

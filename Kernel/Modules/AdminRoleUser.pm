@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -10,6 +10,8 @@ package Kernel::Modules::AdminRoleUser;
 
 use strict;
 use warnings;
+
+use Kernel::Language qw(Translatable);
 
 our $ObjectManagerDisabled = 1;
 
@@ -54,7 +56,7 @@ sub Run {
             Selected => \%Member,
             Data     => \%RoleData,
             ID       => $UserData{UserID},
-            Name     => "$UserData{UserFirstname} $UserData{UserLastname} ($UserData{UserLogin})",
+            Name     => "$UserData{UserFullname}",
             Type     => 'User',
         );
         $Output .= $LayoutObject->Footer();
@@ -214,8 +216,8 @@ sub _Change {
     my $NeType = $Type eq 'Role' ? 'User' : 'Role';
 
     my %VisibleType = (
-        Role => 'Role',
-        User => 'Agent'
+        Role => Translatable('Role'),
+        User => Translatable('Agent'),
     );
 
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');

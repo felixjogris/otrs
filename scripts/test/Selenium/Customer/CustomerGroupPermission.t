@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -70,21 +70,21 @@ $Selenium->RunTest(
             "Group is created - $GroupName",
         );
 
-        # disable frontend service module
+        # Disable frontend service module.
         my $FrontendCustomerTicketOverview
-            = $Kernel::OM->Get('Kernel::Config')->Get('CustomerFrontend::Navigation')->{CustomerTicketOverview};
+            = $Kernel::OM->Get('Kernel::Config')->Get('CustomerFrontend::Navigation')->{CustomerTicketOverview}
+            ->{'002-Ticket'};
 
-        # change the group for the CompanyTickets
-        for my $Key ( %{$FrontendCustomerTicketOverview} ) {
-
-            if ( $FrontendCustomerTicketOverview->{$Key}->{Name} eq 'Company Tickets' ) {
-                push @{ $FrontendCustomerTicketOverview->{$Key}->{Group} }, $GroupName;
+        # Change the group for the CompanyTickets.
+        for my $Item ( @{$FrontendCustomerTicketOverview} ) {
+            if ( $Item->{Name} eq 'Company Tickets' ) {
+                push @{ $Item->{Group} }, $GroupName;
             }
         }
 
         $Helper->ConfigSettingChange(
             Valid => 1,
-            Key   => 'CustomerFrontend::Navigation###CustomerTicketOverview',
+            Key   => 'CustomerFrontend::Navigation###CustomerTicketOverview###002-Ticket',
             Value => $FrontendCustomerTicketOverview,
         );
 

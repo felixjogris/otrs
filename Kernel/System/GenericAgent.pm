@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -18,6 +18,7 @@ use Kernel::System::VariableCheck qw(:all);
 our @ObjectDependencies = (
     'Kernel::Config',
     'Kernel::System::Cache',
+    'Kernel::System::DateTime',
     'Kernel::System::DB',
     'Kernel::System::DynamicField',
     'Kernel::System::DynamicField::Backend',
@@ -27,7 +28,6 @@ our @ObjectDependencies = (
     'Kernel::System::State',
     'Kernel::System::Ticket',
     'Kernel::System::Ticket::Article',
-    'Kernel::System::Time',
     'Kernel::System::TemplateGenerator',
     'Kernel::System::CustomerUser',
 );
@@ -76,11 +76,11 @@ sub new {
     my %Map = (
         TicketNumber            => 'SCALAR',
         Title                   => 'SCALAR',
-        From                    => 'SCALAR',
-        To                      => 'SCALAR',
-        Cc                      => 'SCALAR',
-        Subject                 => 'SCALAR',
-        Body                    => 'SCALAR',
+        MIMEBase_From           => 'SCALAR',
+        MIMEBase_To             => 'SCALAR',
+        MIMEBase_Cc             => 'SCALAR',
+        MIMEBase_Subject        => 'SCALAR',
+        MIMEBase_Body           => 'SCALAR',
         TimeUnit                => 'SCALAR',
         CustomerID              => 'SCALAR',
         CustomerUserLogin       => 'SCALAR',
@@ -771,7 +771,7 @@ sub JobAdd {
     if (%Check) {
         $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
-            Message  => "Can't add job '$Param{Name}', job already exists!",
+            Message  => "A job with the name '$Param{Name}' already exists.",
         );
         return;
     }
@@ -1014,13 +1014,17 @@ sub _JobRunTicket {
             }
         }
 
-        my $ArticleID = $Kernel::OM->Get('Kernel::System::Ticket::Article')->ArticleCreate(
-            TicketID    => $Param{TicketID},
-            ArticleType => $Param{Config}->{New}->{Note}->{ArticleType}
-                || $Param{Config}->{New}->{ArticleType}
-                || 'note-internal',
-            SenderType => 'agent',
-            From       => $Param{Config}->{New}->{Note}->{From}
+        my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForChannel(
+            ChannelName => 'Internal',
+        );
+
+        my $ArticleID = $ArticleBackendObject->ArticleCreate(
+            TicketID             => $Param{TicketID},
+            SenderType           => 'agent',
+            IsVisibleForCustomer => $Param{Config}->{New}->{Note}->{IsVisibleForCustomer}
+                // $Param{Config}->{New}->{NoteIsVisibleForCustomer}
+                // 0,
+            From => $Param{Config}->{New}->{Note}->{From}
                 || $Param{Config}->{New}->{NoteFrom}
                 || 'GenericAgent',
             Subject => $Param{Config}->{New}->{Note}->{Subject}
@@ -1108,21 +1112,16 @@ sub _JobRunTicket {
         }
 
         # add systemtime
-        $PendingTime += $Kernel::OM->Get('Kernel::System::Time')->SystemTime();
-
-        # get date
-        my ( $Sec, $Min, $Hour, $Day, $Month, $Year, $WeekDay )
-            = $Kernel::OM->Get('Kernel::System::Time')->SystemTime2Date(
-            SystemTime => $PendingTime,
-            );
+        my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+        $DateTimeObject->Add( Seconds => $PendingTime );
 
         # set pending time
         $TicketObject->TicketPendingTimeSet(
-            Year     => $Year,
-            Month    => $Month,
-            Day      => $Day,
-            Hour     => $Hour,
-            Minute   => $Min,
+            Year     => $DateTimeObject->Format( Format => '%Y' ),
+            Month    => $DateTimeObject->Format( Format => '%m' ),
+            Day      => $DateTimeObject->Format( Format => '%d' ),
+            Hour     => $DateTimeObject->Format( Format => '%H' ),
+            Minute   => $DateTimeObject->Format( Format => '%M' ),
             TicketID => $Param{TicketID},
             UserID   => $Param{UserID},
         );
@@ -1492,14 +1491,12 @@ sub _JobUpdateRunTime {
     );
 
     # get time object
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+    my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
 
     # update new run time
     my %Insert = (
-        ScheduleLastRun => $TimeObject->SystemTime2TimeStamp(
-            SystemTime => $TimeObject->SystemTime()
-        ),
-        ScheduleLastRunUnixTime => $TimeObject->SystemTime(),
+        ScheduleLastRun         => $DateTimeObject->ToString(),
+        ScheduleLastRunUnixTime => $DateTimeObject->ToEpoch(),
     );
 
     for my $Key ( sort keys %Insert ) {

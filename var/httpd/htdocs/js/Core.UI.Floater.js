@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -197,7 +197,7 @@ Core.UI.Floater = (function (TargetNS) {
                 FloaterWidth = parseInt($FloaterObj.outerWidth(), 10);
 
                 // set left position
-                if (TriggerOffset.left < FloaterWidth / 2) {
+                if (TriggerOffset.left - ViewportWidth / 50 < FloaterWidth / 2) {
 
                     // case 1: trigger element on far left side without enough space to show the floater
                     $FloaterObj.addClass('Left').css({
@@ -205,7 +205,7 @@ Core.UI.Floater = (function (TargetNS) {
                         left: TriggerOffset.left
                     });
                 }
-                else if (ViewportWidth - TriggerOffset.left + ($TriggerObj.outerWidth() / 2) < FloaterWidth / 2) {
+                else if (ViewportWidth - TriggerOffset.left + ($TriggerObj.outerWidth() / 2) - ViewportWidth / 50 < FloaterWidth / 2) {
 
                     // case 2: trigger element on far right side
                     $FloaterObj.addClass('Right').css({
@@ -228,7 +228,7 @@ Core.UI.Floater = (function (TargetNS) {
                 // calculate available height to top of page
                 AvailableHeightTop = parseInt(TriggerOffset.top - $(window).scrollTop(), 10);
 
-                // decide wether list should be positioned on top or at the bottom of the input field
+                // decide whether list should be positioned on top or at the bottom of the input field
                 if (AvailableHeightTop > AvailableHeightBottom) {
                     $FloaterObj.addClass('Bottom').css({
                         top: 'auto',

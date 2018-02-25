@@ -52,6 +52,7 @@ body {
     background: #f92;
     color: #fff;
     transition: background 2s ease;
+    float: none;
 }
 
 #AjaxErrorDialogInner .Icon + p {
@@ -62,6 +63,11 @@ body {
 #AjaxErrorDialogInner .Icon i {
     font-size: 18px;
     vertical-align: middle;
+    margin-top: -3px;
+}
+
+#AjaxErrorDialogInner .CommunicationError .Icon {
+    background: #b8384e;
 }
 
 #AjaxErrorDialogInner .Icon.Green {
@@ -79,6 +85,7 @@ body {
 
 .DialogWaiting {
     text-align: center;
+    padding: 20px 40px;
 }
 
 .DialogWaiting i {
@@ -88,6 +95,28 @@ body {
 
 .DialogWaiting p {
     padding: 0px 10px 10px 10px;
+}
+
+.Dialog .InnerContent .Waiting {
+    display: none;
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    height: 100%;
+    width: 100%;
+    text-align: center;
+    background: #fff;
+    z-index: 999;
+    line-height: 100%;
+}
+
+.Dialog .InnerContent .Waiting i {
+    font-size: 14px;
+    position: absolute;
+    top: 50%;
+    margin-top: -7px;
+    left: 50%;
+    margin-left: -7px;
 }
 
 /**
@@ -261,8 +290,16 @@ dd {
     text-align: left;
 }
 
+.FloatLeft {
+    text-align: left;
+}
+
 .Right {
     text-align: right;
+}
+
+.FloatRight {
+    float: right;
 }
 
 .Error {
@@ -325,6 +362,149 @@ dd {
 }
 
 /**
+ * @subsection  Drag & drop upload
+ */
+
+div.DnDUploadBox {
+    overflow-y: hidden;
+    width: 622px;
+    padding: 0 !important;
+}
+
+div.DnDUpload {
+    border: 1px solid #ccc;
+    color: #aaa;
+    height: 60px;
+    line-height: 85px;
+    text-align: center;
+    position: relative;
+    margin-bottom: 5px;
+    max-width: 622px;
+    box-sizing: border-box;
+}
+
+div.DnDUpload:focus {
+    border-color: #000;
+    color: #000;
+}
+
+input.AjaxDnDUpload.Error + div.DnDUpload {
+    color: #ff505e;
+    border-color: #ff505e;
+}
+
+div.DnDUpload.DragOver {
+    border-style: dashed;
+    background: #eee;
+    color: #444;
+}
+
+div.DnDUpload i {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    margin-left: -20px;
+    font-size: 20px;
+    margin-bottom: 10px;
+}
+
+div.DnDUpload i.fa-spinner {
+    display: none;
+}
+
+div.DnDUpload.Uploading i.fa-download {
+    display: none;
+}
+
+div.DnDUpload.Uploading i.fa-spinner {
+    display: block;
+}
+
+div.DnDUpload .UploadRunning {
+    display: none;
+}
+
+div.DnDUpload.Uploading .ReadyForUpload {
+    display: none;
+}
+
+div.DnDUpload.Uploading .UploadRunning {
+    display: block;
+}
+
+.AttachmentListContainer {
+    position: relative;
+    max-width: 622px;
+}
+
+.AttachmentListContainer .Busy {
+    position: absolute;
+    left: 0px;
+    width: 100%;
+    height: 100%;
+    top: 0px;
+    background: rgba(255, 255, 255, 0.5);
+    text-align: center;
+    box-sizing: border-box;
+    display: none;
+}
+
+.AttachmentListContainer .Busy i {
+    vertical-align: middle;
+    line-height: 100%;
+    position: absolute;
+    top: 50%;
+    font-size: 20px;
+    margin-top: -10px;
+}
+
+table.AttachmentList {
+    clear: none;
+    margin-bottom: 10px;
+    margin-top: 0px;
+    max-width: 622px;
+    table-layout: fixed;
+}
+
+table.AttachmentList .Filename {
+    width: 40%;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+table.AttachmentList .Progress {
+    display: block;
+    height: 4px;
+    margin: 3px 0px;
+    background: #f92;
+    width: 0px;
+}
+
+table.AttachmentList .Filetype {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+table.AttachmentList .Filesize {
+    width: 15%;
+}
+
+table.AttachmentList .Delete {
+    width: 15px;
+    text-align: center;
+}
+
+table.AttachmentList .AttachmentDelete:focus i {
+    color: #000;
+}
+
+table.AttachmentList.DataTable thead th {
+    line-height: 12px;
+}
+
+/**
  * @note    Use the class InvisibleText to hide text from the screen,
  *          while it is still recognized and read by screen readers.
  */
@@ -372,6 +552,10 @@ dd {
     margin-left: 10px;
 }
 
+.SpacingRight {
+    margin-right: 10px;
+}
+
 /**
  * @subsection  Indents
  */
@@ -404,6 +588,10 @@ dd {
     clear: both !important;
 }
 
+.ClearNone {
+    clear: none !important;
+}
+
 .ClearLeft,
 .RTL .ClearRight {
     float: none !important;
@@ -421,7 +609,7 @@ dd {
  */
 .MainBox {
     position: relative;
-    padding: 4px 16px 8px 8px;
+    padding: 16px 10px 7px 10px;
 }
 
 .RTL .MainBox {
@@ -484,15 +672,16 @@ dd {
 
 .BreadCrumb {
     list-style-type: none;
-    margin: 0px 0px 15px 0px;
+    margin: 0px 2px 15px 0px;
     padding: 7px 15px 4px 0px;
-    background: #eee;
+    background: #f5f5f5;
     position: relative;
     padding-left: 0px;
     padding-right: 15px;
     overflow-y: hidden;
     overflow-x: auto;
     white-space: nowrap;
+    box-shadow: 1px 1px 0px #e9e9e9;
 }
 
 .RTL .BreadCrumb {
@@ -594,14 +783,14 @@ dd {
 .BreadCrumb li:before {
     left: -5px;
     border-color: rgba(238, 238, 238, 0);
-    border-left-color: #eee;
+    border-left-color: #f5f5f5;
     z-index: 2;
 }
 
 .RTL .BreadCrumb li:before {
     left: auto;
     right: -5px;
-    border-right-color: #eee;
+    border-right-color: #f5f5f5;
     border-left-color: transparent;
 }
 
@@ -669,7 +858,7 @@ dd {
  */
 
 .MessageBox {
-    margin: 5px;
+    margin: 0px;
     background: #F7AE40;
     position: relative;
     z-index: 1;
@@ -686,7 +875,7 @@ dd {
 }
 
 .MessageBox p {
-    padding: 10px;
+    padding: 10px 10px 10px 19px;
 }
 
 .MessageBox p,
@@ -695,7 +884,7 @@ dd {
 }
 
 .MessageBox a:hover {
-    text-decoration: underline;
+    text-decoration: none;
 }
 
 .MessageBox > p + p {
@@ -706,29 +895,26 @@ dd {
     background: #b8384e;
 }
 
-.MessageBox.Error p,
-.MessageBox.Error a {
-    color: rgba(255, 255, 255, 0.8);
-}
-
 .MessageBox.Confirmation {
-    border-color: #049E35;
-    background: #1AEE47;
+    background: #049E35;
 }
 
-.MessageBox.Confirmation p {
-    border-color: #36F374;
-}
-
+.MessageBox.Error p,
+.MessageBox.Error a,
 .MessageBox.Confirmation p,
 .MessageBox.Confirmation a {
-    color: #044016;
+    color: rgba(255, 255, 255, 0.8);
 }
 
 .MessageBox p a:after {
     content: "\2192";
     display: inline-block;
     font-size: 15px;
+    transition: margin ease 0.3s;
+}
+
+.MessageBox p a:hover:after {
+    margin-left: 5px;
 }
 
 .MessageBox.Info {
@@ -737,6 +923,16 @@ dd {
 
 .MessageBox.Info p,
 .MessageBox.Info a {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.MessageBox.Info a,
+.MessageBox.Error a {
+    transition: color ease 0.3s;
+}
+
+.MessageBox.Info a:hover,
+.MessageBox.Error a:hover {
     color: #fff;
 }
 
@@ -763,6 +959,12 @@ dd {
 
 .MessageBox.Info a.Button i {
     color: #89C6D1;
+}
+
+form .MessageBox{
+    margin-left: 0px;
+    margin-right: 0px;
+    margin-top: 0px;
 }
 
 /**
@@ -957,7 +1159,7 @@ td.Highlight a.ui-state-default {
 }
 
 .ui-overlay-autocomplete {
-    z-index: 4000 !important;
+    z-index: 6100 !important;
 }
 
 .ui-autocomplete .ui-menu-item-wrapper.ui-state-active {
@@ -1005,25 +1207,23 @@ iframe.TextOption {
     height: 400px;
 }
 
-iframe.TextOption.SpellCheck {
-    width: 800px;
-}
-
 iframe.TextOption.Customer {
     width: 800px;
 }
 
 iframe.TextOption.CustomerUserAddressBook {
     width: 960px;
-    min-height: 600px;
+    min-height: 65vh;
+    max-height: 80vh;
 }
 
 /**
  * @subsection global search
  */
 #SearchForm,
-#AgentCustomerInformationCenterSearchForm {
-    width: 560px;
+#AgentCustomerInformationCenterSearchForm, #AgentCustomerUserInformationCenterSearchForm,
+#AgentTicketCustomerIDSelection {
+    width: 760px;
     padding-right: 20px;
 }
 
@@ -1048,11 +1248,24 @@ iframe.TextOption.CustomerUserAddressBook {
 .ArticleBody {
     font-family: monospace,fixed;
     word-wrap: break-word;
-    background: #fff;
-    border: 1px solid #eee;
+    background: #FFF;
     padding: 10px;
+    min-height: 70px;
 }
 
+.ArticleHTML {
+    padding: 2px 5px;
+    font-size: 11px;
+    max-height: 100px;
+    background: #FFF;
+    min-height: 70px;
+}
+
+.ArticleMailContent .ArticleHTML {
+    max-height: none;
+    font-size: 12px;
+    padding: 10px;
+}
 
 /**
  * @subsection  Chat
@@ -1540,6 +1753,37 @@ For licensing, see LICENSE.md or http://ckeditor.com/license
     filter: alpha(opacity = 100);
 }
 
+/**
+ * @subsection AJAX Loader
+ */
+
+.AJAXLoader {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    margin: 4px;
+    position: relative;
+    vertical-align: bottom;
+}
+
+.AJAXLoader:after,
+#Canvas .Activity .Loader:after,
+.Loading > .Header h2:after,
+.OverviewControl.Loading .ControlRow:after {
+    -webkit-animation: fa-spin 2s infinite linear;
+    animation: fa-spin 2s infinite linear;
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    width: 100%;
+    height: 100%;
+    line-height: 14px;
+    content: "\f1ce";
+    font-family: FontAwesome;
+    font-size: 14px;
+    color: #777;
+}
+
 }
 
 /*
@@ -1609,5 +1853,12 @@ For licensing, see LICENSE.md or http://ckeditor.com/license
     .TableFilterContainer .FilterRemove:hover,
     .TableFilterContainer .FilterRemove:active {
         color: #000;
+    }
+
+    .TableFilterContainer input,
+    .TableFilterContainer input.FilterBox {
+        padding: 7px !important;
+        box-sizing: border-box;
+        width: 100%;
     }
 }

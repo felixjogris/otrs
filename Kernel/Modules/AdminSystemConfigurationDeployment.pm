@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -71,14 +71,14 @@ sub Run {
 
         my $SysConfigObject = $Kernel::OM->Get('Kernel::System::SysConfig');
 
-        my $Result = $SysConfigObject->ConfigurationDeploy(
+        my %DeploymentResult = $SysConfigObject->ConfigurationDeploy(
             Comments    => $Comments,
             UserID      => $Self->{UserID},
             AllSettings => ($AdvancedMode) ? 1 : 0,
             DirtySettings => $SelectedSettings || undef,
         );
 
-        $ReturnData{Result} = $Result;
+        $ReturnData{Result} = \%DeploymentResult;
 
         if ( $Self->{LastEntityType} ) {
 
@@ -204,11 +204,11 @@ sub Run {
         $Output .= $LayoutObject->Output(
             TemplateFile => 'AdminSystemConfigurationDeployment',
             Data         => {
-                SettingList       => \@Settings,
-                AdvancedMode      => $AdvancedMode,
-                DeploymentRestore => $DeploymentRestore,
-                Readonly          => 1,
-
+                SettingList             => \@Settings,
+                AdvancedMode            => $AdvancedMode,
+                DeploymentRestore       => $DeploymentRestore,
+                Readonly                => 1,
+                OTRSBusinessIsInstalled => $Kernel::OM->Get('Kernel::System::OTRSBusiness')->OTRSBusinessIsInstalled(),
             },
         );
 

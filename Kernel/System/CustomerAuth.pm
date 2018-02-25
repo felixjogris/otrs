@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -16,10 +16,10 @@ use Kernel::Language qw(Translatable);
 our @ObjectDependencies = (
     'Kernel::Config',
     'Kernel::System::CustomerUser',
+    'Kernel::System::DateTime',
     'Kernel::System::Log',
     'Kernel::System::Main',
     'Kernel::System::SystemMaintenance',
-    'Kernel::System::Time',
 );
 
 =head1 NAME
@@ -216,9 +216,11 @@ sub Auth {
     }
 
     # last login preferences update
+    my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+
     $CustomerUserObject->SetPreferences(
         Key    => 'UserLastLogin',
-        Value  => $Kernel::OM->Get('Kernel::System::Time')->SystemTime(),
+        Value  => $DateTimeObject->ToEpoch(),
         UserID => $CustomerData{UserLogin},
     );
 

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -18,7 +18,6 @@ use Kernel::GenericInterface::Debugger;
 # get needed objects
 my $ConfigObject     = $Kernel::OM->Get('Kernel::Config');
 my $MainObject       = $Kernel::OM->Get('Kernel::System::Main');
-my $TimeObject       = $Kernel::OM->Get('Kernel::System::Time');
 my $WebserviceObject = $Kernel::OM->Get('Kernel::System::GenericInterface::Webservice');
 
 # get helper object
@@ -43,7 +42,7 @@ my $WebserviceID = $WebserviceObject->WebserviceAdd(
             },
         },
     },
-    Name    => "$RandomID webservice",
+    Name    => "$RandomID web service",
     ValidID => 1,
     UserID  => 1,
 );
@@ -688,7 +687,8 @@ TEST:
 for my $Test (@MappingTests) {
 
     my $StartSeconds;
-    $StartSeconds = $TimeObject->SystemTime() if ( $Test->{CheckTime} );
+    $StartSeconds = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch()
+        if ( $Test->{CheckTime} );
 
     # instantiate mapping object to catch config errors
     my $MappingObject = Kernel::GenericInterface::Mapping->new(
@@ -718,7 +718,7 @@ for my $Test (@MappingTests) {
         Data => $Test->{Data},
     );
     if ( $Test->{CheckTime} ) {
-        my $EndSeconds = $TimeObject->SystemTime();
+        my $EndSeconds = $Kernel::OM->Create('Kernel::System::DateTime')->ToEpoch();
         $Self->True(
             ( $EndSeconds - $StartSeconds ) < 5,
             $Test->{Name}

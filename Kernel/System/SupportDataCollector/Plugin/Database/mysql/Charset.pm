@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,7 +11,7 @@ package Kernel::System::SupportDataCollector::Plugin::Database::mysql::Charset;
 use strict;
 use warnings;
 
-use base qw(Kernel::System::SupportDataCollector::PluginBase);
+use parent qw(Kernel::System::SupportDataCollector::PluginBase);
 
 use Kernel::Language qw(Translatable);
 
@@ -54,7 +54,16 @@ sub Run {
 
     $DBObject->Prepare( SQL => "show variables like 'character_set_database'" );
     while ( my @Row = $DBObject->FetchrowArray() ) {
-        if ( $Row[1] =~ /utf8/i ) {
+        if ( $Row[1] =~ /utf8mb4/i ) {
+            $Self->AddResultProblem(
+                Identifier => 'ServerEncoding',
+                Label      => Translatable('Server Database Charset'),
+                Value      => $Row[1],
+                Message =>
+                    "This character set is not yet supported, please see https://bugs.otrs.org/show_bug.cgi?id=12361. Please convert your database to the character set 'utf8'.",
+            );
+        }
+        elsif ( $Row[1] =~ /utf8/i ) {
             $Self->AddResultOk(
                 Identifier => 'ServerEncoding',
                 Label      => Translatable('Server Database Charset'),
@@ -66,7 +75,7 @@ sub Run {
                 Identifier => 'ServerEncoding',
                 Label      => Translatable('Server Database Charset'),
                 Value      => $Row[1],
-                Message    => Translatable('Setting character_set_database needs to be UNICODE or UTF8.'),
+                Message    => Translatable("The setting character_set_database needs to be 'utf8'."),
             );
         }
     }
@@ -76,7 +85,7 @@ sub Run {
     # Views have engine == null, ignore those.
     $DBObject->Prepare( SQL => 'show table status where engine is not null' );
     while ( my @Row = $DBObject->FetchrowArray() ) {
-        if ( $Row[14] !~ /^utf8/i ) {
+        if ( $Row[14] =~ /^utf8mb4/i || $Row[14] !~ /^utf8/i ) {
             push @TablesWithInvalidCharset, $Row[0];
         }
     }
@@ -85,7 +94,7 @@ sub Run {
             Identifier => 'TableEncoding',
             Label      => Translatable('Table Charset'),
             Value      => join( ', ', @TablesWithInvalidCharset ),
-            Message    => Translatable('There were tables found which do not have utf8 as charset.'),
+            Message    => Translatable("There were tables found which do not have 'utf8' as charset."),
         );
     }
     else {

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -36,6 +36,15 @@ sub Run {
 
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
+
+    if ( $Kernel::OM->Get('Kernel::Config')->Get('SecureMode') ) {
+        $LayoutObject->FatalError(
+            Message => Translatable('SecureMode active!'),
+            Comment => Translatable(
+                'If you want to re-run the Installer, disable the SecureMode in the SysConfig.'
+            ),
+        );
+    }
 
     # Check environment directories.
     $Self->{Path} = $ConfigObject->Get('Home');
@@ -919,7 +928,7 @@ sub Run {
         # There is no need to unlock the setting as it was already unlocked in the update.
 
         # 'Rebuild' the configuration.
-        my $Success = $SysConfigObject->ConfigurationDeploy(
+        $SysConfigObject->ConfigurationDeploy(
             Comments    => "Installer deployment",
             AllSettings => 1,
             Force       => 1,
@@ -1054,11 +1063,11 @@ sub ReConfigure {
                 #   same goes for database hosts which can be like 'myserver\instance name' for MS SQL.
                 if ( $Key eq 'DatabasePw' || $Key eq 'DatabaseHost' ) {
                     $NewConfig =~
-                        s/(\$Self->{("|'|)$Key("|'|)} =.+?('|"));/\$Self->{'$Key'} = '$Param{$Key}';/g;
+                        s/(\$Self->\{("|'|)$Key("|'|)} =.+?('|"));/\$Self->{'$Key'} = '$Param{$Key}';/g;
                 }
                 else {
                     $NewConfig =~
-                        s/(\$Self->{("|'|)$Key("|'|)} =.+?('|"));/\$Self->{'$Key'} = "$Param{$Key}";/g;
+                        s/(\$Self->\{("|'|)$Key("|'|)} =.+?('|"));/\$Self->{'$Key'} = "$Param{$Key}";/g;
                 }
             }
             $Config .= $NewConfig;
@@ -1198,7 +1207,7 @@ sub CheckDBRequirements {
 
         # Set max_allowed_packet.
         my $MySQLMaxAllowedPacket            = 0;
-        my $MySQLMaxAllowedPacketRecommended = 20;
+        my $MySQLMaxAllowedPacketRecommended = 64;
 
         my $Data = $Result{DBH}->selectall_arrayref("SHOW variables WHERE Variable_name = 'max_allowed_packet'");
         $MySQLMaxAllowedPacket = $Data->[0]->[1] / 1024 / 1024;
@@ -1219,17 +1228,48 @@ sub CheckDBRequirements {
         my $MySQLInnoDBLogFileSizeMinimum     = 256;
         my $MySQLInnoDBLogFileSizeRecommended = 512;
 
-        my $Data = $Result{DBH}->selectall_arrayref("SHOW variables WHERE Variable_name = 'innodb_log_file_size'");
-        $MySQLInnoDBLogFileSize = $Data->[0]->[1] / 1024 / 1024;
+        # Default storage engine variable has changed its name in MySQL 5.5.3, we need to support both of them for now.
+        #   <= 5.5.2 storage_engine
+        #   >= 5.5.3 default_storage_engine
+        my $DataOld = $Result{DBH}->selectall_arrayref("SHOW variables WHERE Variable_name = 'storage_engine'");
+        my $DataNew = $Result{DBH}->selectall_arrayref("SHOW variables WHERE Variable_name = 'default_storage_engine'");
+        my $DefaultStorageEngine = ( $DataOld->[0] && $DataOld->[0]->[1] ? $DataOld->[0]->[1] : undef )
+            // ( $DataNew->[0] && $DataNew->[0]->[1] ? $DataNew->[0]->[1] : '' );
 
-        if ( $MySQLInnoDBLogFileSize < $MySQLInnoDBLogFileSizeMinimum ) {
+        if ( lc $DefaultStorageEngine eq 'innodb' ) {
+
+            my $Data = $Result{DBH}->selectall_arrayref("SHOW variables WHERE Variable_name = 'innodb_log_file_size'");
+            $MySQLInnoDBLogFileSize = $Data->[0]->[1] / 1024 / 1024;
+
+            if ( $MySQLInnoDBLogFileSize < $MySQLInnoDBLogFileSizeMinimum ) {
+                $Result{Successful} = 0;
+                $Result{Message}    = $LayoutObject->{LanguageObject}->Translate(
+                    "Error: Please set the value for innodb_log_file_size on your database to at least %s MB (current: %s MB, recommended: %s MB). For more information, please have a look at %s.",
+                    $MySQLInnoDBLogFileSizeMinimum,
+                    $MySQLInnoDBLogFileSize,
+                    $MySQLInnoDBLogFileSizeRecommended,
+                    'http://dev.mysql.com/doc/refman/5.6/en/innodb-data-log-reconfiguration.html',
+                );
+            }
+        }
+
+        # Check character_set_database value.
+        my $Charset = $Result{DBH}->selectall_arrayref("SHOW variables LIKE 'character_set_database'");
+
+        if ( $Charset->[0]->[1] =~ /utf8mb4/i ) {
             $Result{Successful} = 0;
             $Result{Message}    = $LayoutObject->{LanguageObject}->Translate(
-                "Error: Please set the value for innodb_log_file_size on your database to at least %s MB (current: %s MB, recommended: %s MB). For more information, please have a look at %s.",
-                $MySQLInnoDBLogFileSizeMinimum,
-                $MySQLInnoDBLogFileSize,
-                $MySQLInnoDBLogFileSizeRecommended,
-                'http://dev.mysql.com/doc/refman/5.6/en/innodb-data-log-reconfiguration.html',
+                "Wrong database collation (%s is %s, but it needs to be utf8).",
+                'character_set_database',
+                $Charset->[0]->[1],
+            );
+        }
+        elsif ( $Charset->[0]->[1] !~ /utf8/i ) {
+            $Result{Successful} = 0;
+            $Result{Message}    = $LayoutObject->{LanguageObject}->Translate(
+                "Wrong database collation (%s is %s, but it needs to be utf8).",
+                'character_set_database',
+                $Charset->[0]->[1],
             );
         }
     }

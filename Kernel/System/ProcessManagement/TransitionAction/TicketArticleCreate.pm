@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -14,7 +14,7 @@ use utf8;
 
 use Kernel::System::VariableCheck qw(:all);
 
-use base qw(Kernel::System::ProcessManagement::TransitionAction::Base);
+use parent qw(Kernel::System::ProcessManagement::TransitionAction::Base);
 
 our @ObjectDependencies = (
     'Kernel::System::Log',
@@ -63,34 +63,11 @@ sub new {
         TransitionEntityID       => 'T123',
         TransitionActionEntityID => 'TA123',
         Config                   => {
-            # required:
-            ArticleType      => 'note-internal',                        # note-external|phone|fax|sms|...
-                                                                        #   excluding any email type
-            SenderType       => 'agent',                                # agent|system|customer
-            ContentType      => 'text/plain; charset=ISO-8859-15',      # or optional Charset & MimeType
-            Subject          => 'some short description',               # required
-            Body             => 'the message text',                     # required
-            HistoryType      => 'OwnerUpdate',                          # EmailCustomer|Move|AddNote|PriorityUpdate|WebRequestCustomer|...
-            HistoryComment   => 'Some free text!',
+            SenderType           => 'agent',                            # (required) agent|system|customer
+            IsVisibleForCustomer => 1,                                  # 0 or 1
+            CommunicationChannel => 'Internal',                         # Internal|Phone|Email|..., default: Internal
 
-            # optional:
-            From             => 'Some Agent <email@example.com>',       # not required but useful
-            To               => 'Some Customer A <customer-a@example.com>', # not required but useful
-            Cc               => 'Some Customer B <customer-b@example.com>', # not required but useful
-            ReplyTo          => 'Some Customer B <customer-b@example.com>', # not required
-            MessageID        => '<asdasdasd.123@example.com>',          # not required but useful
-            InReplyTo        => '<asdasdasd.12@example.com>',           # not required but useful
-            References       => '<asdasdasd.1@example.com> <asdasdasd.12@example.com>', # not required but useful
-            NoAgentNotify    => 0,                                      # if you don't want to send agent notifications
-            AutoResponseType => 'auto reply'                            # auto reject|auto follow up|auto reply/new ticket|auto remove
-
-            ForceNotificationToUserID   => [ 1, 43, 56 ],               # if you want to force somebody
-            ExcludeNotificationToUserID => [ 43,56 ],                   # if you want full exclude somebody from notfications,
-                                                                        # will also be removed in To: line of article,
-                                                                        # higher prio as ForceNotificationToUserID
-            ExcludeMuteNotificationToUserID => [ 43,56 ],               # the same as ExcludeNotificationToUserID but only the
-                                                                        # sending gets muted, agent will still shown in To:
-                                                                        # line of article
+            %DataPayload,                                               # some parameters depending of each communication channel
 
             TimeUnit => 123                                             # optional, to set the acouting time
             UserID   => 123,                                            # optional, to override the UserID from the logged user
@@ -109,29 +86,38 @@ sub new {
 sub Run {
     my ( $Self, %Param ) = @_;
 
-    # define a common message to output in case of any error
+    # Define a common message to output in case of any error.
     my $CommonMessage = "Process: $Param{ProcessEntityID} Activity: $Param{ActivityEntityID}"
         . " Transition: $Param{TransitionEntityID}"
         . " TransitionAction: $Param{TransitionActionEntityID} - ";
 
-    # check for missing or wrong params
+    # Check for missing or wrong params.
     my $Success = $Self->_CheckParams(
         %Param,
         CommonMessage => $CommonMessage,
     );
     return if !$Success;
 
-    # override UserID if specified as a parameter in the TA config
+    $Param{Config}->{CommunicationChannel} ||= 'Internal';
+
+    if ( !defined $Param{Config}->{IsVisibleForCustomer} ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "Need Config -> IsVisibleForCustomer",
+        );
+
+        return;
+    }
+
+    # Override UserID if specified as a parameter in the TA config.
     $Param{UserID} = $Self->_OverrideUserID(%Param);
 
-    # use ticket attributes if needed
+    # Use ticket attributes if needed.
     $Self->_ReplaceTicketAttributes(%Param);
 
-    # convert scalar items into array references
+    # Convert scalar items into array references.
     for my $Attribute (
-        qw(ForceNotificationToUserID ExcludeNotificationToUserID
-        ExcludeMuteNotificationToUserID
-        )
+        qw(ForceNotificationToUserID ExcludeNotificationToUserID ExcludeMuteNotificationToUserID)
         )
     {
         if ( IsStringWithData( $Param{Config}->{$Attribute} ) ) {
@@ -141,29 +127,27 @@ sub Run {
         }
     }
 
-    # check ArticleType
-    if ( $Param{Config}->{ArticleType} =~ m{\A email }msxi ) {
-        $Kernel::OM->Get('Kernel::System::Log')->Log(
-            Priority => 'error',
-            Message  => $CommonMessage
-                . "ArticleType $Param{Config}->{ArticleType} is not supported",
-        );
-        return;
-    }
-
-    # If "From" is not set
-    if ( !$Param{Config}->{From} ) {
+    # If "From" is not set and MIME based article is to be created.
+    if (
+        !$Param{Config}->{From}
+        && $Param{Config}->{CommunicationChannel} =~ m{\AEmail|Internal|Phone\z}msxi
+        )
+    {
 
         # Get current user data
         my %User = $Kernel::OM->Get('Kernel::System::User')->GetUserData(
             UserID => $Param{UserID},
         );
 
-        # Set "From" field according to user - UserFullname <UserEmail>
+        # Set "From" field according to user - UserFullname <UserEmail>.
         $Param{Config}->{From} = $User{UserFullname} . ' <' . $User{UserEmail} . '>';
     }
 
-    my $ArticleID = $Kernel::OM->Get('Kernel::System::Ticket::Article')->ArticleCreate(
+    my $ArticleBackendObject = $Kernel::OM->Get('Kernel::System::Ticket::Article')->BackendForChannel(
+        ChannelName => $Param{Config}->{CommunicationChannel}
+    );
+
+    my $ArticleID = $ArticleBackendObject->ArticleCreate(
         %{ $Param{Config} },
         TicketID => $Param{Ticket}->{TicketID},
         UserID   => $Param{UserID},
@@ -179,7 +163,7 @@ sub Run {
         return;
     }
 
-    # set time units
+    # Set time units.
     if ( $Param{Config}->{TimeUnit} ) {
         $Kernel::OM->Get('Kernel::System::Ticket')->TicketAccountTime(
             TicketID  => $Param{Ticket}->{TicketID},

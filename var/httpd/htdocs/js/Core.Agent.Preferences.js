@@ -1,5 +1,5 @@
 // --
-// Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+// Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 // --
 // This software comes with ABSOLUTELY NO WARRANTY. For details, see
 // the enclosed file COPYING for license information (AGPL). If you
@@ -105,11 +105,11 @@ Core.Agent.Preferences = (function (TargetNS) {
 
                             // if there is already a message box, replace the content
                             if ($WidgetObj.find('.WidgetMessage').length) {
-                                $WidgetObj.find('.WidgetMessage').text(Core.Language.Translate(Response.Message));
+                                $WidgetObj.find('.WidgetMessage').text(Response.Message);
                             }
                             else {
                                 $WidgetObj.find('.Content').before('<div class="WidgetMessage Top Error" style="display: none;"></div>');
-                                $WidgetObj.find('.WidgetMessage').text(Core.Language.Translate(Response.Message));
+                                $WidgetObj.find('.WidgetMessage').text(Response.Message);
                                 $WidgetObj.find('.WidgetMessage').slideDown().delay(5000).slideUp(function() {
                                     $(this).remove();
                                 });
@@ -119,16 +119,21 @@ Core.Agent.Preferences = (function (TargetNS) {
                         }
                         else {
                             Core.UI.WidgetOverlayHide($WidgetObj, true);
+
+                            // if settings need a reload, show a notification
+                            if (typeof Response.NeedsReload !== 'undefined' && parseInt(Response.NeedsReload, 10) > 0) {
+                                Core.UI.ShowNotification(Core.Language.Translate('Please note that at least one of the settings you have changed requires a page reload. Click here to reload the current screen.'));
+                            }
                         }
                     }
                     else {
 
                         if ($WidgetObj.find('.WidgetMessage').length) {
-                            $WidgetObj.find('.WidgetMessage').text(Core.Language.Translate(Response.Message));
+                            $WidgetObj.find('.WidgetMessage').text(Response.Message);
                         }
                         else {
                             $WidgetObj.find('.Content').before('<div class="WidgetMessage Top Error" style="display: none;"></div>');
-                            $WidgetObj.find('.WidgetMessage').text(Core.Language.Translate('An unknown error ocurred. Please contact the administrator.'));
+                            $WidgetObj.find('.WidgetMessage').text(Core.Language.Translate('An unknown error occurred. Please contact the administrator.'));
                             $WidgetObj.find('.WidgetMessage').slideDown().delay(5000).slideUp(function() {
                                 $(this).remove();
                             });
@@ -137,10 +142,9 @@ Core.Agent.Preferences = (function (TargetNS) {
                         Core.UI.WidgetOverlayHide($WidgetObj);
                     }
 
-                    // clear up password fields
-                    if ($WidgetObj.find('input[type=password]').length) {
-                        $WidgetObj.find('input[type=password]').val('');
-                    }
+                    // Clear up password and two factor token fields.
+                    $WidgetObj.find('input[type=password]').val('');
+                    $WidgetObj.find('input[name=TwoFactorToken]').val('');
 
                     $ButtonObj.blur();
                 }
@@ -149,34 +153,72 @@ Core.Agent.Preferences = (function (TargetNS) {
             return false;
         });
 
-        $('#ToggleView').on('click', function() {
-            if ($(this).hasClass('Grid')) {
-                Core.Agent.PreferencesUpdate('AgentPreferencesView', 'List');
-                $('.GridView').fadeOut();
-                $('.ListView').fadeIn(function() {
-
-                    // check if the "no matches found" message is the only visible entry
-                    if ($('.ListView .DataTable tbody tr:visible').length == 1 && $('.ListView .DataTable tbody tr:visible').hasClass('FilterMessage')) {
-                        $('.ListView .DataTable tr.FilterMessage').removeClass('Hidden');
-                    }
-                    else {
-                        $('.ListView .DataTable tr.FilterMessage').hide();
-                    }
-                    $('#ToggleView').removeClass('Grid').addClass('List');
-                });
-            }
-            else {
-                Core.Agent.PreferencesUpdate('AgentPreferencesView', 'Grid');
-                $('.ListView').fadeOut();
-                $('.GridView').fadeIn(function() {
-                    $('#ToggleView').removeClass('List').addClass('Grid');
-                });
-            }
-        });
-
+        TargetNS.InitSysConfig();
 
         Core.UI.Table.InitTableFilter($("#FilterSettings"), $(".SettingsList"));
     };
+
+    function SettingReset($Widget) {
+        var SettingName = $Widget.find("input[name='SettingName']").val(),
+            Data = "Action=AgentPreferences;Subaction=SettingReset;";
+
+        Data += 'SettingName=' + encodeURIComponent(SettingName) + ';';
+
+        // show loader
+        Core.UI.WidgetOverlayShow($Widget, 'Loading');
+
+        Core.AJAX.FunctionCall(
+            Core.Config.Get('Baselink'),
+            Data,
+            function(Response) {
+
+                if (Response.Error != null) {
+                    alert(Response.Error);
+                    // hide loader
+                    Core.UI.WidgetOverlayHide($Widget);
+                    return;
+                }
+
+                Core.SystemConfiguration.SettingRender(Response, $Widget);
+
+                // hide loader
+                Core.UI.WidgetOverlayHide($Widget);
+            }
+        );
+    }
+
+    TargetNS.InitSysConfig = function() {
+
+        // save all
+        $('#SaveAll').on('click', function() {
+            $('.Setting').find('button.Update').trigger('click');
+            return false;
+        });
+
+        // update sysconfig settings
+        $('.WidgetSimple:not(.PreferenceClassic) button.Update').on('click', function() {
+            Core.SystemConfiguration.Update($(this), 0, 0);
+            return false;
+        });
+
+        // reset setting
+        $('.WidgetSimple .ResetUserSetting a').on('click', function() {
+            SettingReset($(this).closest(".WidgetSimple"));
+            return false;
+        });
+
+        // Category update
+        $('#Category').on('change', function() {
+            var ParagraphHeight = $('#ConfigTree').height(),
+                SelectedCategory = $(this).val();
+
+            Core.Agent.PreferencesUpdate('UserSystemConfigurationCategory', SelectedCategory);
+
+            $('#ConfigTree').html('<p class="Center"><i class="fa fa-spinner fa-spin"></i></p>');
+            $('#ConfigTree > p').css('line-height', ParagraphHeight + 'px');
+            Core.SystemConfiguration.InitConfigurationTree('AgentPreferences', SelectedCategory, 1);
+        });
+    }
 
     Core.Init.RegisterNamespace(TargetNS, 'APP_MODULE');
 

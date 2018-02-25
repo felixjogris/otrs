@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU AFFERO General Public License as published by
@@ -56,11 +56,11 @@ my $App = CGI::Emulate::PSGI->handler(
         CGI::initialize_globals();
 
         # Populate SCRIPT_NAME as OTRS needs it in some places.
-        ( $ENV{SCRIPT_NAME} ) = $ENV{PATH_INFO} =~ m{/([A-Za-z\-_]+\.pl)};
+        ( $ENV{SCRIPT_NAME} ) = $ENV{PATH_INFO} =~ m{/([A-Za-z\-_]+\.pl)};    ## no critic
 
         # Fallback to agent login if we could not determine handle...
         if ( !defined $ENV{SCRIPT_NAME} || !-e "$Bin/$ENV{SCRIPT_NAME}" ) {
-            $ENV{SCRIPT_NAME} = 'index.pl';
+            $ENV{SCRIPT_NAME} = 'index.pl';                                   ## no critic
         }
 
         eval {

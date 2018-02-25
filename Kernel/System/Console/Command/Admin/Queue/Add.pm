@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,7 +11,7 @@ package Kernel::System::Console::Command::Admin::Queue::Add;
 use strict;
 use warnings;
 
-use base qw(Kernel::System::Console::BaseCommand);
+use parent qw(Kernel::System::Console::BaseCommand);
 
 our @ObjectDependencies = (
     'Kernel::System::Group',
@@ -74,7 +74,7 @@ sub Configure {
     );
     $Self->AddOption(
         Name        => 'update-time',
-        Description => 'Ticket update in minutes for the new queue.',
+        Description => 'Ticket update time in minutes for the new queue.',
         Required    => 0,
         HasValue    => 1,
         ValueRegex  => qr/\d/smx,

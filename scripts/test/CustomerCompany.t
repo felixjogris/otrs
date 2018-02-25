@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -439,6 +439,41 @@ $Self->True(
 $Self->False(
     scalar keys %CustomerCompanyList,
     "CustomerCompanyList() with Search",
+);
+
+# Create Invalid customer company.
+my $CompanyInvalid    = 'Invalid' . $Helper->GetRandomID();
+my $CustomerCompanyID = $CustomerCompanyObject->CustomerCompanyAdd(
+    CustomerID             => $CompanyInvalid,
+    CustomerCompanyName    => $CompanyInvalid . '- Inc',
+    CustomerCompanyStreet  => 'Some Street',
+    CustomerCompanyZIP     => '12345',
+    CustomerCompanyCity    => 'Some city',
+    CustomerCompanyCountry => 'Germany',
+    CustomerCompanyURL     => 'http://updated.example.com',
+    CustomerCompanyComment => 'some comment updated',
+    ValidID                => 2,
+    UserID                 => 1,
+);
+
+# Search for valid customer company, expecting no result found, company is invalid.
+%CustomerCompanyList = $CustomerCompanyObject->CustomerCompanyList(
+    Search => $CompanyInvalid,
+    Valid  => 1,
+);
+$Self->False(
+    scalar keys %CustomerCompanyList,
+    "CustomerCompanyList() with Search - Valid 1 param",
+);
+
+# Search for invalid customer company.
+%CustomerCompanyList = $CustomerCompanyObject->CustomerCompanyList(
+    Search => $CompanyInvalid,
+    Valid  => 0,
+);
+$Self->True(
+    scalar keys %CustomerCompanyList,
+    "CustomerCompanyList() with Search - Valid 0 param",
 );
 
 # cleanup is done by RestoreDatabase

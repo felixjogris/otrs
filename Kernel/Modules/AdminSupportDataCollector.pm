@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -254,11 +254,15 @@ sub _SupportDataCollectorView {
     {
         $Param{SenderAddress} = $ConfigObject->Get('AdminEmail');
     }
-    $Param{SenderName} = $User{UserFirstname} . ' ' . $User{UserLastname};
+    $Param{SenderName} = $User{UserFullname};
 
     # verify if the email is valid, set it to empty string if not, this will be checked on client
     #    side
-    if ( !$Kernel::OM->Get('Kernel::System::CheckItem')->CheckEmail( Address => $Param{SenderAddress} ) ) {
+    if (
+        $Param{SenderAddress} &&
+        !$Kernel::OM->Get('Kernel::System::CheckItem')->CheckEmail( Address => $Param{SenderAddress} )
+        )
+    {
         $Param{SenderAddress} = '';
     }
 
@@ -481,7 +485,7 @@ sub _SendSupportBundle {
                 $SenderAddress = $ConfigObject->Get('AdminEmail');
             }
 
-            my $SenderName = $User{UserFirstname} . ' ' . $User{UserLastname};
+            my $SenderName = $User{UserFullname};
 
             my $Body;
 
@@ -498,7 +502,7 @@ sub _SendSupportBundle {
                 $Body .= "Not registered\n";
             }
 
-            my ( $HeadRef, $BodyRef ) = $Kernel::OM->Get('Kernel::System::Email')->Send(
+            my $Result = $Kernel::OM->Get('Kernel::System::Email')->Send(
                 From          => $SenderAddress,
                 To            => 'SupportBundle@otrs.com',
                 Subject       => 'Support::Bundle::Email',
@@ -518,7 +522,7 @@ sub _SendSupportBundle {
                 ],
             );
 
-            if ( $HeadRef && $BodyRef ) {
+            if ( $Result->{Success} ) {
                 $Success = 1;
             }
         }
@@ -549,4 +553,5 @@ sub _SendSupportBundle {
         NoCache     => 1,
     );
 }
+
 1;

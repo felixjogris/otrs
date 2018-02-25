@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -193,7 +193,7 @@ sub Run {
                     $UserCSVSeparator = $UserData{UserCSVSeparator} if $UserData{UserCSVSeparator};
                 }
 
-                my $TimeStamp = $Kernel::OM->Get('Kernel::System::Time')->CurrentTimestamp();
+                my $TimeStamp = $Kernel::OM->Create('Kernel::System::DateTime')->ToString();
                 $TimeStamp =~ s/[:-]//g;
                 $TimeStamp =~ s/ /-/;
                 my $FileName  = 'admin-select-' . $TimeStamp;

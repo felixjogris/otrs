@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -25,6 +25,8 @@ my $HelperObject      = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 my $SysConfigObject   = $Kernel::OM->Get('Kernel::System::SysConfig');
 my $ConfigObject      = $Kernel::OM->Get('Kernel::Config');
 my $SysConfigDBObject = $Kernel::OM->Get('Kernel::System::SysConfig::DB');
+
+$HelperObject->FixedTimeSet();
 
 my @Tests = (
     {
@@ -2278,7 +2280,7 @@ Lorem ipsum...
         },
         ExpectedResult => {
             Success => 0,
-            Error   => "Its not a hash!",
+            Error   => "It is not a hash!",
         },
     },
     {
@@ -2850,7 +2852,7 @@ Lorem ipsum...
         },
         ExpectedResult => {
             Success => 0,
-            Error   => 'Its not an array!',
+            Error   => 'It is not an array!',
         },
     },
     {
@@ -4246,6 +4248,8 @@ for my $Test (@Tests) {
         UserID => 1,
     );
 
+    delete $Result{ExpireTime};
+
     $Self->IsDeeply(
         \%Result,
         $Test->{ExpectedResult},
@@ -4271,10 +4275,14 @@ for my $Setting (@SettingList) {
     next SETTING if !$Setting->{IsValid};
 
     my %Result = $SysConfigObject->SettingEffectiveValueCheck(
+        SettingUID       => $Setting->{SettingUID},
         XMLContentParsed => $Setting->{XMLContentParsed},
         EffectiveValue   => $Setting->{EffectiveValue},
+        StoreCache       => 1,
         UserID           => 1,
     );
+
+    delete $Result{ExpireTime};
 
     $Self->IsDeeply(
         \%Result,
@@ -4284,6 +4292,219 @@ for my $Setting (@SettingList) {
         },
         "Check EffectiveValue for $Setting->{Name}."
     );
+}
+
+$HelperObject->FixedTimeAddSeconds( 60 * 60 * 24 * 35 );    # Add 35 days, it should be enough to make results obsolete.
+
+# Make sure to reset delete cache flag.
+$SysConfigObject->{EffectiveValueCheckCacheDeleted} = 0;
+
+# Make sure that expired parts of the cache are deleted.
+my ($HookSetting) = grep { $_->{Name} eq 'Ticket::Hook' } @SettingList;
+
+# Check if value is ok - it also clears expired parts.
+my %HookCheck = $SysConfigObject->SettingEffectiveValueCheck(
+    %{$HookSetting},
+    EffectiveValue => 'NewEffectiveValue',
+    StoreCache     => 1,
+    UserID         => 1,
+);
+
+# Get cache value directly.
+my $Cached = $Kernel::OM->Get('Kernel::System::Cache')->Get(
+    Type => 'SysConfigPersistent',
+    Key  => "EffectiveValueCheck::0",
+);
+
+# Delete our latest check result.
+delete $Cached->{ $HookSetting->{SettingUID} . '::NewEffectiveValue' };
+
+$Self->IsDeeply(
+    $Cached,
+    {},
+    'Make sure that all other parts of cache are deleted (they are expired).'
+);
+
+# Cache tests
+@Tests = (
+    {
+        Description => 'Correct string',
+        Config      => {
+            XMLContentParsed => {
+                Value => [
+                    {
+                        Item => [
+                            {
+                                Content => 'string',
+
+                            },
+                        ],
+                    },
+                ],
+            },
+            EffectiveValue => 'another string',
+            SettingUID     => 'Test007',
+            StoreCache     => 1,
+            UserID         => 1,
+        },
+        Success => 1,
+    },
+    {
+        Description => 'Correct priority',
+        Config      => {
+            XMLContentParsed => {
+                Value => [
+                    {
+                        Item => [
+                            {
+                                Content         => '3 normal',
+                                ValueEntityType => 'Priority',
+                                ValueType       => 'Entity',
+
+                            },
+                        ],
+                    },
+                ],
+            },
+            EffectiveValue => '2 low',
+            SettingUID     => 'Test123',
+            StoreCache     => 1,
+            UserID         => 1,
+        },
+        EffectiveValueWrong => 'any string',
+        Success             => 1,
+    },
+    {
+        Description => 'Wrong SettingUID (but succeed)',    # this will succeed due the cache
+        Config      => {
+            XMLContentParsed => {
+                Value => [
+                    {
+                        Item => [
+                            {
+                                Content         => '3 normal',
+                                ValueEntityType => 'Priority',
+                                ValueType       => 'Entity',
+
+                            },
+                        ],
+                    },
+                ],
+            },
+            EffectiveValue => 'another string',
+            SettingUID     => 'Test007',
+            StoreCache     => 1,
+            UserID         => 1,
+        },
+        Success => 1,
+    },
+    {
+        Description => 'Wrong priority Different SettingUID',
+        Config      => {
+            XMLContentParsed => {
+                Value => [
+                    {
+                        Item => [
+                            {
+                                Content         => '3 normal',
+                                ValueEntityType => 'Priority',
+                                ValueType       => 'Entity',
+
+                            },
+                        ],
+                    },
+                ],
+            },
+            EffectiveValue => 'another string',
+            SettingUID     => 'Test456',
+            StoreCache     => 1,
+            UserID         => 1,
+        },
+        Success => 0,
+    },
+
+    {
+        Description => 'Correct priority with wrong SettingUID',    # this works because the values is new
+        Config      => {
+            XMLContentParsed => {
+                Value => [
+                    {
+                        Item => [
+                            {
+                                Content         => '3 normal',
+                                ValueEntityType => 'Priority',
+                                ValueType       => 'Entity',
+
+                            },
+                        ],
+                    },
+                ],
+            },
+            EffectiveValue => '2 low',
+            SettingUID     => 'Test456',
+            StoreCache     => 1,
+            UserID         => 1,
+        },
+        Success => 1,
+    },
+
+    {
+        Description => 'Correct string',    # This fails due the cache
+        Config      => {
+            XMLContentParsed => {
+                Value => [
+                    {
+                        Item => [
+                            {
+                                Content => 'string',
+
+                            },
+                        ],
+                    },
+                ],
+            },
+            EffectiveValue => 'another string',
+            SettingUID     => 'Test456',
+            StoreCache     => 1,
+            UserID         => 1,
+        },
+        Success => 0,
+    },
+);
+
+for my $Test (@Tests) {
+    my %Result = $SysConfigObject->SettingEffectiveValueCheck( %{ $Test->{Config} } );
+    delete $Result{ExpireTime};
+
+    $Self->Is(
+        $Result{Success},
+        $Test->{Success},
+        "$Test->{Description} SettingEffectiveValueCheck() result"
+    );
+
+    my %ResultCached = $SysConfigObject->SettingEffectiveValueCheck( %{ $Test->{Config} } );
+    delete $ResultCached{ExpireTime};
+
+    $Self->IsDeeply(
+        \%ResultCached,
+        \%Result,
+        "$Test->{Description} SettingEffectiveValueCheck() result cached"
+    );
+
+    if ( $Test->{Success} && $Test->{EffectiveValueWrong} ) {
+        my %Result = $SysConfigObject->SettingEffectiveValueCheck(
+            %{ $Test->{Config} },
+            EffectiveValue => $Test->{EffectiveValueWrong}
+        );
+        delete $Result{ExpireTime};
+
+        $Self->Is(
+            $Result{Success},
+            0,
+            "$Test->{Description} SettingEffectiveValueCheck() result (with wrong value)",
+        );
+
+    }
 }
 
 1;

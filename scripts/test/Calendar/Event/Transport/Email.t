@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,29 +11,51 @@ use strict;
 use warnings;
 use utf8;
 
+use Kernel::System::MailQueue;
 use vars (qw($Self));
+
+# get config object
+my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
 
 # get helper object
 $Kernel::OM->ObjectParamAdd(
     'Kernel::System::UnitTest::Helper' => {
-        RestoreDatabase => 1,
-
+        RestoreDatabase  => 1,
+        UseTmpArticleDir => 1,
+    },
+    'Kernel::System::MailQueue' => {
+        CheckEmailAddresses => 0,
     },
 );
+my $HelperObject = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
 
-# ------------------------------------------------------------ #
-# needed objects
-# ------------------------------------------------------------ #
+my $MailQueueObj = $Kernel::OM->Get('Kernel::System::MailQueue');
 
-my $HelperObject    = $Kernel::OM->Get('Kernel::System::UnitTest::Helper');
-my $ConfigObject    = $Kernel::OM->Get('Kernel::Config');
-my $GroupObject     = $Kernel::OM->Get('Kernel::System::Group');
-my $TestEmailObject = $Kernel::OM->Get('Kernel::System::Email::Test');
-my $CalendarObject  = $Kernel::OM->Get('Kernel::System::Calendar');
+my $SendEmails = sub {
+    my %Param = @_;
 
-# ------------------------------------------------------------ #
-# config changes
-# ------------------------------------------------------------ #
+    # Get last item in the queue.
+    my $Items = $MailQueueObj->List();
+    my @ToReturn;
+    for my $Item (@$Items) {
+        $MailQueueObj->Send( %{$Item} );
+        push @ToReturn, $Item->{Message};
+    }
+
+    # Clean the mail queue.
+    $MailQueueObj->Delete();
+
+    return @ToReturn;
+};
+
+# Ensure mail queue is empty before tests start.
+$MailQueueObj->Delete();
+
+# Enable email addresses checking.
+$ConfigObject->Set(
+    Key   => 'CheckEmailAddresses',
+    Value => 1,
+);
 
 # disable rich text editor
 my $Success = $ConfigObject->Set(
@@ -68,9 +90,7 @@ $Self->True(
     "Disable Agent Self Notify On Action",
 );
 
-# ------------------------------------------------------------ #
-# email test backend
-# ------------------------------------------------------------ #
+my $TestEmailObject = $Kernel::OM->Get('Kernel::System::Email::Test');
 
 $Success = $TestEmailObject->CleanUp();
 $Self->True(
@@ -84,22 +104,18 @@ $Self->IsDeeply(
     'Test backend empty after initial cleanup',
 );
 
-# ------------------------------------------------------------ #
-# user create
-# ------------------------------------------------------------ #
-
 # create a new user for current test
 my $UserLogin = $HelperObject->TestUserCreate(
     Groups => ['users'],
 );
+
 my %UserData = $Kernel::OM->Get('Kernel::System::User')->GetUserData(
     User => $UserLogin,
 );
+
 my $UserID = $UserData{UserID};
 
-# ------------------------------------------------------------ #
-# group create
-# ------------------------------------------------------------ #
+my $GroupObject = $Kernel::OM->Get('Kernel::System::Group');
 
 # create test group
 my $GroupID = $GroupObject->GroupAdd(
@@ -133,9 +149,7 @@ $Self->True(
     'Group user add',
 );
 
-# ------------------------------------------------------------ #
-# calendar create
-# ------------------------------------------------------------ #
+my $CalendarObject = $Kernel::OM->Get('Kernel::System::Calendar');
 
 # create calendar and appointment
 my %Calendar = $CalendarObject->CalendarCreate(
@@ -225,6 +239,8 @@ for my $Test (@Tests) {
         UserID => 1,
     );
 
+    $SendEmails->();
+
     my $Emails = $TestEmailObject->EmailsGet();
 
     # remove not needed data
@@ -261,3 +277,5 @@ for my $Test (@Tests) {
 }
 
 1;
+
+# cleanup is done by RestoreDatabase.

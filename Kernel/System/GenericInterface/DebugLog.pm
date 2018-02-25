@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -341,7 +341,7 @@ sub LogGetWithData {
             SQL =>
                 'SELECT create_time, content, debug_level, subject'
                 . ' FROM gi_debugger_entry_content WHERE gi_debugger_entry_id = ?'
-                . ' ORDER BY create_time ASC',
+                . ' ORDER BY create_time ASC, id ASC',
             Bind => [ \$LogData->{LogID} ],
         )
         )
@@ -525,6 +525,7 @@ when the parameter 'WithData' is set, the complete communication chains will be 
         RemoteIP          => '192.168.0.1', # optional, must be valid IPv4 or IPv6 address
         WebserviceID      => 1, # optional
         WithData          => 0, # optional
+        Sort              => 'ASC', # optional. 'ASC' (default) or 'DESC'
     );
 
     $LogData = [
@@ -642,6 +643,18 @@ sub LogSearch {
         );
         return;
     }
+    if (
+        IsStringWithData( $Param{Sort} )
+        && $Param{Sort} ne 'ASC'
+        && $Param{Sort} ne 'DESC'
+        )
+    {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "Sort must be 'DESC' or 'ASC'!",
+        );
+        return;
+    }
 
     # prepare db request
     my $SQL =
@@ -676,7 +689,8 @@ sub LogSearch {
         push @Bind, \$Param{CreatedAtOrBefore};
     }
 
-    $SQLExt .= ' ORDER BY create_time ASC';
+    my $SQLSort = IsStringWithData( $Param{Sort} ) ? $Param{Sort} : 'ASC';
+    $SQLExt .= ' ORDER BY create_time ' . $SQLSort;
 
     # get database object
     my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
@@ -724,6 +738,110 @@ sub LogSearch {
     }
 
     return \@LogEntriesWithData;
+}
+
+=head2 LogCleanup()
+
+removes all log entries (including content) from a given time and before.
+
+returns 1 if successful or undef otherwise
+
+    my $Success = $DebugLogObject->LogCleanup(
+        CreatedAtOrBefore => '2011-12-31 23:59:59',
+    );
+
+=cut
+
+sub LogCleanup {
+    my ( $Self, %Param ) = @_;
+
+    if ( !$Param{CreatedAtOrBefore} ) {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "Need CreatedAtOrBefore",
+        );
+
+        return;
+    }
+
+    if ( $Param{CreatedAtOrBefore} !~ m{ \A \d{4} - \d{2} - \d{2} [ ] \d{2} : \d{2} : \d{2} \z }xms ) {
+
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "CreatedAtOrBefore is not valid!",
+        );
+        return;
+    }
+
+    my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
+    my $Success = $DateTimeObject->Set( String => $Param{CreatedAtOrBefore} );
+    if ( !$Success ) {
+
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => "CreatedAtOrBefore is not valid!",
+        );
+        return;
+    }
+
+    my $DBObject = $Kernel::OM->Get('Kernel::System::DB');
+
+    # Get main debug log entries to delete
+    if (
+        !$DBObject->Prepare(
+            SQL  => 'SELECT id FROM gi_debugger_entry WHERE create_time <= ?',
+            Bind => [ \$Param{CreatedAtOrBefore} ],
+        )
+        )
+    {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => 'Could not prepare db query!',
+        );
+        return;
+    }
+    my @LogEntryIDs;
+    while ( my @Row = $DBObject->FetchrowArray() ) {
+        push @LogEntryIDs, $Row[0];
+    }
+
+    return 1 if !@LogEntryIDs;
+
+    my $LogEntryIDsStr = join ',', @LogEntryIDs;
+
+    # Remove debug log entries contents.
+    if (
+        !$DBObject->Do(
+            SQL => "
+            DELETE FROM gi_debugger_entry_content
+            WHERE gi_debugger_entry_id in( $LogEntryIDsStr )",
+        )
+        )
+    {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => 'Could not remove entries of communication chains in db!',
+        );
+        return;
+    }
+
+    # Remove debug log entries.
+    if (
+        !$DBObject->Do(
+            SQL => "
+            DELETE FROM gi_debugger_entry
+            WHERE id in( $LogEntryIDsStr )",
+        )
+        )
+    {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
+            Priority => 'error',
+            Message  => 'Could not remove communication chains in db!',
+        );
+        return;
+    }
+
+    return 1;
 }
 
 =begin Internal:

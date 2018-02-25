@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2017 OTRS AG, http://otrs.com/
+# Copyright (C) 2001-2018 OTRS AG, http://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (AGPL). If you
@@ -11,13 +11,13 @@ package Kernel::System::Console::Command::Maint::Registration::UpdateSend;
 use strict;
 use warnings;
 
-use base qw(Kernel::System::Console::BaseCommand);
+use parent qw(Kernel::System::Console::BaseCommand);
 
 our @ObjectDependencies = (
+    'Kernel::System::DateTime',
     'Kernel::Config',
     'Kernel::System::Registration',
     'Kernel::System::SystemData',
-    'Kernel::System::Time',
 );
 
 sub Configure {
@@ -28,6 +28,14 @@ sub Configure {
     $Self->AddOption(
         Name        => 'force',
         Description => "Force to execute even if next update time has not been reached yet.",
+        Required    => 0,
+        HasValue    => 0,
+        ValueRegex  => qr/.*/smx,
+    );
+
+    $Self->AddOption(
+        Name        => 'debug',
+        Description => "Output debug information while running.",
         Required    => 0,
         HasValue    => 0,
         ValueRegex  => qr/.*/smx,
@@ -59,31 +67,33 @@ sub Run {
         return $Self->ExitCodeOk();
     }
 
-    my $NextUpdateSystemTime = 0;
-
-    # get time object
-    my $TimeObject = $Kernel::OM->Get('Kernel::System::Time');
+    my $NextUpdateSystemTime;
 
     # if there is a defined NextUpdeTime convert it system time
     if ( $RegistrationData{NextUpdateTime} ) {
-        $NextUpdateSystemTime = $TimeObject->TimeStamp2SystemTime(
-            String => $RegistrationData{NextUpdateTime},
+        $NextUpdateSystemTime = $Kernel::OM->Create(
+            'Kernel::System::DateTime',
+            ObjectParams => {
+                String => $RegistrationData{NextUpdateTime},
+            },
         );
     }
 
-    my $SystemTime = $TimeObject->SystemTime();
+    my $SystemTime = $Kernel::OM->Create('Kernel::System::DateTime');
 
     my $Force = $Self->GetOption('force') || 0;
 
     # do not update registration info before the next update (unless is forced)
-    if ( !$Force && $SystemTime < $NextUpdateSystemTime ) {
+    if ( !$Force && $NextUpdateSystemTime && $SystemTime < $NextUpdateSystemTime ) {
         $Self->Print("No need to send the registration update at this moment, skipping...\n");
         $Self->Print("<green>Done.</green>\n");
         return $Self->ExitCodeOk();
     }
 
     # send the registration update
-    my %Result = $Kernel::OM->Get('Kernel::System::Registration')->RegistrationUpdateSend();
+    my %Result = $Kernel::OM->Get('Kernel::System::Registration')->RegistrationUpdateSend(
+        Debug => $Self->GetOption('debug') || 0,
+    );
 
     # if everything is OK return successfully
     if ( $Result{Success} ) {
@@ -102,9 +112,9 @@ sub Run {
     if ( !$NextUpdateTime || $RegistrationData{NextUpdateTime} eq $NextUpdateTime ) {
 
         # calculate next update time set it in two hours
-        $NextUpdateTime = $TimeObject->SystemTime2TimeStamp(
-            SystemTime => $SystemTime + ( 60 * 60 * 2 ),
-        );
+        $NextUpdateTime = $SystemTime->Clone();
+        $NextUpdateTime->Add( Seconds => 60 * 60 * 2 );
+        $NextUpdateTime = $NextUpdateTime->ToString();
 
         # update or set the NextUpdateTime value
         if ( defined $UpdatedRegistrationData{NextUpdateTime} ) {

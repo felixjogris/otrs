@@ -56,14 +56,68 @@
         height: 0px;
     }
 
-    #ToolBar li,
-    .RTL #ToolBar li {
+    #ToolBar li:not(.UserAvatar),
+    .RTL #ToolBar li:not(.UserAvatar),
+    #ToolBar li.UserAvatar div a,
+    #ToolBar li.UserAvatar div span {
+        float: none;
+        display: inline-block;
+        padding: 8px;
+        margin-bottom: 10px;
+        margin-top: 10px;
+    }
+
+    #ToolBar li.UserAvatar > a,
+    #ToolBar li.UserAvatar div:after,
+    #ToolBar li.UserAvatar div span {
+        display: none;
+    }
+
+    #ToolBar li.UserAvatar {
+        display: inline-block;
         float: none;
         display: inline-block;
         background-color: #444;
         padding: 8px;
         margin-bottom: 10px;
         margin-top: 10px;
+        background: none;
+        width: auto;
+    }
+
+    #ToolBar li.UserAvatar i {
+        display: block !important;
+        color: #f92;
+    }
+
+    #ToolBar li.UserAvatar div a:last-child {
+        padding-bottom: 0px;
+    }
+
+    #ToolBar li.UserAvatar a strong {
+        position: absolute;
+        top: -9999px;
+        left: -9999px;
+    }
+
+    #ToolBar li.UserAvatar {
+        margin: 0px;
+    }
+
+    #ToolBar li.UserAvatar a {
+        width: 24px;
+        height: 34px;
+        margin: 0 5px;
+        float: left;
+        position: relative;
+    }
+
+    #ToolBar li.UserAvatar div {
+        display: inline-block !important;
+        position: static;
+        background: none;
+        width: auto;
+        margin: 0px;
     }
 
     #ToolBar li i {
@@ -107,7 +161,7 @@
 
     #Header #Logo {
         width: 208px !important;
-        background-size: 100%;
+        background-size: contain;
         position: static;
         margin: -2px auto 0px auto;
         background-position: center;
@@ -377,6 +431,13 @@
     fieldset.TableLike > .Row > .FloatingField {
         padding: 0px;
         float: none;
+        margin: 0;
+    }
+
+    body.Popup fieldset.TableLike > .RichTextField,
+    body.RealPopup.RTL fieldset.TableLike > .RichTextField {
+        padding: 0px;
+        margin: 0;
     }
 
     fieldset.TableLike > .Field > select,
@@ -676,12 +737,14 @@
         font-size: 16px;
     }
 
-    #SearchForm, #AgentCustomerInformationCenterSearchForm {
+    #SearchForm, #AgentCustomerInformationCenterSearchForm, #AgentCustomerUserInformationCenterSearchForm {
         width: auto;
     }
 
     #AgentCustomerInformationCenterSearchForm fieldset.TableLike > .Field > input,
-    #AgentCustomerInformationCenterSearchForm fieldset.TableLike > .Row > .Field > input {
+    #AgentCustomerInformationCenterSearchForm fieldset.TableLike > .Row > .Field > input,
+    #AgentCustomerUserInformationCenterSearchForm fieldset.TableLike > .Field > input,
+    #AgentCustomerUserInformationCenterSearchForm fieldset.TableLike > .Row > .Field > input {
         width: 100%;
     }
 
@@ -1108,6 +1171,10 @@
         min-width: 0px;
     }
 
+    .Cluster ul.Actions {
+        margin-right: 35px;
+    }
+
     .Cluster ul ul li {
         display: inline-block;
         border: 0px;
@@ -1127,6 +1194,19 @@
         background: none;
         border-bottom: 2px solid #ff9922;
         padding-bottom: 0px !important;
+    }
+
+    .Cluster .WidgetAction.ArticleView {
+        z-index: 100;
+        background: #f5f5f5;
+        background: #f5f5f5;
+        width: 35px;
+        text-align: center;
+        margin: 0px !important;
+        right: 0px;
+        top: 0px;
+        line-height: 35px;
+        height: 35px;
     }
 
     /* Input Fields */
@@ -1211,6 +1291,12 @@
         border-width: 22px;
         margin-top: -22px;
     }
+
+
+    #OverviewBody.Overview.TicketList {
+        overflow-y:auto;
+    }
+
 
 }
 
