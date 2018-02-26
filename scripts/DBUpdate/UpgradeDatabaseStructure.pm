@@ -102,22 +102,22 @@ sub CheckPreviousRequirement {
 
     # Localize standard output and redirect it to a variable in order to decide whether should it be shown later.
     my $StandardOutput;
-    my $ConnectionCheck;
+    my $DatabaseCheck;
     {
         local *STDOUT = *STDOUT;
         undef *STDOUT;
         open STDOUT, '>:utf8', \$StandardOutput;    ## no critic
 
-        # Check if DB connection is possible.
-        $ConnectionCheck = $Kernel::OM->Get('Kernel::System::Console::Command::Maint::Database::Check')->Execute();
+        # Check if DB connection is possible and other basic database checks.
+        $DatabaseCheck = $Kernel::OM->Get('Kernel::System::Console::Command::Maint::Database::Check')->Execute();
     }
 
     print $StandardOutput if $Verbose;
 
     print "\n" if $Verbose;
 
-    if ( !defined $ConnectionCheck || $ConnectionCheck ne 0 ) {
-        print "\n    Error: Not possible to perform DB connection!\n\n";
+    if ( !defined $DatabaseCheck || $DatabaseCheck ne 0 ) {
+        print "\n    Error: Database check failed!\n\n";
         return;
     }
 

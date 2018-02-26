@@ -4,6 +4,9 @@
  - 2017-12-12 Always require cookies for OTRS login - drop support for non-cookie sessions.
 
 #6.0.6 2018-??-??
+ - 2018-02-26 Fixed bug#[13697](https://bugs.otrs.org/show_bug.cgi?id=13697) - Config ‘SystemMaintenance::TimeNotifyUpcomingMaintenance’ does not work correctly.
+ - 2018-02-26 Fixed bug#[13463](https://bugs.otrs.org/show_bug.cgi?id=13463) - Updating agent data as an admin will delete user preferences.
+ - 2018-02-26 Fixed bug#[13690](https://bugs.otrs.org/show_bug.cgi?id=13690) - Frontend::Module###AgentTicketEmail not hiding split target "Email ticket".
  - 2018-02-23 Fixed bug#[13686](https://bugs.otrs.org/show_bug.cgi?id=13686) - Autocomplete JS config format is wrong in Customer interface.
  - 2018-02-23 Fixed bug#[13669](https://bugs.otrs.org/show_bug.cgi?id=13669) - Agent login interface login button problem.
  - 2018-02-23 Fixed bug#[13610](https://bugs.otrs.org/show_bug.cgi?id=13610) - AgentTicketEmail take wrong Database Credentials.

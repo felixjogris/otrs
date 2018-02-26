@@ -64,14 +64,26 @@ sub Run {
     $Self->Print("<green>Connection successful.</green>\n");
 
     if ( $DBObject->{'DB::Type'} eq 'mysql' ) {
-        $Self->_CheckMySQLDefaultStorageEngine(%Param);
-        $Self->_CheckMySQLInvalidDefaultValues(%Param);
+        if ( !$Self->_CheckMySQLDefaultStorageEngine(%Param) ) {
+            $Check = 0;
+        }
+        if ( !$Self->_CheckMySQLInvalidDefaultValues(%Param) ) {
+            $Check = 0;
+        }
     }
     elsif ( $DBObject->{'DB::Type'} eq 'postgresql' ) {
-        $Self->_CheckPostgresPrimaryKeySequences(%Param);
+        if ( !$Self->_CheckPostgresPrimaryKeySequences(%Param) ) {
+            $Check = 0;
+        }
     }
     elsif ( $DBObject->{'DB::Type'} eq 'oracle' ) {
-        $Self->_CheckOraclePrimaryKeySequencesAndTrigers(%Param);
+        if ( !$Self->_CheckOraclePrimaryKeySequencesAndTrigers(%Param) ) {
+            $Check = 0;
+        }
+    }
+
+    if ( !$Check ) {
+        return $Self->ExitCodeError();
     }
 
     return $Self->ExitCodeOk();
@@ -123,7 +135,7 @@ sub _CheckMySQLDefaultStorageEngine {
         $Error .= "\n\n *** Please correct these problems! *** \n\n";
 
         $Self->PrintError($Error);
-        return $Self->ExitCodeError();
+        return;
     }
 
     return 1;
@@ -213,6 +225,7 @@ sub _CheckMySQLInvalidDefaultValues {
 
     # Repair the default values.
     if ( $Param{Options}->{Repair} ) {
+
         for my $SQL (@SQLRepairStatements) {
             return if !$DBObject->Do( SQL => $SQL );
         }
@@ -223,9 +236,11 @@ sub _CheckMySQLInvalidDefaultValues {
         );
 
         $Self->Print("<green>Done.</green>\n");
+
+        return 1;
     }
 
-    return 1;
+    return;
 }
 
 sub _CheckPostgresPrimaryKeySequences {
@@ -282,6 +297,7 @@ sub _CheckPostgresPrimaryKeySequences {
         my $Error = "The following sequences with possible wrong names have been found. Please rename them manually.\n"
             . join "\n", @WrongSequenceNames;
         $Self->PrintError($Error);
+        return;
     }
 
     return 1;
@@ -372,6 +388,9 @@ sub _CheckOraclePrimaryKeySequencesAndTrigers {
             . join "\n", @WrongTriggerNames;
         $Self->PrintError($Error);
     }
+
+    return if @WrongSequenceNames;
+    return if @WrongTriggerNames;
 
     return 1;
 }
