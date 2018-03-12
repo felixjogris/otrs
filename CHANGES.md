@@ -3,7 +3,35 @@
  - 2017-12-26 Fixed bug#[13402](https://bugs.otrs.org/show_bug.cgi?id=13402) - Target \_blank value is not working for generic notifications.
  - 2017-12-12 Always require cookies for OTRS login - drop support for non-cookie sessions.
 
-#6.0.6 2018-??-??
+#6.0.7 2018-??-??
+- 2018-03-09 Fixed bug#[13723](https://bugs.otrs.org/show_bug.cgi?id=13723) - Wrong navigation group for Ticket::Frontend::CustomerTicketProcess###StateType.
+- 2018-03-09 Fixed bug#[13718](https://bugs.otrs.org/show_bug.cgi?id=13718) - CacheTTLLocal setting for the TicketQueueOverview Dashboard Widget is not used.
+- 2018-03-09 Fixed bug#[13702](https://bugs.otrs.org/show_bug.cgi?id=13702) - Complex LinkObject Table configuration is broken when more than one kind if object is linked.
+- 2018-03-09 Fixed bug#[13578](https://bugs.otrs.org/show_bug.cgi?id=13578) - Untranslated words in Support Data Collector.
+- 2018-03-08 Fixed bug#[13673](https://bugs.otrs.org/show_bug.cgi?id=13673)(PR#1899) - Mandatory fields are not marked as mandatory. Thanks to Balazs Ur.
+- 2018-03-08 Fixed bug#[7988](https://bugs.otrs.org/show_bug.cgi?id=7988) - Search attributes not consistent.
+- 2018-03-07 Fixed bug#[13693](https://bugs.otrs.org/show_bug.cgi?id=13693) - Email causes deadlock in Maint::Postmaster::Read.
+
+#6.0.6 2018-03-13
+ - 2018-03-05 Updated translations, thanks to all translators.
+ - 2018-03-05 Fixed bug#[13713](https://bugs.otrs.org/show_bug.cgi?id=13713) - Dashboard widget 'Appointments' ignores user specific time zone on output.
+ - 2018-03-05 Fixed bug#[13709](https://bugs.otrs.org/show_bug.cgi?id=13709) - SupportDataCollector causes Internal Server Error.
+ - 2018-03-05 Fixed bug#[13708](https://bugs.otrs.org/show_bug.cgi?id=13708) - GenericInterface article EventFilter does not work with ticket data.
+ - 2018-03-05 Fixed Allow array as top-level-XML-Element on REST Response from remote site, thanks to Andreas Hergert (PR#1905).
+ - 2018-03-05 Fixed bug#[13549](https://bugs.otrs.org/show_bug.cgi?id=13549) - Scrolling not possible for some articles on iOS Safari.
+ - 2018-03-01 Reduced warnings thrown by Layout object when BuildSelection is used with TreeView option.
+ - 2018-03-01 Fixed bug#[13703](https://bugs.otrs.org/show_bug.cgi?id=13703) - Complex LinkObject Table broken after successful configuration.
+ - 2018-03-01 Fixed bug#[13687](https://bugs.otrs.org/show_bug.cgi?id=13687) - CustomerIDRaw parameter is empty in Customer View.
+ - 2018-02-28 Fixed bug#[13560](https://bugs.otrs.org/show_bug.cgi?id=13560) - SysConfig added columns for dashboard widgets can't be removed.
+ - 2018-02-28 Fixed bug#[13692](https://bugs.otrs.org/show_bug.cgi?id=13692) - Support Data Collector shows wrong information in OTRS -> Database Records -> Months Between First And Last Ticket / Tickets Per Month (avg).
+ - 2018-02-28 Fixed bug#[13670](https://bugs.otrs.org/show_bug.cgi?id=13670) - FilterLink has to be LinkFilter in ViewModules.
+ - 2018-02-28 Fixed bug#[13643](https://bugs.otrs.org/show_bug.cgi?id=13643) - After CustomerCompanySupport is disabled the customer-user cannot be defined at several places.
+ - 2018-02-28 Follow-up fix for bug#[13596](https://bugs.otrs.org/show_bug.cgi?id=13596) - "S" view in mobile browser cannot be rolled horizontally.
+ - 2018-02-28 Fixed bug#[13706](https://bugs.otrs.org/show_bug.cgi?id=13706) - Empty user configuration files cause internal server error.
+ - 2018-02-28 Fixed bug#[13701](https://bugs.otrs.org/show_bug.cgi?id=13701) - Error Message if attachment is 0.
+ - 2018-02-28 Fixed bug#[13642](https://bugs.otrs.org/show_bug.cgi?id=13642) - Deletion of tickets not possible if automatically created appointments exist for it.
+ - 2018-02-28 Follow-up fix for bug#[12822](https://bugs.otrs.org/show_bug.cgi?id=12822) - SysConfig should make better use of white space.
+ - 2018-02-27 Fixed bug#[13698](https://bugs.otrs.org/show_bug.cgi?id=13698)(PR#1909) - AJAX-Update missing parameter in Customer User Information Center. Thanks to Andreas Hergert.
  - 2018-02-26 Fixed bug#[13697](https://bugs.otrs.org/show_bug.cgi?id=13697) - Config ‘SystemMaintenance::TimeNotifyUpcomingMaintenance’ does not work correctly.
  - 2018-02-26 Fixed bug#[13463](https://bugs.otrs.org/show_bug.cgi?id=13463) - Updating agent data as an admin will delete user preferences.
  - 2018-02-26 Fixed bug#[13690](https://bugs.otrs.org/show_bug.cgi?id=13690) - Frontend::Module###AgentTicketEmail not hiding split target "Email ticket".

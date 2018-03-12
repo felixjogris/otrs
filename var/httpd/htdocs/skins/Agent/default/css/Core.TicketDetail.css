@@ -270,6 +270,7 @@ div.Headline .Flag {
     -webkit-overflow-scrolling: touch;
    margin-left: 75px;
    position: relative;
+   overflow: auto;
 }
 
 #ArticleItems .Incoming .ArticleMailContentHTMLWrapper,
@@ -277,6 +278,10 @@ div.Headline .Flag {
 #ArticleItems .Incoming .ArticleBody {
     margin-left: 0px;
     margin-right: 75px;
+}
+
+body.TouchDevice #ArticleItems .ArticleMailContentHTMLWrapper {
+   overflow-x: scroll;
 }
 
 .Outgoing .ArticleMailContentHTMLWrapper:before,

@@ -60,6 +60,11 @@ sub Run {
             Label      => Translatable("Queues"),
         },
         {
+            SQL        => "SELECT count(*) FROM service",
+            Identifier => 'ServiceCount',
+            Label      => Translatable("Services"),
+        },
+        {
             SQL        => "SELECT count(*) FROM users",
             Identifier => 'AgentCount',
             Label      => Translatable("Agents"),
@@ -168,7 +173,7 @@ sub Run {
                 },
             );
             my $Delta = $NewestCreateTimeObject->Delta( DateTimeObject => $OldestCreateTimeObject );
-            $TicketWindowTime = $Delta->{Months}
+            $TicketWindowTime = ( $Delta->{Years} * 12 ) + $Delta->{Months};
         }
     }
     $TicketWindowTime = 1 if $TicketWindowTime < 1;
